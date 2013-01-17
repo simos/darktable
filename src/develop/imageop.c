@@ -28,6 +28,7 @@
 #include "develop/develop.h"
 #include "develop/blend.h"
 #include "develop/tiling.h"
+#include "develop/masks.h"
 #include "gui/accelerators.h"
 #include "gui/gtk.h"
 #include "gui/presets.h"
@@ -1113,6 +1114,30 @@ dt_iop_gui_duplicate_callback(GtkButton *button, gpointer user_data)
 }
 
 static void
+dt_iop_gui_mask_add_spot(GtkButton *button, gpointer user_data)
+{
+  dt_iop_module_t *module = (dt_iop_module_t *)user_data;
+  
+  //we create the new form
+  dt_masks_form_t *spot = dt_masks_create(DT_MASKS_CIRCLE);
+  dt_masks_init_formgui(module->dev);
+  module->dev->form_visible = spot;
+  module->dev->form_gui->creation = TRUE;
+  /*dt_masks_point_circle_t *circle = (dt_masks_point_circle_t *) malloc(sizeof(dt_masks_point_circle_t));
+  circle->center[0] = circle->center[1] = 0.5f;
+  circle->radius = 0.1f;
+  circle->border = 0.05f;
+  spot->points = g_list_append(spot->points,circle);*/
+  
+  //we add the new form to dev list
+  //module->dev->forms = g_list_append(module->dev->forms,spot);
+  
+  //we add the form to iop blending
+  //dt_develop_blend_add_form(module, spot->formid, DT_BLEND_FORM_SHOW | DT_BLEND_FORM_USE);
+  dt_control_queue_redraw_center();
+}
+
+static void
 dt_iop_gui_multimenu_callback(GtkButton *button, gpointer user_data)
 {
   dt_iop_module_t *module = (dt_iop_module_t *)user_data;
@@ -1144,6 +1169,11 @@ dt_iop_gui_multimenu_callback(GtkButton *button, gpointer user_data)
   gtk_widget_set_sensitive(item, module->multi_show_close);
   gtk_menu_append(menu, item);
 
+  item = gtk_menu_item_new_with_label(_("add circular mask"));
+  //g_object_set(G_OBJECT(item), "tooltip-text", _("delete this instance"), (char *)NULL);
+  g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (dt_iop_gui_mask_add_spot), module);
+  gtk_menu_append(menu, item);
+  
   gtk_widget_show_all(menu);
   //popup
   gtk_menu_popup (GTK_MENU (menu), NULL, NULL, NULL, NULL, 0, gtk_get_current_event_time());
@@ -1525,19 +1555,49 @@ void dt_iop_commit_params(dt_iop_module_t *module, dt_iop_params_t *params, dt_d
     /* construct module params data for hash calc */
     int length = module->params_size;
     if (module->flags() & IOP_FLAGS_SUPPORTS_BLENDING) length += sizeof(dt_develop_blend_params_t);
-
+    for (int i=0; i<blendop_params->forms_count; i++)
+    {
+      dt_masks_form_t *form = dt_masks_get_from_id(module->dev,blendop_params->forms[i]);
+      if (!form) continue;
+      length += sizeof(int)+sizeof(dt_masks_type_t);
+      int nb = g_list_length(form->points);
+      if (form->type == DT_MASKS_CIRCLE) length += nb*sizeof(dt_masks_point_circle_t);
+      else if (form->type == DT_MASKS_BEZIER) length += nb*sizeof(dt_masks_point_bezier_t);
+    }
+    
     char *str = malloc(length);
     memcpy(str, module->params, module->params_size);
-
+    int pos = module->params_size;
     /* if module supports blend op add blend params into account */
     if (module->flags() & IOP_FLAGS_SUPPORTS_BLENDING)
     {
       memcpy(str+module->params_size, blendop_params, sizeof(dt_develop_blend_params_t));
+      pos += sizeof(dt_develop_blend_params_t);
       memcpy(piece->blendop_data, blendop_params, sizeof(dt_develop_blend_params_t));
       // this should be redundant! (but is not)
       memcpy(module->blend_params, blendop_params, sizeof(dt_develop_blend_params_t));
     }
-
+    /* and we add masks */
+    for (int i=0; i<blendop_params->forms_count; i++)
+    {
+      dt_masks_form_t *form = dt_masks_get_from_id(module->dev,blendop_params->forms[i]);
+      if (!form) continue;
+      memcpy(str+pos, &form->type, sizeof(dt_masks_type_t));
+      pos += sizeof(dt_masks_type_t);
+      memcpy(str+pos, &form->version, sizeof(int));
+      pos += sizeof(int);
+      GList *points = g_list_first(form->points);
+      while (points)
+      {
+        int pts = 0;
+        if (form->type == DT_MASKS_CIRCLE) pts = sizeof(dt_masks_point_circle_t);
+        else if (form->type == DT_MASKS_BEZIER) pts = sizeof(dt_masks_point_bezier_t);
+        memcpy(str+pos, points->data, pts);
+        pos += pts;
+        points = g_list_next(points);
+      }      
+    }
+    
     // assume process_cl is ready, commit_params can overwrite this.
     if(module->process_cl) piece->process_cl_ready = 1;
     module->commit_params(module, params, pipe, piece);
@@ -1683,6 +1743,10 @@ void dt_iop_request_focus(dt_iop_module_t *module)
       dt_dev_invalidate_from_gui(darktable.develop);
 
     dt_accel_disconnect_locals_iop(darktable.develop->gui_module);
+    
+    /*reset mask view */
+    darktable.develop->form_visible = NULL;
+    dt_masks_init_formgui(darktable.develop);
   }
 
   darktable.develop->gui_module = module;

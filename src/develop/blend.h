@@ -29,7 +29,7 @@
 #include "develop/pixelpipe.h"
 #include "common/opencl.h"
 
-#define DEVELOP_BLEND_VERSION				(4)
+#define DEVELOP_BLEND_VERSION				(5)
 
 
 #define DEVELOP_BLEND_MASK_FLAG		  0x80
@@ -101,6 +101,13 @@ typedef enum dt_develop_blendif_channels_t
 }
 dt_develop_blendif_channels_t;
 
+typedef enum dt_develop_blend_form_states_t
+{
+  DT_BLEND_FORM_NONE  = 0,
+  DT_BLEND_FORM_USE   = 1,
+  DT_BLEND_FORM_SHOW  = 2
+}
+dt_develop_blend_form_states_t;
 
 /** blend legacy parameters version 1 */
 typedef struct dt_develop_blend_params1_t
@@ -143,6 +150,22 @@ typedef struct dt_develop_blend_params3_t
 }
 dt_develop_blend_params3_t;
 
+typedef struct dt_develop_blend_params4_t
+{
+  /** blending mode */
+  uint32_t mode;
+  /** mixing opacity */
+  float opacity;
+  /** id of mask in current pipeline */
+  uint32_t mask_id;
+  /** blendif mask */
+  uint32_t blendif;
+  /** blur radius */
+  float radius;
+  /** blendif parameters */
+  float blendif_parameters[4*DEVELOP_BLENDIF_SIZE];
+}
+dt_develop_blend_params4_t;
 
 typedef struct dt_develop_blend_params_t
 {
@@ -158,6 +181,13 @@ typedef struct dt_develop_blend_params_t
   float radius;
   /** blendif parameters */
   float blendif_parameters[4*DEVELOP_BLENDIF_SIZE];
+  
+  /** id of masks */
+  double forms[64];
+  /** state of masks */
+  dt_develop_blend_form_states_t forms_state[64];
+  /** number of masks */
+  int forms_count;
 }
 dt_develop_blend_params_t;
 
@@ -226,6 +256,9 @@ typedef struct dt_iop_gui_blend_data_t
   int numberstops[8];
   const dt_iop_gui_blendif_colorstop_t *colorstops[8];
   float increments[8];
+  
+  GtkVBox *form_box;
+  GtkWidget* form_label[64];
 }
 dt_iop_gui_blend_data_t;
 
@@ -261,6 +294,10 @@ int dt_iop_gui_blending_mode_seq(dt_iop_gui_blend_data_t *bd, int mode);
 /** apply blend for opencl modules*/
 int dt_develop_blend_process_cl (struct dt_iop_module_t *self, struct dt_dev_pixelpipe_iop_t *piece, cl_mem dev_in, cl_mem dev_out, const struct dt_iop_roi_t *roi_in, const struct dt_iop_roi_t *roi_out);
 #endif
+
+/** function related to masks */
+int dt_develop_blend_add_form (dt_iop_module_t *module, double id, dt_develop_blend_form_states_t state);
+void dt_iop_gui_blend_setform_callback(GtkWidget *widget, GdkEventButton *e, dt_iop_module_t *data);
 
 #endif
 

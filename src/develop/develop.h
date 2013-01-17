@@ -85,6 +85,11 @@ typedef struct dt_develop_t
   float histogram_max, histogram_pre_tonecurve_max, histogram_pre_levels_max;
   gboolean histogram_linear;
 
+  // list of forms iop can use for masks or whatever
+  GList *forms;
+  struct dt_masks_form_t *form_visible;
+  struct dt_masks_form_gui_t *form_gui;
+  
   /* proxy for communication between plugins and develop/darkroom */
   struct
   {
@@ -227,6 +232,17 @@ int dt_dev_distort_transform_plus(dt_develop_t *dev, struct dt_dev_pixelpipe_t *
 int dt_dev_distort_backtransform_plus(dt_develop_t *dev, struct dt_dev_pixelpipe_t *pipe, int pmin, int pmax, float *points, int points_count);
 /** get the iop_pixelpipe instance corresponding to the iop in the given pipe */
 struct dt_dev_pixelpipe_iop_t *dt_dev_distort_get_iop_pipe(dt_develop_t *dev, struct dt_dev_pixelpipe_t *pipe, struct dt_iop_module_t *module);
+
+/*
+ * distort functions
+ */
+ /** apply all transforms to the specified points (in preview pipe space) */
+int dt_dev_distort_transform(dt_develop_t *dev, float *points, int points_count);
+ /** reverse apply all transforms to the specified points (in preview pipe space) */
+int dt_dev_distort_backtransform(dt_develop_t *dev, float *points, int points_count);
+ /** same fct, but we can specify iop with priority between pmin and pmax */
+int dt_dev_distort_transform_plus(dt_develop_t *dev, struct dt_dev_pixelpipe_t *pipe, int pmin, int pmax, float *points, int points_count);
+int dt_dev_distort_backtransform_plus(dt_develop_t *dev, struct dt_dev_pixelpipe_t *pipe, int pmin, int pmax, float *points, int points_count);
 
 #endif
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh

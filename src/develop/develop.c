@@ -27,6 +27,7 @@
 #include "common/imageio.h"
 #include "common/tags.h"
 #include "common/debug.h"
+#include "develop/masks.h"
 #include "common/similarity.h"
 #include "gui/gtk.h"
 
@@ -388,6 +389,9 @@ void dt_dev_load_image(dt_develop_t *dev, const uint32_t imgid)
   dev->first_load = 1;
   dev->image_dirty = dev->preview_dirty = 1;
 
+  dt_masks_read_forms(dev);
+  dev->form_visible = NULL;
+  
   dev->iop = dt_iop_load_modules(dev);
 
   dt_dev_read_history(dev);
@@ -506,7 +510,7 @@ void dt_dev_add_history_item(dt_develop_t *dev, dt_iop_module_t *module, gboolea
       memcpy(hist->params, module->params, module->params_size);
 
       if(module->flags() & IOP_FLAGS_SUPPORTS_BLENDING)
-        memcpy(hist->blend_params, module->blend_params, sizeof(dt_develop_blend_params_t));
+      memcpy(hist->blend_params, module->blend_params, sizeof(dt_develop_blend_params_t));
 
       // if the user changed stuff and the module is still not enabled, do it:
       if(!hist->enabled && !module->enabled)
@@ -913,7 +917,6 @@ void dt_dev_read_history(dt_develop_t *dev)
     {
       memcpy(hist->blend_params, hist->module->default_blendop_params, sizeof(dt_develop_blend_params_t));
     }
-
     // memcpy(hist->module->params, hist->params, hist->module->params_size);
     // hist->module->enabled = hist->enabled;
     // printf("[dev read history] img %d number %d for operation %d - %s params %f %f\n", sqlite3_column_int(stmt, 0), sqlite3_column_int(stmt, 1), instance, hist->module->op, *(float *)hist->params, *(((float*)hist->params)+1));
