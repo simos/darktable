@@ -1101,11 +1101,37 @@ void dt_iop_gui_blend_setform_callback(GtkWidget *widget, GdkEventButton *e, dt_
   
   if (pos < 0) return;
   
-  int formid = data->blend_params->forms[pos];
-  
-  dt_masks_init_formgui(data->dev);
-  data->dev->form_visible = dt_masks_get_from_id(data->dev,formid);
-  dt_control_queue_redraw_center();
+  if (e->button == 1)
+  {
+    //we set colors
+    GtkContainer *box = GTK_CONTAINER(gtk_widget_get_parent(widget));
+    GList *childs = gtk_container_get_children(box);
+    while(childs)
+    {
+      GtkWidget *w = (GtkWidget *) childs->data;
+      if (w == widget)
+      {
+        GtkStyle *style = gtk_widget_get_style(w);
+        gtk_widget_modify_bg(w, GTK_STATE_SELECTED, &style->bg[GTK_STATE_NORMAL]);
+      }
+      else
+      {
+        gtk_widget_modify_bg(w, GTK_STATE_SELECTED, NULL);
+      }    
+      childs = g_list_next(childs);
+    }
+    
+    
+    int formid = data->blend_params->forms[pos];
+    
+    dt_masks_init_formgui(data->dev);
+    data->dev->form_visible = dt_masks_get_from_id(data->dev,formid);
+    dt_control_queue_redraw_center();
+  }
+  else if (e->button == 3)
+  {
+    
+  }
 }
 
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh

@@ -1747,6 +1747,15 @@ void dt_iop_request_focus(dt_iop_module_t *module)
     /*reset mask view */
     darktable.develop->form_visible = NULL;
     dt_masks_init_formgui(darktable.develop);
+    dt_iop_gui_blend_data_t *bd = (dt_iop_gui_blend_data_t *)darktable.develop->gui_module->blend_data;
+    if (bd)
+    {
+      for (int i=0; i<darktable.develop->gui_module->blend_params->forms_count; i++)
+      {
+        GtkWidget *w = bd->form_label[i];
+        if (w) gtk_widget_modify_bg(w, GTK_STATE_SELECTED, NULL);
+      }
+    }
   }
 
   darktable.develop->gui_module = module;
