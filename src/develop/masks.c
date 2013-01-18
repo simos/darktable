@@ -438,16 +438,16 @@ int dt_masks_mouse_moved (struct dt_iop_module_t *module, double x, double y, in
     gui->posx = pzx*module->dev->preview_pipe->backbuf_width;
     gui->posy = pzy*module->dev->preview_pipe->backbuf_height;
     dt_control_queue_redraw_center();
-    return 0;
+    return 1;
   }
   else if (!gui->creation)
   {
     dt_masks_set_inside(pzx*module->dev->preview_pipe->backbuf_width,pzy*module->dev->preview_pipe->backbuf_height,gui);
     dt_control_queue_redraw_center();
-    if (!gui->selected) return 1;
-    return 0;
+    if (!gui->selected) return 0;
+    return 1;
   }
-  return 1;
+  return 0;
 }
 int dt_masks_button_released (struct dt_iop_module_t *module, double x, double y, int which, uint32_t state)
 {
@@ -485,7 +485,7 @@ int dt_masks_button_released (struct dt_iop_module_t *module, double x, double y
       //we save the move
       dt_dev_add_history_item(darktable.develop, module, TRUE);
       
-      return 0;
+      return 1;
     }
     else if (gui->form_dragging)
     {
@@ -515,9 +515,8 @@ int dt_masks_button_released (struct dt_iop_module_t *module, double x, double y
       //we save the move
       dt_dev_add_history_item(darktable.develop, module, TRUE);
       
-      return 0;
+      return 1;
     }
-    return 1;
   }
   
   return 0;
@@ -541,9 +540,8 @@ int dt_masks_button_pressed (struct dt_iop_module_t *module, double x, double y,
       gui->posy = (pzy + 0.5f)*module->dev->preview_pipe->backbuf_height;
       gui->dx = circle->center[0]*module->dev->preview_pipe->backbuf_width - gui->posx;
       gui->dy = circle->center[1]*module->dev->preview_pipe->backbuf_height - gui->posy;
-      return 0;
+      return 1;
     }
-    return 1;
   }
   
   return 0;
@@ -561,14 +559,14 @@ int dt_masks_scrolled (struct dt_iop_module_t *module, double x, double y, int u
       if (gui->border_selected)
       {
         if(up && circle->border > 0.002f) circle->border *= 0.9f;
-        else  if(circle->border < 0.1f  ) circle->border *= 1.0f/0.9f;
+        else  if(circle->border < 1.0f  ) circle->border *= 1.0f/0.9f;
         dt_masks_write_form(form,module->dev);
         _gui_form_update_border(module,form,gui);
       }
       else
       {
         if(up && circle->radius > 0.002f) circle->radius *= 0.9f;
-        else  if(circle->radius < 0.1f  ) circle->radius *= 1.0f/0.9f;
+        else  if(circle->radius < 1.0f  ) circle->radius *= 1.0f/0.9f;
         dt_masks_write_form(form,module->dev);
         _gui_form_remove(module,form,gui);
         _gui_form_create(module,form,gui);

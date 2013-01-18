@@ -1649,17 +1649,14 @@ void dt_develop_blend_process (struct dt_iop_module_t *self, struct dt_dev_pixel
 
   /* allocate space for blend mask */
   float *mask = dt_alloc_align(64, roi_out->width*roi_out->height*sizeof(float));
-  memset(mask,0,roi_out->width*roi_out->height*sizeof(float));
   if(!mask)
   {
     dt_control_log("could not allocate buffer for blending");
     return;
   }
+  memset(mask,0,roi_out->width*roi_out->height*sizeof(float));
   
   //NOTE : add openmp pragma...
-  
-  /* set all masks to full opacity = 1.0f */
-  //for (int i=0; i<roi_out->width*roi_out->height; i++) mask[i] = 1.0f;
   
   /* apply masks if there's some */
   for (int i=0; i<self->blend_params->forms_count; i++)
@@ -1677,14 +1674,14 @@ void dt_develop_blend_process (struct dt_iop_module_t *self, struct dt_dev_pixel
     int fxx = fx;
     int fww = fw;
     if (fxx>roi_out->width) continue;
-    if (fxx<0) fww += fx, fxx=0;
-    if (fww+fxx>=roi_out->width) fww = roi_out->width-fxx-1;
+    if (fxx<roi_out->x) fww += fx-roi_out->x, fxx=roi_out->x;
+    if (fww+fxx>=roi_out->width+roi_out->x) fww = roi_out->width+roi_out->x-fxx-1;
     //we apply the mask row by row
     for (int yy=fy; yy<fy+fh; yy++)
     {
-      if (yy<0 || yy>=roi_out->height) continue;
-      //we just do a memcopy, but it may be better (but slower) to compute each point if we have intersecting masks
-      memcpy(mask+yy*roi_out->width+fxx,fm+(yy-fy)*fw,sizeof(float)*fww);
+      if (yy<roi_out->y || yy>=roi_out->height+roi_out->y) continue;
+      for (int xx=fxx; xx<fxx+fww; xx++) 
+        mask[(yy-roi_out->y)*roi_out->width+xx-roi_out->x] = fmaxf(mask[(yy-roi_out->y)*roi_out->width+xx-roi_out->x],fm[(yy-fy)*fw+xx-fx]);
     }
     
     //we free the mask
