@@ -66,7 +66,7 @@ typedef struct dt_masks_form_t
   //name of the form
   char name[128];
   //id used to store the form
-  double formid;  
+  int formid;  
   //version of the form
   int version;
 }
@@ -91,7 +91,7 @@ typedef struct dt_masks_form_gui_t
   gboolean creation;
   
   //ids
-  double formid;
+  int formid;
   uint64_t pipe_hash;
 }
 dt_masks_form_gui_t;
@@ -110,7 +110,7 @@ int dt_masks_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_t *pipe, int wd,
 /** we create a completly new form. */
 dt_masks_form_t *dt_masks_create(dt_masks_type_t type);
 /** retrieve a form with is id */
-dt_masks_form_t *dt_masks_get_from_id(dt_develop_t *dev, double id);
+dt_masks_form_t *dt_masks_get_from_id(dt_develop_t *dev, int id);
 
 /** read the forms from the db */
 void dt_masks_read_forms(dt_develop_t *dev);

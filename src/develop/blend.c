@@ -2091,7 +2091,7 @@ dt_develop_blend_legacy_params (dt_iop_module_t *module, const void *const old_p
   return 1;
 }
 
-int dt_develop_blend_add_form (dt_iop_module_t *module, double id, dt_develop_blend_form_states_t state)
+int dt_develop_blend_add_form (dt_iop_module_t *module, int id, dt_develop_blend_form_states_t state)
 {
   dt_iop_gui_blend_data_t *bd = (dt_iop_gui_blend_data_t*)module->blend_data;
   dt_masks_form_t *form = dt_masks_get_from_id(module->dev,id);

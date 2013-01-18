@@ -183,7 +183,7 @@ typedef struct dt_develop_blend_params_t
   float blendif_parameters[4*DEVELOP_BLENDIF_SIZE];
   
   /** id of masks */
-  double forms[64];
+  int forms[64];
   /** state of masks */
   dt_develop_blend_form_states_t forms_state[64];
   /** number of masks */
@@ -296,7 +296,7 @@ int dt_develop_blend_process_cl (struct dt_iop_module_t *self, struct dt_dev_pix
 #endif
 
 /** function related to masks */
-int dt_develop_blend_add_form (dt_iop_module_t *module, double id, dt_develop_blend_form_states_t state);
+int dt_develop_blend_add_form (dt_iop_module_t *module, int id, dt_develop_blend_form_states_t state);
 void dt_iop_gui_blend_setform_callback(GtkWidget *widget, GdkEventButton *e, dt_iop_module_t *data);
 
 #endif

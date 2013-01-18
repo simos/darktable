@@ -1319,7 +1319,7 @@ int dt_exif_xmp_read (dt_image_t *img, const char* filename, const int history_o
           DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db),"insert into mask (imgid, formid, form, name, version, points, points_count) "
                                                             "values (?1, ?2, ?3, ?4, ?5, ?6, ?7)", -1, &stmt, NULL);
           DT_DEBUG_SQLITE3_BIND_INT(stmt, 1, img->id);
-          DT_DEBUG_SQLITE3_BIND_DOUBLE(stmt, 2, mask_id->toFloat(i));
+          DT_DEBUG_SQLITE3_BIND_INT(stmt, 2, mask_id->toLong(i));
           DT_DEBUG_SQLITE3_BIND_INT(stmt, 3, mask_type->toLong(i));
           if(mask_name->toString(i).c_str() != NULL)
           {
@@ -1633,8 +1633,8 @@ dt_exif_xmp_read_data(Exiv2::XmpData &xmpData, const int imgid)
   DT_DEBUG_SQLITE3_BIND_INT(stmt, 1, imgid);
   while(sqlite3_step(stmt) == SQLITE_ROW)
   {
-    double mask_id = sqlite3_column_double(stmt, 1);
-    snprintf(val, 2048, "%f", mask_id);
+    int32_t mask_id = sqlite3_column_int(stmt, 1);
+    snprintf(val, 2048, "%d", mask_id);
     tvm.read(val);
     snprintf(key, 1024, "Xmp.darktable.mask_id[%d]", num);
     xmpData.add(Exiv2::XmpKey(key), &tvm);

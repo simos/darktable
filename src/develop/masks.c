@@ -193,16 +193,14 @@ dt_masks_form_t *dt_masks_create(dt_masks_type_t type)
   dt_masks_form_t *form = (dt_masks_form_t *)malloc(sizeof(dt_masks_form_t));
   form->type = type;
   
-  struct timeval tv;
-  gettimeofday(&tv,NULL);
-  form->formid = tv.tv_sec*1000000.0+tv.tv_usec;
+  form->formid = time(NULL);
   
   form->points = NULL;
   
   return form;
 }
 
-dt_masks_form_t *dt_masks_get_from_id(dt_develop_t *dev, double id)
+dt_masks_form_t *dt_masks_get_from_id(dt_develop_t *dev, int id)
 {
   GList *forms = g_list_first(dev->forms);
   while (forms)
@@ -231,7 +229,7 @@ void dt_masks_read_forms(dt_develop_t *dev)
     
     //we get the values
     dt_masks_form_t *form = (dt_masks_form_t *)malloc(sizeof(dt_masks_form_t));
-    form->formid = sqlite3_column_double(stmt, 1);
+    form->formid = sqlite3_column_int(stmt, 1);
     form->type = sqlite3_column_int(stmt, 2);
     const char *name = (const char *)sqlite3_column_text(stmt, 3);
     snprintf(form->name,128,"%s",name);
@@ -264,14 +262,14 @@ void dt_masks_write_form(dt_masks_form_t *form, dt_develop_t *dev)
   sqlite3_stmt *stmt;
   DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db), "delete from mask where imgid = ?1 and formid = ?2", -1, &stmt, NULL);
   DT_DEBUG_SQLITE3_BIND_INT(stmt, 1, dev->image_storage.id);
-  DT_DEBUG_SQLITE3_BIND_DOUBLE(stmt, 2, form->formid);
+  DT_DEBUG_SQLITE3_BIND_INT(stmt, 2, form->formid);
   sqlite3_step(stmt);
   sqlite3_finalize (stmt);
   
   //and we write the form
   DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db), "insert into mask (imgid, formid, form, name, version, points, points_count) values (?1, ?2, ?3, ?4, ?5, ?6, ?7)", -1, &stmt, NULL);
   DT_DEBUG_SQLITE3_BIND_INT(stmt, 1, dev->image_storage.id);
-  DT_DEBUG_SQLITE3_BIND_DOUBLE(stmt, 2, form->formid);
+  DT_DEBUG_SQLITE3_BIND_INT(stmt, 2, form->formid);
   DT_DEBUG_SQLITE3_BIND_INT(stmt, 3, form->type);
   DT_DEBUG_SQLITE3_BIND_TEXT(stmt, 4, form->name, strlen(form->name), SQLITE_TRANSIENT);
   DT_DEBUG_SQLITE3_BIND_INT(stmt, 5, form->version);
@@ -307,7 +305,7 @@ void dt_masks_write_forms(dt_develop_t *dev)
 
     DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db), "insert into mask (imgid, formid, form, name, version, points, points_count) values (?1, ?2, ?3, ?4, ?5, ?6, ?7)", -1, &stmt, NULL);
     DT_DEBUG_SQLITE3_BIND_INT(stmt, 1, dev->image_storage.id);
-    DT_DEBUG_SQLITE3_BIND_DOUBLE(stmt, 2, form->formid);
+    DT_DEBUG_SQLITE3_BIND_INT(stmt, 2, form->formid);
     DT_DEBUG_SQLITE3_BIND_INT(stmt, 3, form->type);
     DT_DEBUG_SQLITE3_BIND_TEXT(stmt, 4, form->name, strlen(form->name), SQLITE_TRANSIENT);
     DT_DEBUG_SQLITE3_BIND_INT(stmt, 5, form->version);

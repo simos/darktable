@@ -1101,7 +1101,7 @@ void dt_iop_gui_blend_setform_callback(GtkWidget *widget, GdkEventButton *e, dt_
   
   if (pos < 0) return;
   
-  double formid = data->blend_params->forms[pos];
+  int formid = data->blend_params->forms[pos];
   
   dt_masks_init_formgui(data->dev);
   data->dev->form_visible = dt_masks_get_from_id(data->dev,formid);
