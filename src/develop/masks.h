@@ -117,7 +117,7 @@ void dt_masks_read_forms(dt_develop_t *dev);
 /** write the forms into the db */
 void dt_masks_write_form(dt_masks_form_t *form, dt_develop_t *dev);
 void dt_masks_write_forms(dt_develop_t *dev);
-
+void dt_masks_free_form(dt_masks_form_t *form);
 
 /** function used to manipulate forms for masks */
 void dt_masks_init_formgui(dt_develop_t *dev);

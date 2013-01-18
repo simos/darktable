@@ -192,7 +192,7 @@ dt_masks_form_t *dt_masks_create(dt_masks_type_t type)
 {
   dt_masks_form_t *form = (dt_masks_form_t *)malloc(sizeof(dt_masks_form_t));
   form->type = type;
-  
+  form->version = 1;
   form->formid = time(NULL);
   
   form->points = NULL;
@@ -311,7 +311,8 @@ void dt_masks_write_forms(dt_develop_t *dev)
     DT_DEBUG_SQLITE3_BIND_INT(stmt, 5, form->version);
     if (form->type == DT_MASKS_CIRCLE)
     {
-      DT_DEBUG_SQLITE3_BIND_BLOB(stmt, 6, form->points, sizeof(dt_masks_point_circle_t), SQLITE_TRANSIENT);
+      dt_masks_point_circle_t *c = (dt_masks_point_circle_t *)g_list_first(form->points)->data;
+      DT_DEBUG_SQLITE3_BIND_BLOB(stmt, 6, c, sizeof(dt_masks_point_circle_t), SQLITE_TRANSIENT);
       DT_DEBUG_SQLITE3_BIND_INT(stmt, 7, 1);
     }
     else if (form->type == DT_MASKS_BEZIER)
@@ -325,6 +326,20 @@ void dt_masks_write_forms(dt_develop_t *dev)
   }  
 }
 
+void dt_masks_free_form(dt_masks_form_t *form)
+{
+  if (!form) return;
+  GList *points = g_list_first(form->points);
+  while(points)
+  {
+    free(points->data);
+    points->data = NULL;
+    points = g_list_next(points);
+  }
+  g_list_free(form->points);
+  free(form);
+  form = NULL;
+}
 
 static void _gui_form_create(dt_iop_module_t *module, dt_masks_form_t *form, dt_masks_form_gui_t *gui)
 {

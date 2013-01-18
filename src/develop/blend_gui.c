@@ -1093,23 +1093,89 @@ void dt_iop_gui_init_blending(GtkWidget *iopw, dt_iop_module_t *module)
   }
 }
 
+static void _mask_delete(GtkButton *button, dt_iop_module_t *data)
+{
+  //first, we need to retrieve the form position
+  int pos = -1;
+  pos = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(button), "form"));
+  if (pos < 0) return;
+  
+  int formid = data->blend_params->forms[pos];
+  //if the form is selected, we deselect it
+  if (data->dev->form_visible)
+  {
+    if (data->dev->form_visible->formid == formid)
+    {
+      data->dev->form_visible = NULL;
+      dt_masks_init_formgui(data->dev);
+      dt_control_queue_redraw_center();
+    }
+  }
+  
+  //we remove the form from the module
+  data->blend_params->forms_count--;
+  for (int i=pos; i<data->blend_params->forms_count; i++) data->blend_params->forms[i] = data->blend_params->forms[i+1];
+  dt_iop_gui_blend_data_t *bd = (dt_iop_gui_blend_data_t *)data->blend_data;
+  gtk_widget_destroy(bd->form_label[pos]);
+  for (int i=pos; i<data->blend_params->forms_count; i++) bd->form_label[i] = bd->form_label[i+1];
+  
+  dt_dev_add_history_item(darktable.develop, data, TRUE);
+  
+  //we search if the form is still used
+  GList *modules = g_list_first(data->dev->iop);
+  while(modules)
+  {
+    dt_iop_module_t *module = (dt_iop_module_t *)modules->data;
+    if (module)
+    {
+      if (module->blend_params)
+      {
+        for (int i=0; i<module->blend_params->forms_count; i++)
+        {
+          if (module->blend_params->forms[i] == formid) return;
+        }
+      }
+    }
+    modules = g_list_next(modules);
+  }
+ 
+  //we completly remove the form if not used anymore
+  dt_masks_form_t *form = dt_masks_get_from_id(data->dev,formid);
+  if (form)
+  {
+    data->dev->forms = g_list_remove(data->dev->forms, form);
+    dt_masks_free_form(form);
+    dt_masks_write_forms(data->dev);
+  }
+}
+
 void dt_iop_gui_blend_setform_callback(GtkWidget *widget, GdkEventButton *e, dt_iop_module_t *data)
 {
   //first, we need to retrieve the form position
   int pos = -1;
   pos = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(widget), "form"));
-  
   if (pos < 0) return;
   
   if (e->button == 1)
   {
+    int formid = data->blend_params->forms[pos];
+    int selected = 0;
+    if (data->dev->form_visible)
+    {
+      if (data->dev->form_visible->formid == formid)
+      {
+        data->dev->form_visible = NULL;
+        dt_masks_init_formgui(data->dev);
+        selected = 1;
+      }
+    }
     //we set colors
     GtkContainer *box = GTK_CONTAINER(gtk_widget_get_parent(widget));
     GList *childs = gtk_container_get_children(box);
     while(childs)
     {
       GtkWidget *w = (GtkWidget *) childs->data;
-      if (w == widget)
+      if (w == widget && selected == 0)
       {
         GtkStyle *style = gtk_widget_get_style(w);
         gtk_widget_modify_bg(w, GTK_STATE_SELECTED, &style->bg[GTK_STATE_NORMAL]);
@@ -1119,18 +1185,28 @@ void dt_iop_gui_blend_setform_callback(GtkWidget *widget, GdkEventButton *e, dt_
         gtk_widget_modify_bg(w, GTK_STATE_SELECTED, NULL);
       }    
       childs = g_list_next(childs);
+    }   
+    
+    if (selected == 0)
+    {
+      dt_masks_init_formgui(data->dev);
+      data->dev->form_visible = dt_masks_get_from_id(data->dev,formid);
     }
-    
-    
-    int formid = data->blend_params->forms[pos];
-    
-    dt_masks_init_formgui(data->dev);
-    data->dev->form_visible = dt_masks_get_from_id(data->dev,formid);
     dt_control_queue_redraw_center();
   }
   else if (e->button == 3)
   {
+    GtkWidget *menu = gtk_menu_new();
+    GtkWidget *item;
+  
+    item = gtk_menu_item_new_with_label(_("delete"));
+    g_object_set_data(G_OBJECT(item), "form", GUINT_TO_POINTER(pos));
+    g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (_mask_delete), data);
+    gtk_menu_append(menu, item);
     
+    gtk_widget_show_all(menu);
+    //popup
+    gtk_menu_popup (GTK_MENU (menu), NULL, NULL, NULL, NULL, 0, gtk_get_current_event_time());
   }
 }
 
