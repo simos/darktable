@@ -1114,33 +1114,6 @@ dt_iop_gui_duplicate_callback(GtkButton *button, gpointer user_data)
 }
 
 static void
-dt_iop_gui_mask_add_spot(GtkButton *button, gpointer user_data)
-{
-  dt_iop_module_t *module = (dt_iop_module_t *)user_data;
-  
-  //we create the new form
-  dt_masks_form_t *spot = dt_masks_create(DT_MASKS_CIRCLE);
-  dt_masks_init_formgui(module->dev);
-  module->dev->form_visible = spot;
-  module->dev->form_gui->creation = TRUE;
-
-  //we remove visible selection on labels if any
-  dt_iop_gui_blend_data_t *bd = (dt_iop_gui_blend_data_t *)module->blend_data;
-  if (bd)
-  {
-    GList *childs = gtk_container_get_children(GTK_CONTAINER(bd->form_box));
-    while(childs)
-    {
-      GtkWidget *w = (GtkWidget *) childs->data;
-      gtk_widget_modify_bg(w, GTK_STATE_SELECTED, NULL);  
-      childs = g_list_next(childs);
-    } 
-  }
-  
-  dt_control_queue_redraw_center();
-}
-
-static void
 dt_iop_gui_multimenu_callback(GtkButton *button, gpointer user_data)
 {
   dt_iop_module_t *module = (dt_iop_module_t *)user_data;
@@ -1172,9 +1145,7 @@ dt_iop_gui_multimenu_callback(GtkButton *button, gpointer user_data)
   gtk_widget_set_sensitive(item, module->multi_show_close);
   gtk_menu_append(menu, item);
 
-  item = gtk_menu_item_new_with_label(_("add circular mask"));
-  //g_object_set(G_OBJECT(item), "tooltip-text", _("delete this instance"), (char *)NULL);
-  g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (dt_iop_gui_mask_add_spot), module);
+  item = dt_masks_gui_get_menu(module);
   gtk_menu_append(menu, item);
   
   gtk_widget_show_all(menu);

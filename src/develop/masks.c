@@ -725,6 +725,143 @@ void dt_masks_init_formgui(dt_develop_t *dev)
   dev->form_gui->creation = FALSE;
 }
 
+static void _menu_form_add_circle(GtkButton *button, dt_iop_module_t *module)
+{  
+  //we create the new form
+  dt_masks_form_t *spot = dt_masks_create(DT_MASKS_CIRCLE);
+  dt_masks_init_formgui(module->dev);
+  module->dev->form_visible = spot;
+  module->dev->form_gui->creation = TRUE;
+
+  //we remove visible selection on labels if any
+  dt_iop_gui_blend_data_t *bd = (dt_iop_gui_blend_data_t *)module->blend_data;
+  if (bd)
+  {
+    GList *childs = gtk_container_get_children(GTK_CONTAINER(bd->form_box));
+    while(childs)
+    {
+      GtkWidget *w = (GtkWidget *) childs->data;
+      gtk_widget_modify_bg(w, GTK_STATE_SELECTED, NULL);  
+      childs = g_list_next(childs);
+    } 
+  }
+  
+  dt_control_queue_redraw_center();
+}
+
+static void _menu_form_add_existing(GtkButton *button, dt_iop_module_t *module)
+{  
+  //we get the new form
+  int formid = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(button), "formid"));
+  dt_masks_form_t *form = dt_masks_get_from_id(module->dev,formid);
+  if (!form) return;
+  
+  //we select the new form
+  dt_masks_init_formgui(module->dev);
+  module->dev->form_visible = form;
+
+  //we remove visible selection on labels if any
+  dt_iop_gui_blend_data_t *bd = (dt_iop_gui_blend_data_t *)module->blend_data;
+  if (bd)
+  {
+    GList *childs = gtk_container_get_children(GTK_CONTAINER(bd->form_box));
+    while(childs)
+    {
+      GtkWidget *w = (GtkWidget *) childs->data;
+      gtk_widget_modify_bg(w, GTK_STATE_SELECTED, NULL);  
+      childs = g_list_next(childs);
+    } 
+  }
+  
+  //update params
+  int forms_count = module->blend_params->forms_count;
+  module->blend_params->forms[forms_count] = form->formid;
+  module->blend_params->forms_state[forms_count] = DT_BLEND_FORM_SHOW | DT_BLEND_FORM_USE;
+  dt_masks_write_form(form,module->dev);
+  
+  //update gui
+  bd->form_label[forms_count] = gtk_event_box_new();
+  gtk_container_add(GTK_CONTAINER(bd->form_label[forms_count]), gtk_label_new(form->name));
+  gtk_widget_show_all(bd->form_label[forms_count]);
+  g_object_set_data(G_OBJECT(bd->form_label[forms_count]), "form", GUINT_TO_POINTER(forms_count));
+  gtk_box_pack_start(GTK_BOX(bd->form_box), bd->form_label[forms_count], TRUE, TRUE,0);
+  g_signal_connect(G_OBJECT(bd->form_label[forms_count]), "button-press-event", G_CALLBACK(dt_iop_gui_blend_setform_callback), module);
+  GtkStyle *style = gtk_widget_get_style(bd->form_label[forms_count]);
+  gtk_widget_modify_bg(bd->form_label[forms_count], GTK_STATE_SELECTED, &style->bg[GTK_STATE_NORMAL]);
+  
+  module->blend_params->forms_count++;  
+  module->dev->form_gui->formid = form->formid;
+  
+  dt_dev_add_history_item(darktable.develop, module, TRUE);
+  dt_control_queue_redraw_center();
+}
+
+GtkWidget *dt_masks_gui_get_menu(struct dt_iop_module_t *module)
+{
+  GtkWidget *menu = gtk_menu_new();
+  GtkWidget *item;
+
+  //add forms
+  item = gtk_menu_item_new_with_label(_("add circular mask"));
+  g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (_menu_form_add_circle), module);
+  gtk_menu_append(menu, item);
+  item = gtk_menu_item_new_with_label(_("add curve mask"));
+  //g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (_menu_form_add_bezier), module);
+  gtk_menu_append(menu, item);
+  
+  //separator
+  item = gtk_separator_menu_item_new();
+  gtk_menu_append(menu, item);
+  
+  //existing forms
+  GList *forms = g_list_first(module->dev->forms);
+  while (forms)
+  {
+    dt_masks_form_t *form = (dt_masks_form_t *)forms->data;
+    char str[10000] = "";
+    strcat(str,form->name);
+    int nbuse = 0;
+    
+    //we search were this form is used TODO
+    GList *modules = g_list_first(module->dev->iop);
+    while (modules)
+    {
+      dt_iop_module_t *m = (dt_iop_module_t *)modules->data;
+      if (m->blend_params)
+      {
+        for (int i=0; i<m->blend_params->forms_count; i++)
+        {
+          if (m->blend_params->forms[i] == form->formid)
+          {
+            if (nbuse==0) strcat(str," (");
+            strcat(str," ");
+            strcat(str,m->name());
+            nbuse++;
+          }
+        }
+      }
+      modules = g_list_next(modules);
+    }
+    if (nbuse>0) strcat(str," )");
+    
+    //we add the menu entry
+    item = gtk_menu_item_new_with_label(str);
+    g_object_set_data(G_OBJECT(item), "formid", GUINT_TO_POINTER(form->formid));
+    g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (_menu_form_add_existing), module);
+    gtk_menu_append(menu, item);
+  
+    forms = g_list_next(forms);
+  }
+  
+  gtk_widget_show_all(menu);
+
+  //we now create the main entry
+  item = gtk_menu_item_new_with_label(_("masks"));
+  gtk_menu_item_set_submenu(GTK_MENU_ITEM(item),menu);
+  gtk_widget_show_all(item);
+  return item;
+}
+
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
 // vim: shiftwidth=2 expandtab tabstop=2 cindent
 // kate: tab-indents: off; indent-width 2; replace-tabs on; indent-mode cstyle; remove-trailing-space on;

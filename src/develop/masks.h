@@ -131,6 +131,10 @@ void dt_masks_post_expose (struct dt_iop_module_t *module, cairo_t *cr, int32_t 
 /** function to know if a point is inside a form return 1 if inside, 2 if inside border, 0 else*/
 void dt_masks_set_inside(float x, int y, dt_masks_form_gui_t *gui);
 
+
+/** return the mask menu */
+GtkWidget *dt_masks_gui_get_menu(struct dt_iop_module_t *module);
+
 #endif
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
 // vim: shiftwidth=2 expandtab tabstop=2 cindent
