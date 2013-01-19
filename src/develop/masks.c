@@ -414,8 +414,10 @@ static void _gui_form_save_creation(dt_iop_module_t *module, dt_masks_form_t *fo
   gtk_container_add(GTK_CONTAINER(bd->form_label[forms_count]), gtk_label_new(form->name));
   gtk_widget_show_all(bd->form_label[forms_count]);
   g_object_set_data(G_OBJECT(bd->form_label[forms_count]), "form", GUINT_TO_POINTER(forms_count));
-  gtk_box_pack_end(GTK_BOX(bd->form_box), bd->form_label[forms_count], TRUE, TRUE,0);
+  gtk_box_pack_start(GTK_BOX(bd->form_box), bd->form_label[forms_count], TRUE, TRUE,0);
   g_signal_connect(G_OBJECT(bd->form_label[forms_count]), "button-press-event", G_CALLBACK(dt_iop_gui_blend_setform_callback), module);
+  GtkStyle *style = gtk_widget_get_style(bd->form_label[forms_count]);
+  gtk_widget_modify_bg(bd->form_label[forms_count], GTK_STATE_SELECTED, &style->bg[GTK_STATE_NORMAL]);
   
   module->blend_params->forms_count++;
   
@@ -456,38 +458,7 @@ int dt_masks_button_released (struct dt_iop_module_t *module, double x, double y
   
   if (form->type == DT_MASKS_CIRCLE)
   {
-    if (gui->creation)
-    {
-      //we create the circle
-      dt_masks_point_circle_t *circle = (dt_masks_point_circle_t *) (malloc(sizeof(dt_masks_point_circle_t)));
-      
-      //we change the center value
-      float pzx, pzy;
-      dt_dev_get_pointer_zoom_pos(module->dev, x, y, &pzx, &pzy);
-      pzx += 0.5f;
-      pzy += 0.5f;
-      float wd = module->dev->preview_pipe->backbuf_width;
-      float ht = module->dev->preview_pipe->backbuf_height;
-      float pts[2] = {pzx*wd,pzy*ht};
-      dt_dev_distort_backtransform(module->dev,pts,1);
-      circle->center[0] = pts[0]/module->dev->preview_pipe->iwidth;
-      circle->center[1] = pts[1]/module->dev->preview_pipe->iheight;
-      circle->radius = 0.1f;
-      circle->border = 0.05f;
-      form->points = g_list_append(form->points,circle);
-      
-      _gui_form_save_creation(module,form,gui);
-      
-      //we recreate the form points
-      _gui_form_remove(module,form,gui);
-      _gui_form_create(module,form,gui);
-      
-      //we save the move
-      dt_dev_add_history_item(darktable.develop, module, TRUE);
-      
-      return 1;
-    }
-    else if (gui->form_dragging)
+    if (gui->form_dragging)
     {
       //we get the circle
       dt_masks_point_circle_t *circle = (dt_masks_point_circle_t *) (g_list_first(form->points)->data);
@@ -540,6 +511,37 @@ int dt_masks_button_pressed (struct dt_iop_module_t *module, double x, double y,
       gui->posy = (pzy + 0.5f)*module->dev->preview_pipe->backbuf_height;
       gui->dx = circle->center[0]*module->dev->preview_pipe->backbuf_width - gui->posx;
       gui->dy = circle->center[1]*module->dev->preview_pipe->backbuf_height - gui->posy;
+      return 1;
+    }
+    else if (gui->creation)
+    {
+      //we create the circle
+      dt_masks_point_circle_t *circle = (dt_masks_point_circle_t *) (malloc(sizeof(dt_masks_point_circle_t)));
+      
+      //we change the center value
+      float pzx, pzy;
+      dt_dev_get_pointer_zoom_pos(module->dev, x, y, &pzx, &pzy);
+      pzx += 0.5f;
+      pzy += 0.5f;
+      float wd = module->dev->preview_pipe->backbuf_width;
+      float ht = module->dev->preview_pipe->backbuf_height;
+      float pts[2] = {pzx*wd,pzy*ht};
+      dt_dev_distort_backtransform(module->dev,pts,1);
+      circle->center[0] = pts[0]/module->dev->preview_pipe->iwidth;
+      circle->center[1] = pts[1]/module->dev->preview_pipe->iheight;
+      circle->radius = 0.1f;
+      circle->border = 0.05f;
+      form->points = g_list_append(form->points,circle);
+      
+      _gui_form_save_creation(module,form,gui);
+      
+      //we recreate the form points
+      _gui_form_remove(module,form,gui);
+      _gui_form_create(module,form,gui);
+      
+      //we save the move
+      dt_dev_add_history_item(darktable.develop, module, TRUE);
+      
       return 1;
     }
   }
