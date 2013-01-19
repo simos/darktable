@@ -1675,7 +1675,7 @@ void dt_develop_blend_process (struct dt_iop_module_t *self, struct dt_dev_pixel
     //we don't want row which are outisde the roi_out
     int fxx = fx;
     int fww = fw;
-    if (fxx>roi_out->width) continue;
+    if (fxx>roi_out->width+roi_out->x) continue;
     if (fxx<roi_out->x) fww += fx-roi_out->x, fxx=roi_out->x;
     if (fww+fxx>=roi_out->width+roi_out->x) fww = roi_out->width+roi_out->x-fxx-1;
     //we apply the mask row by row
@@ -1892,7 +1892,7 @@ dt_develop_blend_process_cl (struct dt_iop_module_t *self, struct dt_dev_pixelpi
     //we don't want row which are outisde the roi_out
     int fxx = fx;
     int fww = fw;
-    if (fxx>roi_out->width) continue;
+    if (fxx>roi_out->width+roi_out->x) continue;
     if (fxx<roi_out->x) fww += fx-roi_out->x, fxx=roi_out->x;
     if (fww+fxx>=roi_out->width+roi_out->x) fww = roi_out->width+roi_out->x-fxx-1;
     //we apply the mask row by row
