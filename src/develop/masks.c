@@ -456,6 +456,8 @@ int dt_masks_mouse_moved (struct dt_iop_module_t *module, double x, double y, in
 }
 int dt_masks_button_released (struct dt_iop_module_t *module, double x, double y, int which, uint32_t state)
 {
+  if (which != 1) return 0;
+  
   dt_masks_form_t *form = module->dev->form_visible;
   dt_masks_form_gui_t *gui = module->dev->form_gui;
   
@@ -497,8 +499,10 @@ int dt_masks_button_released (struct dt_iop_module_t *module, double x, double y
 }
 int dt_masks_button_pressed (struct dt_iop_module_t *module, double x, double y, int which, int type, uint32_t state)
 {
+  if (which != 1) return 0;
+  
   dt_masks_form_t *form = module->dev->form_visible;
-  dt_masks_form_gui_t *gui = module->dev->form_gui;
+  dt_masks_form_gui_t *gui = module->dev->form_gui;  
   
   if (form->type == DT_MASKS_CIRCLE)
   {
