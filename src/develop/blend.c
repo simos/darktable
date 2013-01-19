@@ -1820,11 +1820,16 @@ dt_develop_blend_process_cl (struct dt_iop_module_t *self, struct dt_dev_pixelpi
   cl_int err = -999;
   cl_mem dev_m = NULL;
   cl_mem dev_mask = NULL;
+  cl_mem dev_mask_form = NULL;
 
   // fprintf(stderr, "dt_develop_blend_process_cl: mode %d\n", d->mode);
-
+  
+  /* enable mode if there is some mask */
+  int mode = d->mode;
+  if (mode == 0 && self->blend_params->forms_count>0) mode = DEVELOP_BLEND_NORMAL;
+  
   /* check if blend is disabled: just return, output is already in dev_out */
-  if (!d || d->mode==0) return TRUE;
+  if (!d || mode==0) return TRUE;
 
   const dt_iop_colorspace_type_t cst = dt_iop_module_colorspace(self);
   int kernel_mask = darktable.blendop->kernel_blendop_mask_Lab;
@@ -1853,7 +1858,6 @@ dt_develop_blend_process_cl (struct dt_iop_module_t *self, struct dt_dev_pixelpi
   const int devid = piece->pipe->devid;
   const float opacity = fmin(fmax(0,(d->opacity/100.0f)),1.0f);
   const int blendflag = self->flags() & IOP_FLAGS_BLEND_ONLY_LIGHTNESS;
-  const int mode = d->mode;
   const int width = roi_in->width;
   const int height = roi_in->height;
   const unsigned blendif = d->blendif;
@@ -1861,8 +1865,50 @@ dt_develop_blend_process_cl (struct dt_iop_module_t *self, struct dt_dev_pixelpi
   const int gaussian = d->radius > 0.0f ? 1 : 0;
   const float radius = fabs(d->radius);
 
-
-
+  /* quick workaround for masks to be opencl compliant */
+  /* the first mask creation may need to be compute by opencl too */
+  float *mask = dt_alloc_align(64, roi_out->width*roi_out->height*sizeof(float));
+  if(!mask)
+  {
+    dt_control_log("could not allocate buffer for blending");
+    goto error;
+  }
+  memset(mask,0,roi_out->width*roi_out->height*sizeof(float));
+  
+  /* apply masks if there's some */
+  for (int i=0; i<self->blend_params->forms_count; i++)
+  {
+    if (!(self->blend_params->forms_state[i] & DT_MASKS_STATE_USE)) continue;
+    
+    dt_masks_form_t *form = dt_masks_get_from_id(self->dev,self->blend_params->forms[i]);
+    if (!form) continue;
+    
+    //we get the mask
+    float *fm = NULL;
+    int fx,fy,fw,fh;
+    if (!dt_masks_get_mask(self,piece->pipe,roi_in->scale*piece->buf_in.width,roi_in->scale*piece->buf_in.height,
+                            form,&fm,&fw,&fh,&fx,&fy)) continue;
+    
+    //we don't want row which are outisde the roi_out
+    int fxx = fx;
+    int fww = fw;
+    if (fxx>roi_out->width) continue;
+    if (fxx<roi_out->x) fww += fx-roi_out->x, fxx=roi_out->x;
+    if (fww+fxx>=roi_out->width+roi_out->x) fww = roi_out->width+roi_out->x-fxx-1;
+    //we apply the mask row by row
+    for (int yy=fy; yy<fy+fh; yy++)
+    {
+      if (yy<roi_out->y || yy>=roi_out->height+roi_out->y) continue;
+      for (int xx=fxx; xx<fxx+fww; xx++) 
+        mask[(yy-roi_out->y)*roi_out->width+xx-roi_out->x] = fmaxf(mask[(yy-roi_out->y)*roi_out->width+xx-roi_out->x],fm[(yy-fy)*fw+xx-fx]);
+    }
+    
+    //we free the mask
+    if (fm) free(fm);
+  }
+  dev_mask_form = dt_opencl_copy_host_to_device(devid, mask, width, height, sizeof(float));
+  if (dev_mask_form == NULL) goto error;
+  
   size_t sizes[] = { ROUNDUPWD(width), ROUNDUPHT(height), 1};
 
   dev_m = dt_opencl_copy_host_to_device_constant(devid, sizeof(float)*4*DEVELOP_BLENDIF_SIZE, d->blendif_parameters);
@@ -1873,12 +1919,13 @@ dt_develop_blend_process_cl (struct dt_iop_module_t *self, struct dt_dev_pixelpi
 
   dt_opencl_set_kernel_arg(devid, kernel_mask, 0, sizeof(cl_mem), (void *)&dev_in);
   dt_opencl_set_kernel_arg(devid, kernel_mask, 1, sizeof(cl_mem), (void *)&dev_out);
-  dt_opencl_set_kernel_arg(devid, kernel_mask, 2, sizeof(cl_mem), (void *)&dev_mask);
-  dt_opencl_set_kernel_arg(devid, kernel_mask, 3, sizeof(int), (void *)&width);
-  dt_opencl_set_kernel_arg(devid, kernel_mask, 4, sizeof(int), (void *)&height);
-  dt_opencl_set_kernel_arg(devid, kernel_mask, 5, sizeof(float), (void *)&opacity);
-  dt_opencl_set_kernel_arg(devid, kernel_mask, 6, sizeof(unsigned), (void *)&blendif);
-  dt_opencl_set_kernel_arg(devid, kernel_mask, 7, sizeof(cl_mem), (void *)&dev_m);
+  dt_opencl_set_kernel_arg(devid, kernel_mask, 2, sizeof(cl_mem), (void *)&dev_mask_form);
+  dt_opencl_set_kernel_arg(devid, kernel_mask, 3, sizeof(cl_mem), (void *)&dev_mask);
+  dt_opencl_set_kernel_arg(devid, kernel_mask, 4, sizeof(int), (void *)&width);
+  dt_opencl_set_kernel_arg(devid, kernel_mask, 5, sizeof(int), (void *)&height);
+  dt_opencl_set_kernel_arg(devid, kernel_mask, 6, sizeof(float), (void *)&opacity);
+  dt_opencl_set_kernel_arg(devid, kernel_mask, 7, sizeof(unsigned), (void *)&blendif);
+  dt_opencl_set_kernel_arg(devid, kernel_mask, 8, sizeof(cl_mem), (void *)&dev_m);
   err = dt_opencl_enqueue_kernel_2d(devid, kernel_mask, sizes);
   if(err != CL_SUCCESS) goto error;
 
