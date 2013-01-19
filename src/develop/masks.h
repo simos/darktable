@@ -122,9 +122,9 @@ int dt_masks_get_points(dt_develop_t *dev, dt_masks_form_t *form, float **points
 int dt_masks_get_border(dt_develop_t *dev, dt_masks_form_t *form, float **border, int *border_count, float dx, float dy);
 
 /** get the rectangle which include the form and his border */
-int dt_masks_get_area(dt_iop_module_t *module, dt_dev_pixelpipe_t *pipe, int wd, int ht, dt_masks_form_t *form, int *width, int *height, int *posx, int *posy);
+int dt_masks_get_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, int *width, int *height, int *posx, int *posy);
 /** get the transparency mask of the form and his border */
-int dt_masks_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_t *pipe, int wd, int ht, dt_masks_form_t *form, float **buffer, int *width, int *height, int *posx, int *posy);
+int dt_masks_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, float **buffer, int *width, int *height, int *posx, int *posy);
 
 /** we create a completly new form. */
 dt_masks_form_t *dt_masks_create(dt_masks_type_t type);

@@ -55,10 +55,11 @@ int _circle_get_points(dt_develop_t *dev, float x, float y, float radius, float 
   return 0;  
 }
 
-int _circle_get_area(dt_iop_module_t *module, dt_dev_pixelpipe_t *pipe, int wd, int ht, dt_masks_form_t *form, int *width, int *height, int *posx, int *posy)
+int _circle_get_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, int *width, int *height, int *posx, int *posy)
 {  
   //we get the cicle values
   dt_masks_point_circle_t *circle = (dt_masks_point_circle_t *) (g_list_first(form->points)->data);
+  float wd = piece->pipe->iwidth, ht = piece->pipe->iheight;
   
   float r = (circle->radius + circle->border)*MIN(wd,ht);
   int l = (int) (2.0*M_PI*r);
@@ -76,7 +77,7 @@ int _circle_get_area(dt_iop_module_t *module, dt_dev_pixelpipe_t *pipe, int wd, 
   }
   
   //and we transform them with all distorted modules
-  if (!dt_dev_distort_transform_plus(module->dev,pipe,0,module->priority,points,l+1)) return 0;
+  if (!dt_dev_distort_transform_plus(module->dev,piece->pipe,0,module->priority,points,l+1)) return 0;
   
   //now we search min and max
   float xmin, xmax, ymin, ymax;
@@ -98,10 +99,11 @@ int _circle_get_area(dt_iop_module_t *module, dt_dev_pixelpipe_t *pipe, int wd, 
   return 1;
 }
 
-int _circle_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_t *pipe, int wd, int ht, dt_masks_form_t *form, float **buffer, int *width, int *height, int *posx, int *posy)
+int _circle_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, float **buffer, int *width, int *height, int *posx, int *posy)
 {
   //we get the area
-  if (!_circle_get_area(module,pipe,wd,ht,form,width,height,posx,posy)) return 0;
+  if (!_circle_get_area(module,piece,form,width,height,posx,posy)) return 0;
+  //float wd = scale*piece->buf_in.width, ht = scale*piece->buf_in.height;
   
   //we get the cicle values
   dt_masks_point_circle_t *circle = (dt_masks_point_circle_t *) (g_list_first(form->points)->data);
@@ -117,15 +119,16 @@ int _circle_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_t *pipe, int wd, 
     }
     
   //we back transform all this points
-  dt_dev_distort_backtransform_plus(module->dev,pipe,0,module->priority,points,w*h);
+  dt_dev_distort_backtransform_plus(module->dev,piece->pipe,0,module->priority,points,w*h);
   
   //we allocate the buffer
   *buffer = malloc(w*h*sizeof(float));
   
   //we populate the buffer
-  float center[2] = {circle->center[0]*wd, circle->center[1]*ht};
-  float radius2 = circle->radius*MIN(wd,ht)*circle->radius*MIN(wd,ht);
-  float total2 = (circle->radius+circle->border)*MIN(wd,ht)*(circle->radius+circle->border)*MIN(wd,ht);
+  int wi = piece->pipe->iwidth, hi=piece->pipe->iheight;
+  float center[2] = {circle->center[0]*wi, circle->center[1]*hi};
+  float radius2 = circle->radius*MIN(wi,hi)*circle->radius*MIN(wi,hi);
+  float total2 = (circle->radius+circle->border)*MIN(wi,hi)*(circle->radius+circle->border)*MIN(wi,hi);
   for (int i=0; i<h; i++)
     for (int j=0; j<w; j++)
     {
@@ -164,20 +167,20 @@ int dt_masks_get_border(dt_develop_t *dev, dt_masks_form_t *form, float **border
   return 0;
 }
 
-int dt_masks_get_area(dt_iop_module_t *module, dt_dev_pixelpipe_t *pipe, int wd, int ht, dt_masks_form_t *form, int *width, int *height, int *posx, int *posy)
+int dt_masks_get_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, int *width, int *height, int *posx, int *posy)
 {
   if (form->type == DT_MASKS_CIRCLE)
   {
-    return _circle_get_area(module,pipe,wd,ht,form,width,height,posx,posy);
+    return _circle_get_area(module,piece,form,width,height,posx,posy);
   }
   return 0;  
 }
 
-int dt_masks_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_t *pipe, int wd, int ht, dt_masks_form_t *form, float **buffer, int *width, int *height, int *posx, int *posy)
+int dt_masks_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, float **buffer, int *width, int *height, int *posx, int *posy)
 {
   if (form->type == DT_MASKS_CIRCLE)
   {
-    return _circle_get_mask(module,pipe,wd,ht,form,buffer,width,height,posx,posy);
+    return _circle_get_mask(module,piece,form,buffer,width,height,posx,posy);
   }
   return 0; 
 }
@@ -504,13 +507,13 @@ int dt_masks_button_pressed (struct dt_iop_module_t *module, double x, double y,
       //we start the form dragging
       gui->form_dragging = TRUE;
       
-      dt_masks_point_circle_t *circle = (dt_masks_point_circle_t *) (g_list_first(form->points)->data);
+      //dt_masks_point_circle_t *circle = (dt_masks_point_circle_t *) (g_list_first(form->points)->data);
       float pzx, pzy;
       dt_dev_get_pointer_zoom_pos(module->dev, x, y, &pzx, &pzy);
       gui->posx = (pzx + 0.5f)*module->dev->preview_pipe->backbuf_width;
       gui->posy = (pzy + 0.5f)*module->dev->preview_pipe->backbuf_height;
-      gui->dx = circle->center[0]*module->dev->preview_pipe->backbuf_width - gui->posx;
-      gui->dy = circle->center[1]*module->dev->preview_pipe->backbuf_height - gui->posy;
+      gui->dx = gui->points[0] - gui->posx;
+      gui->dy = gui->points[1] - gui->posy;
       return 1;
     }
     else if (gui->creation)
@@ -581,6 +584,8 @@ int dt_masks_scrolled (struct dt_iop_module_t *module, double x, double y, int u
 }
 void dt_masks_post_expose (struct dt_iop_module_t *module, cairo_t *cr, int32_t width, int32_t height, int32_t pointerx, int32_t pointery)
 {
+  if (!module) return;
+  
   dt_develop_t *dev = module->dev;
   dt_masks_form_t *form = module->dev->form_visible;
   dt_masks_form_gui_t *gui = module->dev->form_gui;

@@ -317,8 +317,8 @@ void modify_roi_in(struct dt_iop_module_t *self, struct dt_dev_pixelpipe_iop_t *
     //const int rad = d->spot[i].spot.radius * MIN(imw, imh);
     
     int w,h,l,t;
-    dt_masks_get_area(self,piece->pipe,imw,imh,form,&w,&h,&l,&t);
-    
+    dt_masks_get_area(self,piece,form,&w,&h,&l,&t);
+    w *= roi_in->scale, h *= roi_in->scale, l *= roi_in->scale, t *= roi_in->scale;
     //If the destination is outside the ROI, we skip this form !
     if (t>=roi_out->y+roi_out->height || t+h<=roi_out->y || l>=roi_out->x+roi_out->width || l+w<=roi_out->x) continue;
     
@@ -382,8 +382,8 @@ void process (struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, void 
     const int xc = d->spot[i].source[0]*imw, yc = d->spot[i].source[1]*imh;
     
     int w,h,l,t;
-    dt_masks_get_area(self,piece->pipe,imw,imh,form,&w,&h,&l,&t);
-    
+    dt_masks_get_area(self,piece,form,&w,&h,&l,&t);
+    w *= roi_in->scale, h *= roi_in->scale, l *= roi_in->scale, t *= roi_in->scale;
     //If the destination is outside the ROI, we skip this form !
     if (t>=roi_out->y+roi_out->height || t+h<=roi_out->y || l>=roi_out->x+roi_out->width || l+w<=roi_out->x) continue;
     
@@ -404,19 +404,19 @@ void process (struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, void 
       //we get the mask
       float *mask;
       int posx,posy,width,height;    
-      dt_masks_get_mask(self,piece->pipe,roi_in->scale*piece->buf_in.width,roi_in->scale*piece->buf_in.height,form,&mask,&width,&height,&posx,&posy);
-      int posx_source = posx + (d->spot[i].source[0] - circle->center[0])*roi_in->scale*piece->buf_in.width;
-      int posy_source = posy + (d->spot[i].source[1] - circle->center[1])*roi_in->scale*piece->buf_in.height;
+      dt_masks_get_mask(self,piece,form,&mask,&width,&height,&posx,&posy);
+      int dx = -(d->spot[i].source[0] - circle->center[0])*roi_in->scale*piece->buf_in.width;
+      int dy = -(d->spot[i].source[1] - circle->center[1])*roi_in->scale*piece->buf_in.height;
   
       for (int yy=t ; yy<t+h; yy++)
         for (int xx=l ; xx<l+w; xx++)
         {
-          float f = mask[(yy-posy)*width + xx - posx]*d->spot[i].opacity;
+          float f = mask[((int)(yy/roi_in->scale)-posy)*width + (int)(xx/roi_in->scale) - posx]*d->spot[i].opacity;
           
           for(int c=0; c<ch; c++)
             out[4*(roi_out->width*(yy-roi_out->y) + xx-roi_out->x) + c] =
               out[4*(roi_out->width*(yy-roi_out->y) + xx-roi_out->x) + c] * (1.0f-f) +
-              in[4*(roi_in->width*(yy-posy+posy_source-roi_in->y) + xx-posx+posx_source-roi_in->x) + c] * f;
+              in[4*(roi_in->width*(yy-dy-roi_in->y) + xx-dx-roi_in->x) + c] * f;
         }
     }
     else

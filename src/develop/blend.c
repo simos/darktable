@@ -1669,21 +1669,25 @@ void dt_develop_blend_process (struct dt_iop_module_t *self, struct dt_dev_pixel
     //we get the mask
     float *fm = NULL;
     int fx,fy,fw,fh;
-    if (!dt_masks_get_mask(self,piece->pipe,roi_in->scale*piece->buf_in.width,roi_in->scale*piece->buf_in.height,
-                            form,&fm,&fw,&fh,&fx,&fy)) continue;
-    
+    if (!dt_masks_get_mask(self,piece,form,&fm,&fw,&fh,&fx,&fy)) continue;
     //we don't want row which are outisde the roi_out
-    int fxx = fx;
-    int fww = fw;
+    int fxx = fx*roi_in->scale+1;
+    int fww = fw*roi_in->scale-1;
+    int fyy = fy*roi_in->scale+1;
+    int fhh = fh*roi_in->scale-1;
     if (fxx>roi_out->width+roi_out->x) continue;
-    if (fxx<roi_out->x) fww += fx-roi_out->x, fxx=roi_out->x;
+    if (fxx<roi_out->x) fww += fxx-roi_out->x, fxx=roi_out->x;
     if (fww+fxx>=roi_out->width+roi_out->x) fww = roi_out->width+roi_out->x-fxx-1;
     //we apply the mask row by row
-    for (int yy=fy; yy<fy+fh; yy++)
+    for (int yy=fyy; yy<fyy+fhh; yy++)
     {
       if (yy<roi_out->y || yy>=roi_out->height+roi_out->y) continue;
-      for (int xx=fxx; xx<fxx+fww; xx++) 
-        mask[(yy-roi_out->y)*roi_out->width+xx-roi_out->x] = fmaxf(mask[(yy-roi_out->y)*roi_out->width+xx-roi_out->x],fm[(yy-fy)*fw+xx-fx]);
+      for (int xx=fxx; xx<fxx+fww; xx++)
+      {
+        int a = (yy/roi_in->scale-fy);
+        int b = (xx/roi_in->scale);
+        mask[(yy-roi_out->y)*roi_out->width+xx-roi_out->x] = fmaxf(mask[(yy-roi_out->y)*roi_out->width+xx-roi_out->x],fm[a*fw+b-fx]);
+      }
     }
     
     //we free the mask
@@ -1886,21 +1890,25 @@ dt_develop_blend_process_cl (struct dt_iop_module_t *self, struct dt_dev_pixelpi
     //we get the mask
     float *fm = NULL;
     int fx,fy,fw,fh;
-    if (!dt_masks_get_mask(self,piece->pipe,roi_in->scale*piece->buf_in.width,roi_in->scale*piece->buf_in.height,
-                            form,&fm,&fw,&fh,&fx,&fy)) continue;
-    
+    if (!dt_masks_get_mask(self,piece,form,&fm,&fw,&fh,&fx,&fy)) continue;
     //we don't want row which are outisde the roi_out
-    int fxx = fx;
-    int fww = fw;
+    int fxx = fx*roi_in->scale+1;
+    int fww = fw*roi_in->scale-1;
+    int fyy = fy*roi_in->scale+1;
+    int fhh = fh*roi_in->scale-1;
     if (fxx>roi_out->width+roi_out->x) continue;
-    if (fxx<roi_out->x) fww += fx-roi_out->x, fxx=roi_out->x;
+    if (fxx<roi_out->x) fww += fxx-roi_out->x, fxx=roi_out->x;
     if (fww+fxx>=roi_out->width+roi_out->x) fww = roi_out->width+roi_out->x-fxx-1;
     //we apply the mask row by row
-    for (int yy=fy; yy<fy+fh; yy++)
+    for (int yy=fyy; yy<fyy+fhh; yy++)
     {
       if (yy<roi_out->y || yy>=roi_out->height+roi_out->y) continue;
-      for (int xx=fxx; xx<fxx+fww; xx++) 
-        mask[(yy-roi_out->y)*roi_out->width+xx-roi_out->x] = fmaxf(mask[(yy-roi_out->y)*roi_out->width+xx-roi_out->x],fm[(yy-fy)*fw+xx-fx]);
+      for (int xx=fxx; xx<fxx+fww; xx++)
+      {
+        int a = (yy/roi_in->scale-fy);
+        int b = (xx/roi_in->scale);
+        mask[(yy-roi_out->y)*roi_out->width+xx-roi_out->x] = fmaxf(mask[(yy-roi_out->y)*roi_out->width+xx-roi_out->x],fm[a*fw+b-fx]);
+      }
     }
     
     //we free the mask
