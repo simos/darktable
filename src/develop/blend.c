@@ -1661,6 +1661,8 @@ void dt_develop_blend_process (struct dt_iop_module_t *self, struct dt_dev_pixel
   /* apply masks if there's some */
   for (int i=0; i<self->blend_params->forms_count; i++)
   {
+    if (!(self->blend_params->forms_state[i] & DT_MASKS_STATE_USE)) continue;
+    
     dt_masks_form_t *form = dt_masks_get_from_id(self->dev,self->blend_params->forms[i]);
     if (!form) continue;
     
@@ -2088,7 +2090,7 @@ dt_develop_blend_legacy_params (dt_iop_module_t *module, const void *const old_p
   return 1;
 }
 
-int dt_develop_blend_add_form (dt_iop_module_t *module, int id, dt_develop_blend_form_states_t state)
+int dt_develop_blend_add_form (dt_iop_module_t *module, int id, uint32_t state)
 {
   dt_iop_gui_blend_data_t *bd = (dt_iop_gui_blend_data_t*)module->blend_data;
   dt_masks_form_t *form = dt_masks_get_from_id(module->dev,id);
@@ -2112,7 +2114,7 @@ int dt_develop_blend_add_form (dt_iop_module_t *module, int id, dt_develop_blend
   module->blend_params->forms_count++;
   
   //show the form if needed
-  if (state & DT_BLEND_FORM_SHOW)
+  if (state & DT_MASKS_STATE_SHOW)
   {
     module->dev->form_visible = dt_masks_get_from_id(module->dev,id);
     module->dev->form_gui->formid = id;

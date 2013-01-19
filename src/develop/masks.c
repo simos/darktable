@@ -404,7 +404,7 @@ static void _gui_form_save_creation(dt_iop_module_t *module, dt_masks_form_t *fo
   //update params
   int forms_count = module->blend_params->forms_count;
   module->blend_params->forms[forms_count] = form->formid;
-  module->blend_params->forms_state[forms_count] = DT_BLEND_FORM_SHOW | DT_BLEND_FORM_USE;
+  module->blend_params->forms_state[forms_count] = DT_MASKS_STATE_SHOW | DT_MASKS_STATE_USE;
   if (form->type == DT_MASKS_CIRCLE) snprintf(form->name,128,"mask circle #%d",forms_count);
   dt_masks_write_form(form,module->dev);
   
@@ -776,7 +776,7 @@ static void _menu_form_add_existing(GtkButton *button, dt_iop_module_t *module)
   //update params
   int forms_count = module->blend_params->forms_count;
   module->blend_params->forms[forms_count] = form->formid;
-  module->blend_params->forms_state[forms_count] = DT_BLEND_FORM_SHOW | DT_BLEND_FORM_USE;
+  module->blend_params->forms_state[forms_count] = DT_MASKS_STATE_SHOW | DT_MASKS_STATE_USE;
   dt_masks_write_form(form,module->dev);
   
   //update gui

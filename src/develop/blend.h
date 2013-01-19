@@ -101,14 +101,6 @@ typedef enum dt_develop_blendif_channels_t
 }
 dt_develop_blendif_channels_t;
 
-typedef enum dt_develop_blend_form_states_t
-{
-  DT_BLEND_FORM_NONE  = 0,
-  DT_BLEND_FORM_USE   = 1,
-  DT_BLEND_FORM_SHOW  = 2
-}
-dt_develop_blend_form_states_t;
-
 /** blend legacy parameters version 1 */
 typedef struct dt_develop_blend_params1_t
 {
@@ -185,7 +177,7 @@ typedef struct dt_develop_blend_params_t
   /** id of masks */
   int forms[64];
   /** state of masks */
-  dt_develop_blend_form_states_t forms_state[64];
+  uint32_t forms_state[64];
   /** number of masks */
   int forms_count;
 }
@@ -296,7 +288,7 @@ int dt_develop_blend_process_cl (struct dt_iop_module_t *self, struct dt_dev_pix
 #endif
 
 /** function related to masks */
-int dt_develop_blend_add_form (dt_iop_module_t *module, int id, dt_develop_blend_form_states_t state);
+int dt_develop_blend_add_form (dt_iop_module_t *module, int id, uint32_t state);
 void dt_iop_gui_blend_setform_callback(GtkWidget *widget, GdkEventButton *e, dt_iop_module_t *data);
 
 #endif

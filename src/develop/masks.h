@@ -33,10 +33,20 @@ typedef enum dt_masks_type_t
 {
   DT_MASKS_NONE = 0, // keep first
   DT_MASKS_CIRCLE = 1,
-  DT_MASKS_BEZIER = 2
+  DT_MASKS_BEZIER = 2,
+  DT_MASKS_GROUP = 3
 
 }
 dt_masks_type_t;
+
+typedef enum dt_masks_states_t
+{
+  DT_MASKS_STATE_NONE  = 0,
+  DT_MASKS_STATE_USE   = 1,
+  DT_MASKS_STATE_SHOW  = 2,
+  DT_MASKS_STATE_INVERSE = 4
+}
+dt_masks_states_t;
 
 /** structure used to store 1 point for a circle */
 typedef struct dt_masks_point_circle_t
@@ -56,6 +66,15 @@ typedef struct dt_masks_point_bezier_t
   float border[2];
 }
 dt_masks_point_bezier_t;
+
+/** structure used to store all forms's id for a group */
+typedef struct dt_masks_point_group_t
+{
+  int forms[64];
+  dt_masks_states_t states[64];
+  int forms_count;
+}
+dt_masks_point_group_t;
 
 /** structure used to define a form */
 typedef struct dt_masks_form_t

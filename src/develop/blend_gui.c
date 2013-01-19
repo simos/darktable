@@ -1140,6 +1140,7 @@ static void _mask_delete(GtkButton *button, dt_iop_module_t *data)
   }
  
   //we completly remove the form if not used anymore
+  //TODO : take styles and groups in account
   dt_masks_form_t *form = dt_masks_get_from_id(data->dev,formid);
   if (form)
   {
@@ -1149,6 +1150,24 @@ static void _mask_delete(GtkButton *button, dt_iop_module_t *data)
   }
 }
 
+static void _mask_activate(GtkButton *button, dt_iop_module_t *data)
+{
+  //first, we need to retrieve the form position
+  int pos = -1;
+  pos = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(button), "form"));
+  if (pos < 0) return;
+  
+  if (data->blend_params->forms_state[pos] & DT_MASKS_STATE_USE)
+  {
+    data->blend_params->forms_state[pos] -= DT_MASKS_STATE_USE;
+  }
+  else
+  {
+    data->blend_params->forms_state[pos] += DT_MASKS_STATE_USE;
+  }
+  
+  dt_dev_add_history_item(darktable.develop, data, TRUE);
+}
 void dt_iop_gui_blend_setform_callback(GtkWidget *widget, GdkEventButton *e, dt_iop_module_t *data)
 {
   //first, we need to retrieve the form position
@@ -1202,6 +1221,12 @@ void dt_iop_gui_blend_setform_callback(GtkWidget *widget, GdkEventButton *e, dt_
     item = gtk_menu_item_new_with_label(_("delete"));
     g_object_set_data(G_OBJECT(item), "form", GUINT_TO_POINTER(pos));
     g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (_mask_delete), data);
+    gtk_menu_append(menu, item);
+    
+    if (data->blend_params->forms_state[pos] & DT_MASKS_STATE_USE) item = gtk_menu_item_new_with_label(_("desactivate"));
+    else item = gtk_menu_item_new_with_label(_("activate"));
+    g_object_set_data(G_OBJECT(item), "form", GUINT_TO_POINTER(pos));
+    g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (_mask_activate), data);
     gtk_menu_append(menu, item);
     
     gtk_widget_show_all(menu);
