@@ -2055,7 +2055,7 @@ tiling_callback_blendop (struct dt_iop_module_t *self, struct dt_dev_pixelpipe_i
 /** update blendop params from older versions */
 int
 dt_develop_blend_legacy_params (dt_iop_module_t *module, const void *const old_params, const int old_version, void *new_params, const int new_version, const int length)
-{
+{  
   if(old_version == 1 && new_version == 5)
   {
     if(length != sizeof(dt_develop_blend_params1_t)) return 1;
@@ -2116,7 +2116,7 @@ dt_develop_blend_legacy_params (dt_iop_module_t *module, const void *const old_p
 
   if(old_version == 4 && new_version == 5)
   {
-    if(length != sizeof(dt_develop_blend_params3_t)) return 1;
+    if(length != sizeof(dt_develop_blend_params4_t)) return 1;
 
     dt_develop_blend_params4_t *o = (dt_develop_blend_params4_t *)old_params;
     dt_develop_blend_params_t *n = (dt_develop_blend_params_t *)new_params;
