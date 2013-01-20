@@ -176,7 +176,6 @@ void connect_key_accels(dt_iop_module_t *self)
 
 int distort_transform(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, float *points, int points_count)
 {
-  if (!self->enabled) return 2;
   dt_iop_borders_data_t *d = (dt_iop_borders_data_t *)piece->data;
 
   const int border_tot_width  = (piece->buf_out.width  - piece->buf_in.width );
@@ -194,7 +193,6 @@ int distort_transform(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, floa
 }
 int distort_backtransform(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, float *points, int points_count)
 {
-  if (!self->enabled) return 2;
   dt_iop_borders_data_t *d = (dt_iop_borders_data_t *)piece->data;
 
   const int border_tot_width  = (piece->buf_out.width  - piece->buf_in.width );
