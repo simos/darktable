@@ -97,7 +97,7 @@ static inline void _HSL_2_RGB(const float *HSL, float *RGB)
     if (L < 0.5f) var_2 = L * (1.0f + S);
     else          var_2 = (L + S) - (S * L);
 
-    var_1 = 2 * L - var_2;
+    var_1 = 2.0f * L - var_2;
 
     RGB[0] = _Hue_2_RGB(var_1, var_2, H + (1.0f / 3.0f));
     RGB[1] = _Hue_2_RGB(var_1, var_2, H);
@@ -134,6 +134,12 @@ static inline void _CLAMP_XYZ(float *XYZ, const float *min, const float *max)
   XYZ[2] = CLAMP_RANGE(XYZ[2], min[2], max[2]);
 }
 
+static inline void _PX_COPY(const float *src, float *dst)
+{
+  dst[0] = src[0];
+  dst[1] = src[1];
+  dst[2] = src[2];
+}
 
 
 
@@ -1274,7 +1280,12 @@ static void _blend_lightness(dt_iop_colorspace_type_t cst,const float *a, float 
     }
     else if(cst==iop_cs_rgb)
     {
-      _RGB_2_HSL(&a[j], tta);
+      _PX_COPY(&a[j], ta);
+
+      _CLAMP_XYZ(ta, min, max);
+      _CLAMP_XYZ(&b[j], min, max);
+
+      _RGB_2_HSL(ta, tta);
       _RGB_2_HSL(&b[j], ttb);
 
       ttb[0] = tta[0];
@@ -1310,8 +1321,11 @@ static void _blend_chroma(dt_iop_colorspace_type_t cst,const float *a, float *b,
     if(cst==iop_cs_Lab)
     {
       _blend_Lab_scale(&a[j], ta);
-      _blend_Lab_scale(&b[j], tb);
+      _CLAMP_XYZ(ta, min, max);
       _Lab_2_LCH(ta, tta);
+
+      _blend_Lab_scale(&b[j], tb);
+      _CLAMP_XYZ(tb, min, max);
       _Lab_2_LCH(tb, ttb);
 
       ttb[0] = tta[0];
@@ -1324,7 +1338,12 @@ static void _blend_chroma(dt_iop_colorspace_type_t cst,const float *a, float *b,
     }
     else if(cst==iop_cs_rgb)
     {
-      _RGB_2_HSL(&a[j], tta);
+      _PX_COPY(&a[j], ta);
+
+      _CLAMP_XYZ(ta, min, max);
+      _CLAMP_XYZ(&b[j], min, max);
+
+      _RGB_2_HSL(ta, tta);
       _RGB_2_HSL(&b[j], ttb);
 
       ttb[0] = tta[0];
@@ -1360,9 +1379,11 @@ static void _blend_hue(dt_iop_colorspace_type_t cst,const float *a, float *b, co
     if(cst==iop_cs_Lab)
     {
       _blend_Lab_scale(&a[j], ta);
-      _blend_Lab_scale(&b[j], tb);
-
+      _CLAMP_XYZ(ta, min, max);
       _Lab_2_LCH(ta, tta);
+
+      _blend_Lab_scale(&b[j], tb);
+      _CLAMP_XYZ(tb, min, max);
       _Lab_2_LCH(tb, ttb);
 
       ttb[0] = tta[0];
@@ -1378,7 +1399,12 @@ static void _blend_hue(dt_iop_colorspace_type_t cst,const float *a, float *b, co
     }
     else if(cst==iop_cs_rgb)
     {
-      _RGB_2_HSL(&a[j], tta);
+      _PX_COPY(&a[j], ta);
+
+      _CLAMP_XYZ(ta, min, max);
+      _CLAMP_XYZ(&b[j], min, max);
+
+      _RGB_2_HSL(ta, tta);
       _RGB_2_HSL(&b[j], ttb);
 
       /* blend hue along shortest distance on color circle */
@@ -1417,9 +1443,11 @@ static void _blend_color(dt_iop_colorspace_type_t cst,const float *a, float *b, 
     if(cst==iop_cs_Lab)
     {
       _blend_Lab_scale(&a[j], ta);
-      _blend_Lab_scale(&b[j], tb);
-
+      _CLAMP_XYZ(ta, min, max);
       _Lab_2_LCH(ta, tta);
+
+      _blend_Lab_scale(&b[j], tb);
+      _CLAMP_XYZ(tb, min, max);
       _Lab_2_LCH(tb, ttb);
 
       ttb[0] = tta[0];
@@ -1436,7 +1464,12 @@ static void _blend_color(dt_iop_colorspace_type_t cst,const float *a, float *b, 
     }
     else if(cst==iop_cs_rgb)
     {
-      _RGB_2_HSL(&a[j], tta);
+      _PX_COPY(&a[j], ta);
+
+      _CLAMP_XYZ(ta, min, max);
+      _CLAMP_XYZ(&b[j], min, max);
+
+      _RGB_2_HSL(ta, tta);
       _RGB_2_HSL(&b[j], ttb);
 
       /* blend hue along shortest distance on color circle */
@@ -1475,9 +1508,11 @@ static void _blend_coloradjust(dt_iop_colorspace_type_t cst,const float *a, floa
     if(cst==iop_cs_Lab)
     {
       _blend_Lab_scale(&a[j], ta);
-      _blend_Lab_scale(&b[j], tb);
-
+      _CLAMP_XYZ(ta, min, max);
       _Lab_2_LCH(ta, tta);
+
+      _blend_Lab_scale(&b[j], tb);
+      _CLAMP_XYZ(tb, min, max);
       _Lab_2_LCH(tb, ttb);
 
       // ttb[0] (output lightness) unchanged
@@ -1494,6 +1529,11 @@ static void _blend_coloradjust(dt_iop_colorspace_type_t cst,const float *a, floa
     }
     else if(cst==iop_cs_rgb)
     {
+      _PX_COPY(&a[j], ta);
+
+      _CLAMP_XYZ(ta, min, max);
+      _CLAMP_XYZ(&b[j], min, max);
+
       _RGB_2_HSL(&a[j], tta);
       _RGB_2_HSL(&b[j], ttb);
 

@@ -23,6 +23,7 @@
 #include "control/control.h"
 #include "control/conf.h"
 #include "gui/gtk.h"
+#include "iop/spots.h"
 #include <gtk/gtk.h>
 #include <stdlib.h>
 
@@ -33,27 +34,15 @@
 // and includes version information about compile-time dt
 DT_MODULE(2)
 
-typedef struct spot_t
-{
   double formid;
   float source[2];
   
   float opacity;  //between 0 and 1
   
   int version; //old version = 1 ; new version = 2
-}
-spot_t;
-
-typedef struct dt_iop_spots_params_t
-{
-  int num_spots;
-  spot_t spot[32];
   
   //just to say "hey, there has some some change to the params" and avoid cache problem
   int change;
-}
-dt_iop_spots_params_t;
-
 typedef struct spot_draw_t
 {
   //for both source and spot, first point is the center
@@ -196,7 +185,7 @@ static void gui_spot_update_source(dt_iop_module_t *self, spot_draw_t *gspt, int
     free(gspt->source_border);
     gspt->source_border = NULL;
   }
-  
+
   //and we recreate them
   float dx = circle->center[0] - p->spot[spot_index].source[0];
   float dy = circle->center[1] - p->spot[spot_index].source[1];
@@ -230,12 +219,12 @@ static void gui_spot_update_spot(dt_iop_module_t *self, spot_draw_t *gspt, int s
   dt_develop_t *dev = self->dev;
   dt_iop_spots_params_t   *p = (dt_iop_spots_params_t   *)self->params;
   dt_masks_form_t *form = dt_masks_get_from_id(self->dev,p->spot[spot_index].formid);
-  
+
   if (dt_masks_get_points(dev,form, &gspt->spot, &gspt->spot_count,0,0))
   {
     return;
   }
-  
+
   //if it fails, we delete source buffers too
   gspt->source_count = gspt->source_border_count = 0;
   free(gspt->source);
@@ -258,7 +247,7 @@ static int gui_spot_test_create(dt_iop_module_t *self)
 {
   dt_iop_spots_params_t   *p = (dt_iop_spots_params_t   *)self->params;
   dt_iop_spots_gui_data_t   *g = (dt_iop_spots_gui_data_t   *)self->gui_data;
-  
+
   //we test if the image has changed
   if (g->pipe_hash >= 0)
   {
@@ -269,7 +258,7 @@ static int gui_spot_test_create(dt_iop_module_t *self)
       g->pipe_hash = 0;
     }
   }
-  
+
   //we create the spots if needed
   for(int i=0; i<p->num_spots; i++)
   {
@@ -291,18 +280,18 @@ void modify_roi_out(struct dt_iop_module_t *self, struct dt_dev_pixelpipe_iop_t 
 void modify_roi_in(struct dt_iop_module_t *self, struct dt_dev_pixelpipe_iop_t *piece, const dt_iop_roi_t *roi_out, dt_iop_roi_t *roi_in)
 {
   *roi_in = *roi_out;
-  
+
   int roir = roi_in->width+roi_in->x;
   int roib = roi_in->height+roi_in->y;
   int roix = roi_in->x;
   int roiy = roi_in->y;
-  
+
   dt_iop_spots_params_t *d = (dt_iop_spots_params_t *)piece->data;
-  
+
   //We calcul full image width and height at scale of ROI
   const int imw = CLAMP(piece->pipe->iwidth*roi_in->scale, 1, piece->pipe->iwidth);
   const int imh = CLAMP(piece->pipe->iheight*roi_in->scale, 1, piece->pipe->iheight);
-  
+
   // We iterate throught all spots or polygons
   for(int i=0; i<d->num_spots; i++)
   {
@@ -315,26 +304,26 @@ void modify_roi_in(struct dt_iop_module_t *self, struct dt_dev_pixelpipe_iop_t *
     const int x = circle->center[0] *imw, y = circle->center[1] *imh;
     const int xc = d->spot[i].source[0]*imw, yc = d->spot[i].source[1]*imh;
     //const int rad = d->spot[i].spot.radius * MIN(imw, imh);
-    
+
     int w,h,l,t;
     dt_masks_get_area(self,piece,form,&w,&h,&l,&t);
     w *= roi_in->scale, h *= roi_in->scale, l *= roi_in->scale, t *= roi_in->scale;
     //If the destination is outside the ROI, we skip this form !
     if (t>=roi_out->y+roi_out->height || t+h<=roi_out->y || l>=roi_out->x+roi_out->width || l+w<=roi_out->x) continue;
-    
+
     //we only process the visible part of the destination
     if (t<=roi_out->y) h -= roi_out->y-t, t = roi_out->y;
     if (t+h>=roi_out->height+roi_out->y) h = roi_out->y+roi_out->height-1-t;
     if (l<=roi_out->x) w -= roi_out->x-l, l = roi_out->x;
     if (l+w>=roi_out->width+roi_out->x) w = roi_out->x+roi_out->width-1-l;
-    
+
     //we don't process part of the source outside the image
     roiy = fminf(t+yc-y,roiy);
     roix = fminf(l+xc-x,roix);
     roir = fmaxf(l+w+xc-x,roir);
     roib = fmaxf(t+h+yc-y,roib);
   }
-  
+
   //now we set the values
   roi_in->x = CLAMP(roix, 0, piece->pipe->iwidth-1);
   roi_in->y = CLAMP(roiy, 0, piece->pipe->iheight-1);
@@ -351,11 +340,11 @@ void process (struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, void 
   const int ch = piece->colors;
   const float *in = (float *)i;
   float *out = (float *)o;
-  
+
   //We calcul full image width and height at scale of ROI
   const int imw = CLAMP(piece->pipe->iwidth*roi_in->scale, 1, piece->pipe->iwidth);
   const int imh = CLAMP(piece->pipe->iheight*roi_in->scale, 1, piece->pipe->iheight);
-  
+
   // we don't modify most of the image:
 #ifdef _OPENMP
     #pragma omp parallel for schedule(static) default(none) shared(d,out,in,roi_in,roi_out)
@@ -380,7 +369,7 @@ void process (struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, void 
     // convert in full image space (at scale of ROI)
     const int x = circle->center[0] *imw, y = circle->center[1] *imh;
     const int xc = d->spot[i].source[0]*imw, yc = d->spot[i].source[1]*imh;
-    
+
     int w,h,l,t;
     dt_masks_get_area(self,piece,form,&w,&h,&l,&t);
     w *= roi_in->scale, h *= roi_in->scale, l *= roi_in->scale, t *= roi_in->scale;
@@ -432,23 +421,23 @@ void process (struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, void 
       //const int vm = -MIN(rad, MIN(y, yc));
       //const int vM = MIN(rad, MIN(roi_in->height-1-yc, roi_in->height-1-y));
     w = h = 2*rad;
-    
+
     //If the destination is outside the ROI, we skip this form !
     if (t>=roi_out->y+roi_out->height || t+h<=roi_out->y || l>=roi_out->x+roi_out->width || l+w<=roi_out->x) continue;
-    
+
     //we only process the visible part of the destination
     if (t<=roi_out->y) h -= roi_out->y+1-t, t = roi_out->y+1;
     if (t+h>=roi_out->height+roi_out->y) h = roi_out->y+roi_out->height-1-t;
     if (l<=roi_out->x) w -= roi_out->x+1-l, l = roi_out->x+1;
     if (l+w>=roi_out->width+roi_out->x) w = roi_out->x+roi_out->width-1-l;
-    
+
     //we don't process part of the source outside the roi_in
-    if (t+yc-y<=roi_in->y) h -= roi_in->y-yc+y+1-t ,t = roi_in->y-yc+y+1;      
-    if (t+h+yc-y>=roi_in->y+roi_in->height) h = roi_in->y+roi_in->height-yc+y-t-1;      
+    if (t+yc-y<=roi_in->y) h -= roi_in->y-yc+y+1-t ,t = roi_in->y-yc+y+1;
+    if (t+h+yc-y>=roi_in->y+roi_in->height) h = roi_in->y+roi_in->height-yc+y-t-1;
     if (l+xc-x<=roi_in->x) w -= roi_in->x-xc+x+1-l ,l = roi_in->x-xc+x+1;
     if (l+w+xc-x>=roi_in->width+roi_in->x) w = roi_in->x+roi_in->width-xc+x-l-1;
-    
-    // convert from world space:     
+
+    // convert from world space:
       float filter[2*rad + 1];
       // for(int k=-rad; k<=rad; k++) filter[rad + k] = expf(-k*k*2.f/(rad*rad));
       if(rad > 0)
@@ -580,7 +569,7 @@ void gui_init     (dt_iop_module_t *self)
     g->spot[i].ok = 0;
   }
   g->pipe_hash = 0;
-  
+
   self->widget = gtk_vbox_new(FALSE, 5);
   GtkWidget *label = gtk_label_new(_("click on a spot and drag on canvas to heal.\nuse the mouse wheel to adjust size.\nright click to remove a stroke."));
   gtk_misc_set_alignment(GTK_MISC(label), 0.0f, 0.5f);
@@ -637,15 +626,15 @@ void gui_post_expose(dt_iop_module_t *self, cairo_t *cr, int32_t width, int32_t 
   int len  = sizeof(dashed) / sizeof(dashed[0]);
   
   cairo_set_line_cap(cr,CAIRO_LINE_CAP_ROUND);
-  
+
   //we update the spots if needed
   if (!gui_spot_test_create(self)) return;
-  
+
   for(int i=0; i<p->num_spots; i++)
   {
     spot_draw_t gspt = g->spot[i];    
     float src_x=0, src_y=0, spt_x=0, spt_y=0;
-    
+
     //source
     if (gspt.source_count > 6)
     { 
@@ -710,7 +699,7 @@ void gui_post_expose(dt_iop_module_t *self, cairo_t *cr, int32_t width, int32_t 
       cairo_set_dash(cr, dashed, len, 4);
       cairo_stroke(cr);
     }
-    
+
     //spot
     if (gspt.spot_count > 6)
     {
@@ -747,7 +736,7 @@ void gui_post_expose(dt_iop_module_t *self, cairo_t *cr, int32_t width, int32_t 
       cairo_set_source_rgba(cr, .8, .8, .8, .8);
       cairo_stroke(cr);
     }
-    
+
     //line between
     cairo_set_line_cap(cr,CAIRO_LINE_CAP_ROUND);
     if(i == g->selected || i == g->dragging) cairo_set_line_width(cr, 5.0/zoom_scale);
@@ -892,7 +881,7 @@ int button_pressed(dt_iop_module_t *self, double x, double y, int which, int typ
         dt_control_log(_("spot removal only supports up to 32 spots"));
         return 1;
       }
-      
+
       const int i = p->num_spots++;
       g->dragging = i;
       // on *wd|*ht scale, radius on *min(wd, ht).
@@ -916,7 +905,7 @@ int button_pressed(dt_iop_module_t *self, double x, double y, int which, int typ
       gui_spot_add(self,&g->spot[i],i);
       g->selected = i;
       g->hoover_c = TRUE;
-      
+
     }
     else
     {
