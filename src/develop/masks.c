@@ -119,7 +119,7 @@ int _circle_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_
     }
     
   //we back transform all this points
-  dt_dev_distort_backtransform_plus(module->dev,piece->pipe,0,module->priority,points,w*h);
+  if (!dt_dev_distort_backtransform_plus(module->dev,piece->pipe,0,module->priority,points,w*h)) return 0;
   
   //we allocate the buffer
   *buffer = malloc(w*h*sizeof(float));

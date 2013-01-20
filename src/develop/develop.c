@@ -1326,10 +1326,9 @@ int dt_dev_distort_transform_plus(dt_develop_t *dev, dt_dev_pixelpipe_t *pipe, i
   {
     if (!pieces) return 0;
     dt_iop_module_t *module = (dt_iop_module_t *) (modules->data);
-    if ( module->priority <= pmax && module->priority >= pmin)
+    dt_dev_pixelpipe_iop_t *piece = (dt_dev_pixelpipe_iop_t *) (pieces->data);
+    if (piece->enabled && module->priority <= pmax && module->priority >= pmin)
     {
-      dt_dev_pixelpipe_iop_t *piece = (dt_dev_pixelpipe_iop_t *) (pieces->data);
-
       module->distort_transform(module,piece,points,points_count);
     }
     modules = g_list_next(modules);
@@ -1346,10 +1345,9 @@ int dt_dev_distort_backtransform_plus(dt_develop_t *dev, dt_dev_pixelpipe_t *pip
   {
     if (!pieces) return 0;
     dt_iop_module_t *module = (dt_iop_module_t *) (modules->data);
-    if ( module->priority <= pmax && module->priority >= pmin)
+    dt_dev_pixelpipe_iop_t *piece = (dt_dev_pixelpipe_iop_t *) (pieces->data);
+    if (piece->enabled && module->priority <= pmax && module->priority >= pmin)
     {
-      dt_dev_pixelpipe_iop_t *piece = (dt_dev_pixelpipe_iop_t *) (pieces->data);
-
       module->distort_backtransform(module,piece,points,points_count);
     }
     modules = g_list_previous(modules);
