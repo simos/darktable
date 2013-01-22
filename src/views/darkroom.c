@@ -401,7 +401,7 @@ void expose(dt_view_t *self, cairo_t *cri, int32_t width_i, int32_t height_i, in
     {
       if(width_i  > capwd) pointerx += (capwd-width_i) *.5f;
       if(height_i > capht) pointery += (capht-height_i)*.5f;
-      dt_masks_post_expose(dev->gui_module, cri, width, height, pointerx, pointery);
+      dt_masks_events_post_expose(dev->gui_module, cri, width, height, pointerx, pointery);
     }
     //module
     if(dev->gui_module && dev->gui_module->gui_post_expose)
@@ -1180,7 +1180,7 @@ void mouse_moved(dt_view_t *self, double x, double y, int which)
     return;
   }
   //masks
-  if (dev->form_visible) handled = dt_masks_mouse_moved(dev->gui_module, x, y, which);
+  if (dev->form_visible) handled = dt_masks_events_mouse_moved(dev->gui_module, x, y, which);
   if(handled) return;
   //module
   if(dev->gui_module && dev->gui_module->mouse_moved) handled = dev->gui_module->mouse_moved(dev->gui_module, x, y, which);
@@ -1224,7 +1224,7 @@ int button_released(dt_view_t *self, double x, double y, int which, uint32_t sta
 
   int handled = 0;
   //masks
-  if (dev->form_visible) handled = dt_masks_button_released(dev->gui_module, x, y, which, state);
+  if (dev->form_visible) handled = dt_masks_events_button_released(dev->gui_module, x, y, which, state);
   if(handled) return handled;
   //module
   if(dev->gui_module && dev->gui_module->button_released) handled = dev->gui_module->button_released(dev->gui_module, x, y, which, state);
@@ -1267,7 +1267,7 @@ int button_pressed(dt_view_t *self, double x, double y, int which, int type, uin
     return 1;
   }
   //masks
-  if (dev->form_visible) handled = dt_masks_button_pressed(dev->gui_module, x, y, which, type, state);
+  if (dev->form_visible) handled = dt_masks_events_button_pressed(dev->gui_module, x, y, which, type, state);
   if(handled) return handled;
   //module
   if(dev->gui_module && dev->gui_module->button_pressed) handled = dev->gui_module->button_pressed(dev->gui_module, x, y, which, type, state);
@@ -1328,7 +1328,7 @@ void scrolled(dt_view_t *self, double x, double y, int up, int state)
 
   int handled = 0;
   //masks
-  if (dev->form_visible) handled = dt_masks_scrolled(dev->gui_module, x, y, up, state);
+  if (dev->form_visible) handled = dt_masks_events_mouse_scrolled(dev->gui_module, x, y, up, state);
   if(handled) return;
   //module
   if(dev->gui_module && dev->gui_module->scrolled) handled = dev->gui_module->scrolled(dev->gui_module, x, y, up, state);

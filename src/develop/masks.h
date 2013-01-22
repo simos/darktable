@@ -110,10 +110,14 @@ typedef struct dt_masks_form_gui_t
   
   //values for mouse positions, etc...
   float posx, posy, dx, dy;
-  gboolean selected;
+  gboolean form_selected;
   gboolean border_selected;
+  int point_selected;
+  int feather_selected;
+  
   gboolean form_dragging;
   int point_dragging;
+  int feather_dragging;
   
   gboolean clockwise;
   gboolean creation;
@@ -150,11 +154,11 @@ void dt_masks_free_form(dt_masks_form_t *form);
 /** function used to manipulate forms for masks */
 void dt_masks_init_formgui(dt_develop_t *dev);
 
-int dt_masks_mouse_moved (struct dt_iop_module_t *module, double x, double y, int which);
-int dt_masks_button_released (struct dt_iop_module_t *module, double x, double y, int which, uint32_t state);
-int dt_masks_button_pressed (struct dt_iop_module_t *module, double x, double y, int which, int type, uint32_t state);
-int dt_masks_scrolled (struct dt_iop_module_t *module, double x, double y, int up, uint32_t state);
-void dt_masks_post_expose (struct dt_iop_module_t *module, cairo_t *cr, int32_t width, int32_t height, int32_t pointerx, int32_t pointery);
+int dt_masks_events_mouse_moved (struct dt_iop_module_t *module, double x, double y, int which);
+int dt_masks_events_button_released (struct dt_iop_module_t *module, double x, double y, int which, uint32_t state);
+int dt_masks_events_button_pressed (struct dt_iop_module_t *module, double x, double y, int which, int type, uint32_t state);
+int dt_masks_events_mouse_scrolled (struct dt_iop_module_t *module, double x, double y, int up, uint32_t state);
+void dt_masks_events_post_expose (struct dt_iop_module_t *module, cairo_t *cr, int32_t width, int32_t height, int32_t pointerx, int32_t pointery);
 
 /** function to know if a point is inside a form return 1 if inside, 2 if inside border, 0 else*/
 void dt_masks_set_inside(float x, int y, dt_masks_form_gui_t *gui);
