@@ -349,7 +349,11 @@ static int _circle_get_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *pie
   }
   
   //and we transform them with all distorted modules
-  if (!dt_dev_distort_transform_plus(module->dev,piece->pipe,0,module->priority,points,l+1)) return 0;
+  if (!dt_dev_distort_transform_plus(module->dev,piece->pipe,0,module->priority,points,l+1))
+  {
+    free(points);
+    return 0;
+  }
   
   //now we search min and max
   float xmin, xmax, ymin, ymax;
@@ -1038,6 +1042,209 @@ static void _curve_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_fo
   //TODO
 }
 
+static gint _curve_sort_points(gconstpointer a, gconstpointer b)
+{
+  const int *am = (const int *)a;
+  const int *bm = (const int *)b;
+  if (am[1] == bm[1]) return am[0] - bm[0];
+  return am[1] - bm[1];
+}
+
+static int _curve_get_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, int *width, int *height, int *posx, int *posy)
+{
+  float wd = piece->pipe->iwidth, ht = piece->pipe->iheight;
+  
+  //we get buffers for all points (by segments)
+  float *points = malloc(60000*sizeof(float));
+  const int nb = g_list_length(form->points);
+  //int seg[nb];
+  int pos = 0;
+  //we render all segments
+  for(int k = 0; k < nb; k++)
+  {
+    int k2 = (k+1)%nb;
+    dt_masks_point_bezier_t *point1 = (dt_masks_point_bezier_t *)g_list_nth_data(form->points,k);
+    dt_masks_point_bezier_t *point2 = (dt_masks_point_bezier_t *)g_list_nth_data(form->points,k2);
+    float p1[4] = {point1->corner[0]*wd, point1->corner[1]*ht, point1->ctrl2[0]*wd, point1->ctrl2[1]*ht};
+    float p2[4] = {point2->corner[0]*wd, point2->corner[1]*ht, point2->ctrl1[0]*wd, point2->ctrl1[1]*ht};
+    
+    //we store the first point
+    points[pos++] = p1[0];
+    points[pos++] = p1[1];
+    
+    //and we determine all points by recursion (to be sure the distance between 2 points is <=1)
+    float rx,ry;
+    _curve_points_recurs(p1,p2,0.0,1.0,p1[0],p1[1],p2[0],p2[1],&rx,&ry,points,&pos);
+  }
+  
+  if (!dt_dev_distort_transform_plus(module->dev,piece->pipe,0,module->priority,points,pos/2))
+  {
+    free(points);
+    return 0;
+  }
+  
+  //now we want to find the area, so we search min/max points
+  float xmin, xmax, ymin, ymax;
+  xmin = ymin = FLT_MAX;
+  xmax = ymax = FLT_MIN;
+  for (int i=0; i < pos/2; i++)
+  {
+    xmin = fminf(points[i*2],xmin);
+    xmax = fmaxf(points[i*2],xmax);
+    ymin = fminf(points[i*2+1],ymin);
+    ymax = fmaxf(points[i*2+1],ymax);
+  }
+  *height = ymax-ymin+1;
+  *width = xmax-xmin+1;
+  *posx = xmin;
+  *posy = ymin;
+  return 1;
+}
+
+static int _curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, float **buffer, int *width, int *height, int *posx, int *posy)
+{
+  float wd = piece->pipe->iwidth, ht = piece->pipe->iheight;
+  
+  //we get buffers for all points (by segments)
+  float *points = malloc(60000*sizeof(float));
+  const int nb = g_list_length(form->points);
+  //int seg[nb];
+  int pos = 0;
+  //we render all segments
+  for(int k = 0; k < nb; k++)
+  {
+    int k2 = (k+1)%nb;
+    dt_masks_point_bezier_t *point1 = (dt_masks_point_bezier_t *)g_list_nth_data(form->points,k);
+    dt_masks_point_bezier_t *point2 = (dt_masks_point_bezier_t *)g_list_nth_data(form->points,k2);
+    float p1[4] = {point1->corner[0]*wd, point1->corner[1]*ht, point1->ctrl2[0]*wd, point1->ctrl2[1]*ht};
+    float p2[4] = {point2->corner[0]*wd, point2->corner[1]*ht, point2->ctrl1[0]*wd, point2->ctrl1[1]*ht};
+    
+    //we store the first point
+    points[pos++] = p1[0];
+    points[pos++] = p1[1];
+    
+    //and we determine all points by recursion (to be sure the distance between 2 points is <=1)
+    float rx,ry;
+    _curve_points_recurs(p1,p2,0.0,1.0,p1[0],p1[1],p2[0],p2[1],&rx,&ry,points,&pos);
+  }
+  
+  if (!dt_dev_distort_transform_plus(module->dev,piece->pipe,0,module->priority,points,pos/2))
+  {
+    free(points);
+    return 0;
+  }
+  
+  //now we want to find the area, so we search min/max points
+  float xmin, xmax, ymin, ymax;
+  xmin = ymin = FLT_MAX;
+  xmax = ymax = FLT_MIN;
+  for (int i=0; i < pos/2; i++)
+  {
+    xmin = fminf(points[i*2],xmin);
+    xmax = fmaxf(points[i*2],xmax);
+    ymin = fminf(points[i*2+1],ymin);
+    ymax = fmaxf(points[i*2+1],ymax);
+  }
+  *height = ymax-ymin+1;
+  *width = xmax-xmin+1;
+  *posx = xmin;
+  *posy = ymin;
+  
+  //we create a new buffer for all the points, sorted by row values
+  GList* pts = {NULL};
+  int lastx, lasty,lasty2;
+  lastx = lasty = lasty2 = INT_MIN;
+  for (int i=0; i < pos/2; i++)
+  {
+    int xx = (int) points[i*2];
+    int yy = (int) points[i*2+1];
+    int *p = malloc(2*sizeof(int));
+    p[0] = xx, p[1] = yy;
+    
+    if (lasty != INT_MIN)
+    {
+      //we don't store the point if it has the same y value as the last one
+      if (yy == lasty) continue;
+      
+      //we want to be sure that there is no y jump
+      if (yy-lasty > 1 || yy-lasty < -1)
+      {
+        if (yy<lasty)
+        {
+          for (int j=yy+1; j<lasty; j++)
+          {
+            int *pp = malloc(2*sizeof(int));
+            pp[0] = (j-yy)*(lastx-xx)/(float)(lasty-yy)+xx, pp[1] = j;
+            pts = g_list_append(pts,pp);
+          }
+        }
+        else
+        {
+          for (int j=lasty+1; j<yy; j++)
+          {
+            int *pp = malloc(2*sizeof(int));
+            pp[0] = (j-lasty)*(xx-lastx)/(float)(yy-lasty)+lastx, pp[1] = j;
+            pts = g_list_append(pts,pp);
+          }
+        }
+      }
+      
+      if (lasty2 != INT_MIN)
+      {
+        //if we change the direction of the curve (in y), then we add a extra point
+        if ((lasty-lasty2)*(lasty-yy)>0)
+        {
+          int *pp = malloc(2*sizeof(int));
+          pp[0] = lastx, pp[1] = lasty;
+          pts = g_list_append(pts,pp);
+        }
+      }
+    }
+    //we add the point
+    pts = g_list_append(pts,p);
+    //printf("tabl %d %d\n",p[0],p[1]);
+    //we change last values
+    lasty2 = lasty;
+    lasty = yy;
+    lastx = xx;
+  }
+  
+  //and we sort all the datas
+  pts = g_list_sort(pts,_curve_sort_points);
+  
+  //we allocate the buffer
+  *buffer = malloc((*width)*(*height)*sizeof(float));
+  
+  //we populate the buffer row by row
+  GList *ppts = g_list_first(pts);
+  while(ppts)
+  {
+    //we get the first point
+    int *p1,*p2;
+    p1 = (int *)ppts->data;
+    //we get the second point
+    ppts = g_list_next(ppts);
+    if (!ppts) break;
+    p2 = (int *)ppts->data;
+    
+    //are the points on the same line ?
+    if (p1[1] != p2[1]) 
+    {
+      continue;
+    }
+    
+    //we set all the points between p1 and p2 to 1.0f
+    for (int i=p1[0]; i<p2[0]; i++)
+    {
+      (*buffer)[(*width)*(p1[1]-(*posy)) + i-(*posx)] = 1.0f;
+    }
+    ppts = g_list_next(ppts);
+  }
+  
+  free(points);
+  return 1;
+}
+
 int dt_masks_get_points(dt_develop_t *dev, dt_masks_form_t *form, float **points, int *points_count, float dx, float dy)
 {
   if (form->type == DT_MASKS_CIRCLE)
@@ -1072,6 +1279,10 @@ int dt_masks_get_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt
   {
     return _circle_get_area(module,piece,form,width,height,posx,posy);
   }
+  else if (form->type == DT_MASKS_BEZIER)
+  {
+    return _curve_get_area(module,piece,form,width,height,posx,posy);
+  }
   return 0;  
 }
 
@@ -1080,6 +1291,10 @@ int dt_masks_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt
   if (form->type == DT_MASKS_CIRCLE)
   {
     return _circle_get_mask(module,piece,form,buffer,width,height,posx,posy);
+  }
+  else if (form->type == DT_MASKS_BEZIER)
+  {
+    return _curve_get_mask(module,piece,form,buffer,width,height,posx,posy);
   }
   return 0; 
 }
@@ -1137,7 +1352,7 @@ void dt_masks_read_forms(dt_develop_t *dev)
     snprintf(form->name,128,"%s",name);
     form->version = sqlite3_column_int(stmt, 4);
     form->points = NULL;
-    //int nb_points = sqlite3_column_int(stmt, 6);
+    int nb_points = sqlite3_column_int(stmt, 6);
     
     //and now we "read" the blob
     if (form->type == DT_MASKS_CIRCLE)
@@ -1148,7 +1363,10 @@ void dt_masks_read_forms(dt_develop_t *dev)
     }
     else if(form->type == DT_MASKS_BEZIER)
     {
-      //TODO
+      dt_masks_point_bezier_t *ptbuf = (dt_masks_point_bezier_t *)malloc(nb_points*sizeof(dt_masks_point_bezier_t));
+      memcpy(ptbuf, sqlite3_column_blob(stmt, 5), nb_points*sizeof(dt_masks_point_bezier_t));
+      for (int i=0; i<nb_points; i++)
+        form->points = g_list_append(form->points,ptbuf+i);
     }
     
     //and we can add the form to the list
@@ -1180,14 +1398,27 @@ void dt_masks_write_form(dt_masks_form_t *form, dt_develop_t *dev)
     dt_masks_point_circle_t *circle = (dt_masks_point_circle_t *) (g_list_first(form->points)->data);
     DT_DEBUG_SQLITE3_BIND_BLOB(stmt, 6, circle, sizeof(dt_masks_point_circle_t), SQLITE_TRANSIENT);
     DT_DEBUG_SQLITE3_BIND_INT(stmt, 7, 1);
+    sqlite3_step (stmt);
+    sqlite3_finalize (stmt);
   }
   else if (form->type == DT_MASKS_BEZIER)
   {
-    //TODO
+    int nb = g_list_length(form->points);
+    dt_masks_point_bezier_t *ptbuf = (dt_masks_point_bezier_t *)malloc(nb*sizeof(dt_masks_point_bezier_t));
+    GList *points = g_list_first(form->points);
+    int pos=0;
+    while(points)
+    {
+      dt_masks_point_bezier_t *pt = (dt_masks_point_bezier_t *)points->data;
+      ptbuf[pos++] = *pt;
+      points = g_list_next(points);
+    }
+    DT_DEBUG_SQLITE3_BIND_BLOB(stmt, 6, ptbuf, nb*sizeof(dt_masks_point_bezier_t), SQLITE_TRANSIENT);
+    DT_DEBUG_SQLITE3_BIND_INT(stmt, 7, nb);
+    sqlite3_step (stmt);
+    sqlite3_finalize (stmt);
+    free(ptbuf);
   }
-  
-  sqlite3_step (stmt);
-  sqlite3_finalize (stmt);
 }
 
 void dt_masks_write_forms(dt_develop_t *dev)
@@ -1213,17 +1444,30 @@ void dt_masks_write_forms(dt_develop_t *dev)
     DT_DEBUG_SQLITE3_BIND_INT(stmt, 5, form->version);
     if (form->type == DT_MASKS_CIRCLE)
     {
-      dt_masks_point_circle_t *c = (dt_masks_point_circle_t *)g_list_first(form->points)->data;
-      DT_DEBUG_SQLITE3_BIND_BLOB(stmt, 6, c, sizeof(dt_masks_point_circle_t), SQLITE_TRANSIENT);
+      dt_masks_point_circle_t *circle = (dt_masks_point_circle_t *) (g_list_first(form->points)->data);
+      DT_DEBUG_SQLITE3_BIND_BLOB(stmt, 6, circle, sizeof(dt_masks_point_circle_t), SQLITE_TRANSIENT);
       DT_DEBUG_SQLITE3_BIND_INT(stmt, 7, 1);
+      sqlite3_step (stmt);
+      sqlite3_finalize (stmt);
     }
     else if (form->type == DT_MASKS_BEZIER)
     {
-      //TODO
+      int nb = g_list_length(form->points);
+      dt_masks_point_bezier_t *ptbuf = (dt_masks_point_bezier_t *)malloc(nb*sizeof(dt_masks_point_bezier_t));
+      GList *points = g_list_first(form->points);
+      int pos=0;
+      while(points)
+      {
+        dt_masks_point_bezier_t *pt = (dt_masks_point_bezier_t *)points->data;
+        ptbuf[pos++] = *pt;
+        points = g_list_next(points);
+      }
+      DT_DEBUG_SQLITE3_BIND_BLOB(stmt, 6, ptbuf, nb*sizeof(dt_masks_point_bezier_t), SQLITE_TRANSIENT);
+      DT_DEBUG_SQLITE3_BIND_INT(stmt, 7, nb);
+      sqlite3_step (stmt);
+      sqlite3_finalize (stmt);
+      free(ptbuf);
     }
-    
-    sqlite3_step (stmt);
-    sqlite3_finalize (stmt);
     forms = g_list_next(forms);
   }  
 }
