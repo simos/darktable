@@ -405,7 +405,7 @@ void dt_lightroom_import (dt_develop_t *dev)
         tagNode = tagNode->next;
       }
     }
-    else if (!xmlStrcmp(entryNode->name, (const xmlChar *) "RetouchInfo"))
+    /*else if (!xmlStrcmp(entryNode->name, (const xmlChar *) "RetouchInfo"))
     {
       xmlNodePtr riNode = entryNode;
 
@@ -430,7 +430,7 @@ void dt_lightroom_import (dt_develop_t *dev)
         if (ps.num_spots == MAX_SPOTS) break;
         riNode = riNode->next;
       }
-    }
+    }*/
     entryNode = entryNode->next;
   }
 

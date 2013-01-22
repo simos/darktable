@@ -22,6 +22,69 @@
 #include "develop/masks.h"
 #include "common/debug.h"
 
+void _circle_draw(cairo_t *cr,float zoom_scale,dt_masks_form_gui_t *gui)
+{
+  double dashed[] = {4.0, 4.0};
+  dashed[0] /= zoom_scale;
+  dashed[1] /= zoom_scale;
+  int len  = sizeof(dashed) / sizeof(dashed[0]);
+  
+  if (gui->points_count > 6)
+  { 
+    cairo_set_dash(cr, dashed, 0, 0);     
+    if(gui->selected || gui->form_dragging) cairo_set_line_width(cr, 5.0/zoom_scale);
+    else                                     cairo_set_line_width(cr, 3.0/zoom_scale);
+    cairo_set_source_rgba(cr, .3, .3, .3, .8);
+    if (gui->form_dragging)
+    {
+      float dx = gui->posx + gui->dx - gui->points[0], dy = gui->posy + gui->dy - gui->points[1];
+      cairo_move_to(cr,gui->points[2]+dx,gui->points[3]+dy);
+      for (int i=2; i<gui->points_count; i++)
+      {
+        cairo_line_to(cr,gui->points[i*2]+dx,gui->points[i*2+1]+dy);
+      }
+      cairo_line_to(cr,gui->points[2]+dx,gui->points[3]+dy);
+    }
+    else
+    {
+      cairo_move_to(cr,gui->points[2],gui->points[3]);
+      for (int i=2; i<gui->points_count; i++)
+      {
+        cairo_line_to(cr,gui->points[i*2],gui->points[i*2+1]);
+      }
+      cairo_line_to(cr,gui->points[2],gui->points[3]);
+    }
+    cairo_stroke_preserve(cr);
+    if(gui->selected || gui->form_dragging) cairo_set_line_width(cr, 2.0/zoom_scale);
+    else                                     cairo_set_line_width(cr, 1.0/zoom_scale);
+    cairo_set_source_rgba(cr, .8, .8, .8, .8);
+    cairo_stroke(cr);
+  }
+
+  //draw border
+  if ((!gui->form_dragging) && gui->border_count > 6)
+  { 
+    cairo_set_dash(cr, dashed, len, 0);     
+    if(gui->border_selected) cairo_set_line_width(cr, 2.0/zoom_scale);
+    else                     cairo_set_line_width(cr, 1.0/zoom_scale);
+    cairo_set_source_rgba(cr, .3, .3, .3, .8);
+      
+    cairo_move_to(cr,gui->border[2],gui->border[3]);
+    for (int i=2; i<gui->border_count; i++)
+    {
+      cairo_line_to(cr,gui->border[i*2],gui->border[i*2+1]);
+    }
+    cairo_line_to(cr,gui->border[2],gui->border[3]);
+
+    cairo_stroke_preserve(cr);
+    if(gui->border_selected) cairo_set_line_width(cr, 2.0/zoom_scale);
+    else                     cairo_set_line_width(cr, 1.0/zoom_scale);
+    cairo_set_source_rgba(cr, .8, .8, .8, .8);
+    cairo_set_dash(cr, dashed, len, 4);
+    cairo_stroke(cr);
+  }
+}
+
 int _circle_get_points(dt_develop_t *dev, float x, float y, float radius, float **points, int *points_count)
 {
   float wd = dev->preview_pipe->iwidth;
@@ -147,12 +210,277 @@ int _circle_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_
   return 1;
 }
 
+//Get the control points of a segment to match exactly a catmull-rom spline
+static void catmull_to_bezier(float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4,
+                                float* bx1, float* by1, float* bx2, float* by2)
+{
+  *bx1 = (-x1 + 6*x2 + x3) / 6;
+  *by1 = (-y1 + 6*y2 + y3) / 6;
+  *bx2 = ( x2 + 6*x3 - x4) / 6;
+  *by2 = ( y2 + 6*y3 - y4) / 6;
+}
+
+static void _curve_init_ctrl_points (dt_masks_form_t *form)
+{
+  //if we have less that 3 points, what to do ??
+  if (g_list_length(form->points) < 2)
+  {
+    return;
+  }
+  
+  int nb = g_list_length(form->points);
+  for(int k = 0; k < nb; k++)
+  {
+    dt_masks_point_bezier_t *point3 = (dt_masks_point_bezier_t *)g_list_nth_data(form->points,k);
+    //if the point as not be set manually, we redfine it
+    if (point3->state & DT_MASKS_POINT_STATE_NORMAL)
+    {
+      //we want to get point-2, point-1, point+1, point+2
+      int k1,k2,k4,k5;
+      k1 = (k-2)<0?nb+(k-2):k-2;
+      k2 = (k-1)<0?nb-1:k-1;
+      k4 = (k+1)%nb;
+      k5 = (k+2)%nb;
+      dt_masks_point_bezier_t *point1 = (dt_masks_point_bezier_t *)g_list_nth_data(form->points,k1);
+      dt_masks_point_bezier_t *point2 = (dt_masks_point_bezier_t *)g_list_nth_data(form->points,k2);
+      dt_masks_point_bezier_t *point4 = (dt_masks_point_bezier_t *)g_list_nth_data(form->points,k4);
+      dt_masks_point_bezier_t *point5 = (dt_masks_point_bezier_t *)g_list_nth_data(form->points,k5);
+      
+      float bx1,by1,bx2,by2;
+      catmull_to_bezier(point1->corner[0],point1->corner[1],
+                        point2->corner[0],point2->corner[1],
+                        point3->corner[0],point3->corner[1],
+                        point4->corner[0],point4->corner[1],
+                        &bx1,&by1,&bx2,&by2);
+      if (point2->ctrl2[0] == -1.0) point2->ctrl2[0] = bx1;
+      if (point2->ctrl2[1] == -1.0) point2->ctrl2[1] = by1;
+      point3->ctrl1[0] = bx2;
+      point3->ctrl1[1] = by2;
+      catmull_to_bezier(point2->corner[0],point2->corner[1],
+                        point3->corner[0],point3->corner[1],
+                        point4->corner[0],point4->corner[1],
+                        point5->corner[0],point5->corner[1],
+                        &bx1,&by1,&bx2,&by2);
+      if (point4->ctrl1[0] == -1.0) point4->ctrl1[0] = bx2;
+      if (point4->ctrl1[1] == -1.0) point4->ctrl1[1] = by2;
+      point3->ctrl2[0] = bx1;
+      point3->ctrl2[1] = by1;
+    }
+  }
+}
+
+static gboolean _curve_is_clockwise(dt_masks_form_t *form)
+{
+  if (g_list_length(form->points) > 2)
+  {
+    float sum = 0.0f;
+    int nb = g_list_length(form->points);
+    for(int k = 0; k < nb; k++)
+    {      
+      int k2 = (k+1)%nb;
+      dt_masks_point_bezier_t *point1 = (dt_masks_point_bezier_t *)g_list_nth_data(form->points,k);
+      dt_masks_point_bezier_t *point2 = (dt_masks_point_bezier_t *)g_list_nth_data(form->points,k2);
+      //edge k
+      sum += (point2->corner[0]-point1->corner[0])*(point2->corner[1]+point1->corner[1]);
+    }
+    return (sum < 0);
+  }
+  //return dummy answer
+  return TRUE;
+}
+
+static void _curve_points_recurs(float *p1, float *p2, 
+                                  double tmin, double tmax, float minx, float miny, float maxx, float maxy, 
+                                  float *rx, float *ry, float *tabl, int *pos)
+{
+  //we calcul points if needed
+  if (minx == -99999)
+  {
+    minx = p1[0]*(1.0-tmin)*(1.0-tmin)*(1.0-tmin) +
+            p1[2]*3*tmin*(1-tmin)*(1-tmin) +
+            p2[2]*3*tmin*tmin*(1-tmin) +
+            p2[0]*tmin*tmin*tmin;
+    miny = p1[1]*(1.0-tmin)*(1.0-tmin)*(1.0-tmin) +
+            p1[3]*3*tmin*(1-tmin)*(1-tmin) +
+            p2[3]*3*tmin*tmin*(1-tmin) +
+            p2[1]*tmin*tmin*tmin;
+  }
+  if (maxx == -99999)
+  {
+    maxx = p1[0]*(1.0-tmax)*(1.0-tmax)*(1.0-tmax) +
+                        p1[2]*3*tmax*(1-tmax)*(1-tmax) +
+                        p2[2]*3*tmax*tmax*(1-tmax) +
+                        p2[0]*tmax*tmax*tmax;
+    maxy = p1[1]*(1.0-tmax)*(1.0-tmax)*(1.0-tmax) +
+                        p1[3]*3*tmax*(1-tmax)*(1-tmax) +
+                        p2[3]*3*tmax*tmax*(1-tmax) +
+                        p2[1]*tmax*tmax*tmax;
+  }
+  
+  //are the point near ? (we just test y as it's the value we use for rendering
+  if (miny-maxy <= 1 && miny-maxy >= -1 && minx-maxx <= 2 && minx-maxx >= -2)
+  {
+    tabl[*pos] = maxx;
+    tabl[*pos+1] = maxy;
+    *pos += 2;
+    *rx = maxx;
+    *ry = maxy;
+    return;
+  }
+  
+  //we split in two part
+  double tx = (tmin+tmax)/2.0;
+  float x,y;
+  _curve_points_recurs(p1,p2,tmin,tx,minx,miny,-99999,-99999,&x,&y,tabl,pos);
+  _curve_points_recurs(p1,p2,tx,tmax,x,y,maxx,maxy,rx,ry,tabl,pos);
+}
+
+int _curve_get_points(dt_develop_t *dev, dt_masks_form_t *form, float **points, int *points_count)
+{
+  float wd = dev->preview_pipe->iwidth;
+  float ht = dev->preview_pipe->iheight;
+
+  //we allocate buffer (very large) => how to handle this ???
+  *points = malloc(60000*sizeof(float));
+  
+  //we store all points
+  int nb = g_list_length(form->points);
+  for(int k = 0; k < nb; k++)
+  {
+    dt_masks_point_bezier_t *pt = (dt_masks_point_bezier_t *)g_list_nth_data(form->points,k);
+    (*points)[k*6] = pt->ctrl1[0]*wd;
+    (*points)[k*6+1] = pt->ctrl1[1]*ht;
+    (*points)[k*6+2] = pt->corner[0]*wd;
+    (*points)[k*6+3] = pt->corner[1]*ht;
+    (*points)[k*6+4] = pt->ctrl2[0]*wd;
+    (*points)[k*6+5] = pt->ctrl2[1]*ht;
+  }
+  int pos = 6*nb;
+  //we render all segments
+  for(int k = 0; k < nb; k++)
+  {
+    int k2 = (k+1)%nb;
+    dt_masks_point_bezier_t *point1 = (dt_masks_point_bezier_t *)g_list_nth_data(form->points,k);
+    dt_masks_point_bezier_t *point2 = (dt_masks_point_bezier_t *)g_list_nth_data(form->points,k2);
+    float p1[4] = {point1->corner[0]*wd, point1->corner[1]*ht, point1->ctrl2[0]*wd, point1->ctrl2[1]*ht};
+    float p2[4] = {point2->corner[0]*wd, point2->corner[1]*ht, point2->ctrl1[0]*wd, point2->ctrl1[1]*ht};
+    
+    //we store the first point
+    (*points)[pos++] = p1[0];
+    (*points)[pos++] = p1[1];
+    
+    //and we determine all points by recursion (to be sure the distance between 2 points is <=1)
+    float rx,ry;
+    _curve_points_recurs(p1,p2,0.0,1.0,p1[0],p1[1],p2[0],p2[1],&rx,&ry,*points,&pos);
+  }
+  *points_count = pos/2;
+  
+  //and we transform them with all distorted modules
+  if (dt_dev_distort_transform(dev,*points,*points_count)) return 1;
+  
+  //if we failed, then free all and return
+  free(*points);
+  *points = NULL;
+  *points_count = 0;
+  return 0; 
+}
+
+int _curve_get_border(dt_develop_t *dev, dt_masks_form_t *form, float **points, int *points_count)
+{
+  *points_count = 0;
+  return 1;
+}
+
+void _curve_draw(cairo_t *cr, float zoom_scale, dt_masks_form_gui_t *gui, int nb)
+{
+  double dashed[] = {4.0, 4.0};
+  dashed[0] /= zoom_scale;
+  dashed[1] /= zoom_scale;
+  //int len  = sizeof(dashed) / sizeof(dashed[0]);
+  
+  //draw curve
+  if (gui->points_count > nb+6)
+  { 
+    cairo_set_dash(cr, dashed, 0, 0);     
+    if(gui->selected || gui->form_dragging) cairo_set_line_width(cr, 5.0/zoom_scale);
+    else                                     cairo_set_line_width(cr, 3.0/zoom_scale);
+    cairo_set_source_rgba(cr, .3, .3, .3, .8);
+    if (gui->form_dragging)
+    {
+      float dx = gui->posx + gui->dx - gui->points[2], dy = gui->posy + gui->dy - gui->points[3];
+      cairo_move_to(cr,gui->points[nb*3*2]+dx,gui->points[nb*3*2+1]+dy);
+      for (int i=nb*3*2; i<gui->points_count; i++)
+      {
+        cairo_line_to(cr,gui->points[i*2]+dx,gui->points[i*2+1]+dy);
+      }
+      cairo_line_to(cr,gui->points[nb*3*2]+dx,gui->points[nb*3*2+1]+dy);
+    }
+    else
+    {
+      cairo_move_to(cr,gui->points[nb*6],gui->points[nb*6+1]);
+      for (int i=nb*3; i<gui->points_count; i++)
+      {
+        cairo_line_to(cr,gui->points[i*2],gui->points[i*2+1]);
+      }
+      cairo_line_to(cr,gui->points[nb*6],gui->points[nb*6+1]);
+    }
+    cairo_stroke_preserve(cr);
+    if(gui->selected || gui->form_dragging) cairo_set_line_width(cr, 2.0/zoom_scale);
+    else                                     cairo_set_line_width(cr, 1.0/zoom_scale);
+    cairo_set_source_rgba(cr, .8, .8, .8, .8);
+    cairo_stroke(cr);
+  }
+  
+  //draw corners
+  float anchor_size = 5.0f / zoom_scale;
+  for(int k = 0; k < nb; k++)
+  {
+    //if (k == gui->point_dragging)
+    {
+      anchor_size = 6.0f / zoom_scale;
+      cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 0.9);
+    }
+    //else cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 0.5);
+    
+    cairo_rectangle(cr, 
+        gui->points[k*6+2] - (anchor_size*0.5), 
+        gui->points[k*6+3] - (anchor_size*0.5), 
+        anchor_size, anchor_size);
+    cairo_fill_preserve(cr);
+
+    //if (k == gui->point_dragging) 
+    cairo_set_source_rgba(cr, 0.0, 0.0, 0.0, 0.9);
+    //else cairo_set_source_rgba(cr, 0.0, 0.0, 0.0, 0.5);
+    cairo_stroke(cr);
+  }
+  
+  //draw help lines
+   cairo_set_source_rgba(cr, 1.0, 0.0, 0.0, 1.0);
+    for(int k = 0; k < nb; k++)
+    {
+      //uncomment this part if you want to see "real" control points
+      cairo_move_to(cr, gui->points[k*6+2],gui->points[k*6+3]);
+      cairo_line_to(cr, gui->points[k*6],gui->points[k*6+1]);
+      cairo_stroke(cr);
+      cairo_move_to(cr, gui->points[k*6+2],gui->points[k*6+3]);
+      cairo_line_to(cr, gui->points[k*6+4],gui->points[k*6+5]);
+      cairo_stroke(cr);
+    }
+      
+  //draw border
+  //TODO
+}
+
 int dt_masks_get_points(dt_develop_t *dev, dt_masks_form_t *form, float **points, int *points_count, float dx, float dy)
 {
   if (form->type == DT_MASKS_CIRCLE)
   {
     dt_masks_point_circle_t *circle = (dt_masks_point_circle_t *) (g_list_first(form->points)->data);
     return _circle_get_points(dev,circle->center[0]-dx, circle->center[1]-dy, circle->radius, points, points_count);
+  }
+  else if (form->type == DT_MASKS_BEZIER)
+  {
+    return _curve_get_points(dev,form, points, points_count);
   }
   return 0;
 }
@@ -163,6 +491,10 @@ int dt_masks_get_border(dt_develop_t *dev, dt_masks_form_t *form, float **border
   {
     dt_masks_point_circle_t *circle = (dt_masks_point_circle_t *) (g_list_first(form->points)->data);
     return _circle_get_points(dev,circle->center[0]-dx, circle->center[1]-dy, circle->radius + circle->border, border, border_count); 
+  }
+    else if (form->type == DT_MASKS_BEZIER)
+  {
+    return _curve_get_border(dev,form, border, border_count);
   }
   return 0;
 }
@@ -409,6 +741,7 @@ static void _gui_form_save_creation(dt_iop_module_t *module, dt_masks_form_t *fo
   module->blend_params->forms[forms_count] = form->formid;
   module->blend_params->forms_state[forms_count] = DT_MASKS_STATE_SHOW | DT_MASKS_STATE_USE;
   if (form->type == DT_MASKS_CIRCLE) snprintf(form->name,128,"mask circle #%d",forms_count);
+  else if (form->type == DT_MASKS_BEZIER) snprintf(form->name,128,"mask curve #%d",forms_count);
   dt_masks_write_form(form,module->dev);
   
   //update gui
@@ -430,7 +763,8 @@ static void _gui_form_save_creation(dt_iop_module_t *module, dt_masks_form_t *fo
 
 int dt_masks_mouse_moved (struct dt_iop_module_t *module, double x, double y, int which)
 {
-  //dt_masks_form_t *form = module->dev->form_visible;
+  if (!module) return 0;
+  dt_masks_form_t *form = module->dev->form_visible;
   dt_masks_form_gui_t *gui = module->dev->form_gui;
   
   float pzx, pzy;
@@ -438,10 +772,32 @@ int dt_masks_mouse_moved (struct dt_iop_module_t *module, double x, double y, in
   pzx += 0.5f;
   pzy += 0.5f;
       
-  if (gui->form_dragging)
+  if (gui->form_dragging && which == 1)
   {
     gui->posx = pzx*module->dev->preview_pipe->backbuf_width;
     gui->posy = pzy*module->dev->preview_pipe->backbuf_height;
+    dt_control_queue_redraw_center();
+    return 1;
+  }
+  else if (gui->point_dragging >=0 && form->type == DT_MASKS_BEZIER)
+  {
+    float wd = module->dev->preview_pipe->backbuf_width;
+    float ht = module->dev->preview_pipe->backbuf_height;
+    float pts[2] = {pzx*wd,pzy*ht};
+    dt_dev_distort_backtransform(module->dev,pts,1);
+    dt_masks_point_bezier_t *bzpt = (dt_masks_point_bezier_t *)g_list_nth_data(form->points,gui->point_dragging);
+    pzx = pts[0]/module->dev->preview_pipe->iwidth;
+    pzy = pts[1]/module->dev->preview_pipe->iheight;
+    bzpt->ctrl1[0] += pzx - bzpt->corner[0];
+    bzpt->ctrl2[0] += pzx - bzpt->corner[0];
+    bzpt->ctrl1[1] += pzy - bzpt->corner[1];
+    bzpt->ctrl2[1] += pzy - bzpt->corner[1];
+    bzpt->corner[0] = pzx;
+    bzpt->corner[1] = pzy;
+    _curve_init_ctrl_points(form);
+    //we recreate the form points
+    _gui_form_remove(module,form,gui);
+    _gui_form_create(module,form,gui);
     dt_control_queue_redraw_center();
     return 1;
   }
@@ -452,10 +808,12 @@ int dt_masks_mouse_moved (struct dt_iop_module_t *module, double x, double y, in
     if (!gui->selected) return 0;
     return 1;
   }
+  
   return 0;
 }
 int dt_masks_button_released (struct dt_iop_module_t *module, double x, double y, int which, uint32_t state)
 {
+  if (!module) return 0;
   if (which != 1) return 0;
   
   dt_masks_form_t *form = module->dev->form_visible;
@@ -499,13 +857,13 @@ int dt_masks_button_released (struct dt_iop_module_t *module, double x, double y
 }
 int dt_masks_button_pressed (struct dt_iop_module_t *module, double x, double y, int which, int type, uint32_t state)
 {
-  if (which != 1) return 0;
-  
+  if (!module) return 0;
   dt_masks_form_t *form = module->dev->form_visible;
   dt_masks_form_gui_t *gui = module->dev->form_gui;  
   
   if (form->type == DT_MASKS_CIRCLE)
   {
+    if (which != 1) return 0;
     if (gui->selected && !gui->creation)
     {
       //we start the form dragging
@@ -552,11 +910,99 @@ int dt_masks_button_pressed (struct dt_iop_module_t *module, double x, double y,
       return 1;
     }
   }
+  else if (form->type == DT_MASKS_BEZIER)
+  {
+    if (which == 1)
+    {
+      if (gui->creation)
+      {
+        dt_masks_point_bezier_t *bzpt = (dt_masks_point_bezier_t *) (malloc(sizeof(dt_masks_point_bezier_t)));
+        int nb = g_list_length(form->points);
+        //change the values
+        float pzx, pzy;
+        dt_dev_get_pointer_zoom_pos(module->dev, x, y, &pzx, &pzy);
+        pzx += 0.5f;
+        pzy += 0.5f;
+        float wd = module->dev->preview_pipe->backbuf_width;
+        float ht = module->dev->preview_pipe->backbuf_height;
+        float pts[2] = {pzx*wd,pzy*ht};
+        dt_dev_distort_backtransform(module->dev,pts,1);
+        
+        bzpt->corner[0] = pts[0]/module->dev->preview_pipe->iwidth;
+        bzpt->corner[1] = pts[1]/module->dev->preview_pipe->iheight;
+        bzpt->ctrl1[0] = bzpt->ctrl1[1] = bzpt->ctrl2[0] = bzpt->ctrl2[1] = -1.0;
+        bzpt->state = DT_MASKS_POINT_STATE_NORMAL;
+        
+        //if that's the first point we should had another one as base point
+        if (nb == 0)
+        {
+          dt_masks_point_bezier_t *bzpt2 = (dt_masks_point_bezier_t *) (malloc(sizeof(dt_masks_point_bezier_t)));
+          bzpt2->corner[0] = pts[0]/module->dev->preview_pipe->iwidth;
+          bzpt2->corner[1] = pts[1]/module->dev->preview_pipe->iheight;
+          bzpt2->ctrl1[0] = bzpt2->ctrl1[1] = bzpt2->ctrl2[0] = bzpt2->ctrl2[1] = -1.0;
+          bzpt2->state = DT_MASKS_POINT_STATE_NORMAL;
+          form->points = g_list_append(form->points,bzpt2);
+          nb++;
+        }
+        form->points = g_list_append(form->points,bzpt);
+        
+        gui->point_dragging = nb;
+        
+        _curve_init_ctrl_points(form);      
+        
+        //we recreate the form points
+        gui->clockwise = _curve_is_clockwise(form);
+        _gui_form_remove(module,form,gui);
+        _gui_form_create(module,form,gui);
+        
+        dt_control_queue_redraw_center();
+        return 1;
+      }
+      else if (gui->selected)
+      {
+        
+      }
+    }
+    else if (which == 3)
+    {
+      if (gui->creation)
+      {
+        if (g_list_length(form->points) < 3)
+        {
+          //we remove the form
+          dt_masks_free_form(form);
+          module->dev->form_visible = NULL;
+          dt_masks_init_formgui(module->dev);
+          dt_control_queue_redraw_center();
+          return 1;
+        }
+        else
+        {
+          //we delete last point (the one we are currently dragging)
+          dt_masks_point_bezier_t *point = (dt_masks_point_bezier_t *)g_list_last(form->points)->data;
+          form->points = g_list_remove(form->points,point);
+          free(point);
+          point = NULL;
+          
+          gui->point_dragging = -1;
+          _curve_init_ctrl_points(form);
+           gui->clockwise = _curve_is_clockwise(form);
+          _gui_form_remove(module,form,gui);
+          _gui_form_create(module,form,gui);
+        
+          //we save the form and quit creation mode
+           _gui_form_save_creation(module,form,gui);
+           dt_dev_add_history_item(darktable.develop, module, TRUE);
+        }
+      }
+    }
+  }
   
   return 0;
 }
 int dt_masks_scrolled (struct dt_iop_module_t *module, double x, double y, int up, uint32_t state)
 {
+  if (!module) return 0;
   dt_masks_form_t *form = module->dev->form_visible;
   dt_masks_form_gui_t *gui = module->dev->form_gui;
   
@@ -616,11 +1062,6 @@ void dt_masks_post_expose (struct dt_iop_module_t *module, cairo_t *cr, int32_t 
   cairo_translate(cr, width/2.0, height/2.0f);
   cairo_scale(cr, zoom_scale, zoom_scale);
   cairo_translate(cr, -.5f*wd-zoom_x*wd, -.5f*ht-zoom_y*ht);
-
-  double dashed[] = {4.0, 4.0};
-  dashed[0] /= zoom_scale;
-  dashed[1] /= zoom_scale;
-  int len  = sizeof(dashed) / sizeof(dashed[0]);
   
   cairo_set_line_cap(cr,CAIRO_LINE_CAP_ROUND);
   
@@ -628,60 +1069,8 @@ void dt_masks_post_expose (struct dt_iop_module_t *module, cairo_t *cr, int32_t 
   if (!_gui_form_test_create(module,form,gui)) return;
     
   //draw form
-  if (gui->points_count > 6)
-  { 
-    cairo_set_dash(cr, dashed, 0, 0);     
-    if(gui->selected || gui->form_dragging) cairo_set_line_width(cr, 5.0/zoom_scale);
-    else                                     cairo_set_line_width(cr, 3.0/zoom_scale);
-    cairo_set_source_rgba(cr, .3, .3, .3, .8);
-    if (gui->form_dragging)
-    {
-      float dx = gui->posx + gui->dx - gui->points[0], dy = gui->posy + gui->dy - gui->points[1];
-      cairo_move_to(cr,gui->points[2]+dx,gui->points[3]+dy);
-      for (int i=2; i<gui->points_count; i++)
-      {
-        cairo_line_to(cr,gui->points[i*2]+dx,gui->points[i*2+1]+dy);
-      }
-      cairo_line_to(cr,gui->points[2]+dx,gui->points[3]+dy);
-    }
-    else
-    {
-      cairo_move_to(cr,gui->points[2],gui->points[3]);
-      for (int i=2; i<gui->points_count; i++)
-      {
-        cairo_line_to(cr,gui->points[i*2],gui->points[i*2+1]);
-      }
-      cairo_line_to(cr,gui->points[2],gui->points[3]);
-    }
-    cairo_stroke_preserve(cr);
-    if(gui->selected || gui->form_dragging) cairo_set_line_width(cr, 2.0/zoom_scale);
-    else                                     cairo_set_line_width(cr, 1.0/zoom_scale);
-    cairo_set_source_rgba(cr, .8, .8, .8, .8);
-    cairo_stroke(cr);
-  }
-
-  //draw border
-  if ((!gui->form_dragging) && gui->border_count > 6)
-  { 
-    cairo_set_dash(cr, dashed, len, 0);     
-    if(gui->border_selected) cairo_set_line_width(cr, 2.0/zoom_scale);
-    else                     cairo_set_line_width(cr, 1.0/zoom_scale);
-    cairo_set_source_rgba(cr, .3, .3, .3, .8);
-      
-    cairo_move_to(cr,gui->border[2],gui->border[3]);
-    for (int i=2; i<gui->border_count; i++)
-    {
-      cairo_line_to(cr,gui->border[i*2],gui->border[i*2+1]);
-    }
-    cairo_line_to(cr,gui->border[2],gui->border[3]);
-
-    cairo_stroke_preserve(cr);
-    if(gui->border_selected) cairo_set_line_width(cr, 2.0/zoom_scale);
-    else                     cairo_set_line_width(cr, 1.0/zoom_scale);
-    cairo_set_source_rgba(cr, .8, .8, .8, .8);
-    cairo_set_dash(cr, dashed, len, 4);
-    cairo_stroke(cr);
-  }
+  if (form->type == DT_MASKS_CIRCLE) _circle_draw(cr,zoom_scale,gui);
+  else if (form->type == DT_MASKS_BEZIER) _curve_draw(cr,zoom_scale,gui,g_list_length(form->points));
 }
 
 void dt_masks_set_inside(float x, int y, dt_masks_form_gui_t *gui)
@@ -758,6 +1147,30 @@ static void _menu_form_add_circle(GtkButton *button, dt_iop_module_t *module)
   dt_control_queue_redraw_center();
 }
 
+static void _menu_form_add_bezier(GtkButton *button, dt_iop_module_t *module)
+{  
+  //we create the new form
+  dt_masks_form_t *form = dt_masks_create(DT_MASKS_BEZIER);
+  dt_masks_init_formgui(module->dev);
+  module->dev->form_visible = form;
+  module->dev->form_gui->creation = TRUE;
+
+  //we remove visible selection on labels if any
+  dt_iop_gui_blend_data_t *bd = (dt_iop_gui_blend_data_t *)module->blend_data;
+  if (bd)
+  {
+    GList *childs = gtk_container_get_children(GTK_CONTAINER(bd->form_box));
+    while(childs)
+    {
+      GtkWidget *w = (GtkWidget *) childs->data;
+      gtk_widget_modify_bg(w, GTK_STATE_SELECTED, NULL);  
+      childs = g_list_next(childs);
+    } 
+  }
+  
+  dt_control_queue_redraw_center();
+}
+
 static void _menu_form_add_existing(GtkButton *button, dt_iop_module_t *module)
 {  
   //we get the new form
@@ -815,7 +1228,7 @@ GtkWidget *dt_masks_gui_get_menu(struct dt_iop_module_t *module)
   g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (_menu_form_add_circle), module);
   gtk_menu_append(menu, item);
   item = gtk_menu_item_new_with_label(_("add curve mask"));
-  //g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (_menu_form_add_bezier), module);
+  g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (_menu_form_add_bezier), module);
   gtk_menu_append(menu, item);
   
   //separator

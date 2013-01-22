@@ -24,11 +24,12 @@
 
 typedef struct spot_t
 {
-  // position of the spot
-  float x, y;
-  // position to clone from
-  float xc, yc;
-  float radius;
+  double formid;
+  float source[2];
+  
+  float opacity;  //between 0 and 1
+  
+  int version; //old version = 1 ; new version = 2
 }
 spot_t;
 

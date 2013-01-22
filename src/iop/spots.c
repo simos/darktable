@@ -34,15 +34,6 @@
 // and includes version information about compile-time dt
 DT_MODULE(2)
 
-  double formid;
-  float source[2];
-  
-  float opacity;  //between 0 and 1
-  
-  int version; //old version = 1 ; new version = 2
-  
-  //just to say "hey, there has some some change to the params" and avoid cache problem
-  int change;
 typedef struct spot_draw_t
 {
   //for both source and spot, first point is the center
@@ -842,7 +833,6 @@ int scrolled(dt_iop_module_t *self, double x, double y, int up, uint32_t state)
       if(up && circle->border > 0.002f) circle->border *= 0.9f;
       else  if(circle->border < 0.1f  ) circle->border *= 1.0f/0.9f;
       dt_masks_write_form(form,self->dev);
-      p->change = (p->change+1) % 1000;
       gui_spot_update_radius(self,&g->spot[g->selected],g->selected);
     }
     else
@@ -850,7 +840,6 @@ int scrolled(dt_iop_module_t *self, double x, double y, int up, uint32_t state)
       if(up && circle->radius > 0.002f) circle->radius *= 0.9f;
       else  if(circle->radius < 0.1f  ) circle->radius *= 1.0f/0.9f;
       dt_masks_write_form(form,self->dev);
-      p->change = (p->change+1) % 1000;
       gui_spot_update_radius(self,&g->spot[g->selected],g->selected);
       g->last_radius = circle->radius;
       dt_conf_set_float("ui_last/spot_size", g->last_radius);
@@ -958,7 +947,6 @@ int button_released(struct dt_iop_module_t *self, double x, double y, int which,
       circle->center[0] = pts[0]/self->dev->preview_pipe->iwidth;
       circle->center[1] = pts[1]/self->dev->preview_pipe->iheight;
       dt_masks_write_form(form,self->dev);
-      p->change = (p->change+1) % 1000;
       gui_spot_update_spot(self,&g->spot[i],i);
     }
     g->selected = -1;

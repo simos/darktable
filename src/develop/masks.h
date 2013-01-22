@@ -48,6 +48,13 @@ typedef enum dt_masks_states_t
 }
 dt_masks_states_t;
 
+typedef enum dt_masks_points_states_t
+{
+  DT_MASKS_POINT_STATE_NORMAL   = 1,
+  DT_MASKS_POINT_STATE_USER  = 2
+}
+dt_masks_points_states_t;
+
 /** structure used to store 1 point for a circle */
 typedef struct dt_masks_point_circle_t
 {
@@ -64,6 +71,7 @@ typedef struct dt_masks_point_bezier_t
   float ctrl1[2];
   float ctrl2[2];
   float border[2];
+  dt_masks_points_states_t state;
 }
 dt_masks_point_bezier_t;
 
@@ -107,6 +115,7 @@ typedef struct dt_masks_form_gui_t
   gboolean form_dragging;
   int point_dragging;
   
+  gboolean clockwise;
   gboolean creation;
   
   //ids
