@@ -107,6 +107,46 @@ static void _gui_form_save_creation(dt_iop_module_t *module, dt_masks_form_t *fo
   module->dev->form_gui->formid = form->formid;
 }
 
+static void _circle_get_distance(float x, int y, float as, dt_masks_form_gui_t *gui, int *inside, int *inside_border, int *near)
+{
+  //we first check if it's inside borders
+  int nb = 0;
+  int last = -9999;
+  for (int i=0; i<gui->border_count; i++)
+  {
+    int yy = (int) gui->border[i*2+1];
+    if (yy != last && yy == y)
+    {
+      if (gui->border[i*2] > x) nb++;
+    }
+    last = yy;
+  }  
+  if (!(nb & 1))
+  {
+    *inside = 0;
+    *inside_border = 0;
+    *near = -1;
+    return;
+  }
+  *inside = 1;
+  *near = 0;
+  
+  //and we check if it's inside form
+  nb = 0;
+  last = -9999;
+  for (int i=0; i<gui->points_count; i++)
+  {
+    int yy = (int) gui->points[i*2+1];
+    if (yy != last && yy == y)
+    {
+      if (gui->points[i*2] > x) nb++;
+      if (gui->points[i*2] - x < as && gui->points[i*2] - x > -as) *near = 1;
+    }
+    last = yy;
+  }
+  *inside_border = !(nb & 1);
+}
+
 static int _circle_events_mouse_scrolled(struct dt_iop_module_t *module, float pzx, float pzy, int up, uint32_t state,
                                           dt_masks_form_t *form, dt_masks_form_gui_t *gui)
 {
@@ -222,7 +262,28 @@ static int _circle_events_mouse_moved(struct dt_iop_module_t *module,float pzx, 
   }
   else if (!gui->creation)
   {
-    dt_masks_set_inside(pzx*module->dev->preview_pipe->backbuf_width,pzy*module->dev->preview_pipe->backbuf_height,gui);
+    int32_t zoom, closeup;
+    DT_CTL_GET_GLOBAL(zoom, dev_zoom);
+    DT_CTL_GET_GLOBAL(closeup, dev_closeup);
+    float zoom_scale = dt_dev_get_zoom_scale(module->dev, zoom, closeup ? 2 : 1, 1);
+    float as = 0.005f/zoom_scale*module->dev->preview_pipe->backbuf_width;
+    int in,inb,near;
+    dt_masks_get_distance(pzx*module->dev->preview_pipe->backbuf_width,pzy*module->dev->preview_pipe->backbuf_height,as,gui,form,&in,&inb,&near);
+    if (inb)
+    {
+      gui->form_selected = TRUE;
+      gui->border_selected = TRUE;
+    }
+    else if (in)
+    {
+      gui->form_selected = TRUE;
+      gui->border_selected = FALSE;
+    }
+    else
+    {
+      gui->form_selected = FALSE;
+      gui->border_selected = FALSE;
+    }
     dt_control_queue_redraw_center();
     if (!gui->form_selected && !gui->border_selected) return 0;
     return 1;
@@ -618,6 +679,8 @@ static int _curve_get_points(dt_develop_t *dev, dt_masks_form_t *form, float **p
     //and we determine all points by recursion (to be sure the distance between 2 points is <=1)
     float rx,ry;
     _curve_points_recurs(p1,p2,0.0,1.0,p1[0],p1[1],p2[0],p2[1],&rx,&ry,*points,&pos);
+    (*points)[pos++] = rx;
+    (*points)[pos++] = ry;
   }
   *points_count = pos/2;
   
@@ -708,6 +771,34 @@ static int _curve_events_button_pressed(struct dt_iop_module_t *module,float pzx
       gui->feather_dragging = gui->feather_selected;
       dt_control_queue_redraw_center();
       return 1;
+    }
+    else if (gui->seg_selected >= 0)
+    {
+      if ((state&GDK_CONTROL_MASK) == GDK_CONTROL_MASK)
+      {
+        //we add a new point to the curve
+        dt_masks_point_bezier_t *bzpt = (dt_masks_point_bezier_t *) (malloc(sizeof(dt_masks_point_bezier_t)));
+        //change the values
+        float wd = module->dev->preview_pipe->backbuf_width;
+        float ht = module->dev->preview_pipe->backbuf_height;
+        float pts[2] = {pzx*wd,pzy*ht};
+        dt_dev_distort_backtransform(module->dev,pts,1);
+        
+        bzpt->corner[0] = pts[0]/module->dev->preview_pipe->iwidth;
+        bzpt->corner[1] = pts[1]/module->dev->preview_pipe->iheight;
+        bzpt->ctrl1[0] = bzpt->ctrl1[1] = bzpt->ctrl2[0] = bzpt->ctrl2[1] = -1.0;
+        bzpt->state = DT_MASKS_POINT_STATE_NORMAL;
+        form->points = g_list_insert(form->points,bzpt,gui->seg_selected+1);
+        _curve_init_ctrl_points(form);
+        gui->point_dragging  = gui->point_selected = gui->seg_selected+1;
+        gui->seg_selected = -1;
+        dt_control_queue_redraw_center();
+      }
+      else
+      {
+        //we move the entire segment
+        
+      }
     }
   }
   else if (which == 3)
@@ -913,9 +1004,18 @@ static int _curve_events_mouse_moved(struct dt_iop_module_t *module,float pzx, f
     return 1;
   }
   
+  gui->form_selected = FALSE;
+  gui->border_selected = FALSE;
+  gui->feather_selected  = -1;
+  gui->point_selected = -1;
+  gui->seg_selected = -1;
   //are we near a point or feather ?
   int nb = g_list_length(form->points);
-  float as = 5.0;
+  int32_t zoom, closeup;
+  DT_CTL_GET_GLOBAL(zoom, dev_zoom);
+  DT_CTL_GET_GLOBAL(closeup, dev_closeup);
+  float zoom_scale = dt_dev_get_zoom_scale(module->dev, zoom, closeup ? 2 : 1, 1);
+  float as = 0.005f/zoom_scale*module->dev->preview_pipe->backbuf_width;
   pzx *= module->dev->preview_pipe->backbuf_width, pzy *= module->dev->preview_pipe->backbuf_height;
   gui->feather_selected = -1;
   gui->point_selected = -1;
@@ -940,10 +1040,24 @@ static int _curve_events_mouse_moved(struct dt_iop_module_t *module,float pzx, f
     }
   }
   
-  //are we inside the form or the borders ???
-  dt_masks_set_inside(pzx,(int)pzy,gui);
+  //are we inside the form or the borders or near a segment ???
+  int in, inb, near;
+  dt_masks_get_distance(pzx,(int)pzy,as,gui,form,&in,&inb,&near);
+  gui->seg_selected = near;
+  if (near<0)
+  {
+    if (inb)
+    {
+      gui->form_selected = TRUE;
+      gui->border_selected = TRUE;
+    }
+    else if (in)
+    {
+      gui->form_selected = TRUE;
+    }
+  }
   dt_control_queue_redraw_center();
-  if (!gui->form_selected && !gui->border_selected) return 0;
+  if (!gui->form_selected && !gui->border_selected && gui->seg_selected<0) return 0;
   return 1;
 }
 
@@ -963,23 +1077,30 @@ static void _curve_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_fo
   //draw curve
   if (gui->points_count > nb+6)
   { 
-    cairo_set_dash(cr, dashed, 0, 0);     
-    if(gui->form_selected || gui->form_dragging) cairo_set_line_width(cr, 5.0/zoom_scale);
-    else                                     cairo_set_line_width(cr, 3.0/zoom_scale);
-    cairo_set_source_rgba(cr, .3, .3, .3, .8);
+    cairo_set_dash(cr, dashed, 0, 0);
     
     cairo_move_to(cr,gui->points[nb*6]+dx,gui->points[nb*6+1]+dy);
+    int seg = 1, seg2 = 0;
     for (int i=nb*3; i<gui->points_count; i++)
     {
+      //we decide to hightlight the form segment by segment
+      if (gui->points[i*2+1] == gui->points[seg*6+3] && gui->points[i*2] == gui->points[seg*6+2])
+      {
+        //this is the end of the last segment, so we have to draw it
+        if(gui->form_selected || gui->form_dragging || gui->seg_selected==seg2) cairo_set_line_width(cr, 5.0/zoom_scale);
+        else                                     cairo_set_line_width(cr, 3.0/zoom_scale);
+        cairo_set_source_rgba(cr, .3, .3, .3, .8);
+        cairo_stroke_preserve(cr);
+        if(gui->form_selected || gui->form_dragging || gui->seg_selected==seg2) cairo_set_line_width(cr, 2.0/zoom_scale);
+        else                                     cairo_set_line_width(cr, 1.0/zoom_scale);
+        cairo_set_source_rgba(cr, .8, .8, .8, .8);
+        cairo_stroke(cr);
+        //and we update the segment number
+        seg = (seg+1)%nb;
+        seg2++;
+      }
       cairo_line_to(cr,gui->points[i*2]+dx,gui->points[i*2+1]+dy);
     }
-    cairo_line_to(cr,gui->points[nb*6]+dx,gui->points[nb*6+1]+dy);
-    
-    cairo_stroke_preserve(cr);
-    if(gui->form_selected || gui->form_dragging) cairo_set_line_width(cr, 2.0/zoom_scale);
-    else                                     cairo_set_line_width(cr, 1.0/zoom_scale);
-    cairo_set_source_rgba(cr, .8, .8, .8, .8);
-    cairo_stroke(cr);
   }
   
   //draw corners
@@ -1535,6 +1656,38 @@ int dt_masks_events_button_pressed (struct dt_iop_module_t *module, double x, do
   
   return 0;
 }
+
+static void _curve_get_distance(float x, int y, float as, dt_masks_form_gui_t *gui, int corner_count, int *inside, int *inside_border, int *near)
+{
+  //we first check if it's inside borders
+  int nb = 0;
+  int last = -9999;
+  *inside_border = 0;
+  *near = -1;
+  
+  //and we check if it's inside form
+  int seg = 1;
+  for (int i=corner_count*3; i<gui->points_count; i++)
+  {
+    if (gui->points[i*2+1] == gui->points[seg*6+3] && gui->points[i*2] == gui->points[seg*6+2])
+    {
+      seg=(seg+1)%corner_count;
+    }
+    if (gui->points[i*2]-x < as && gui->points[i*2]-x > -as && gui->points[i*2+1]-y < as && gui->points[i*2+1]-y > -as)
+    {
+      if (seg == 0) *near = corner_count-1;
+      else *near = seg-1;
+    }
+    int yy = (int) gui->points[i*2+1];
+    if (yy != last && yy == y)
+    {
+      if (gui->points[i*2] > x) nb++;
+    }
+    last = yy;
+  }
+  *inside = (nb & 1);
+}
+
 int dt_masks_events_mouse_scrolled (struct dt_iop_module_t *module, double x, double y, int up, uint32_t state)
 {
   if (!module) return 0;
@@ -1587,44 +1740,13 @@ void dt_masks_events_post_expose (struct dt_iop_module_t *module, cairo_t *cr, i
   else if (form->type == DT_MASKS_BEZIER) _curve_events_post_expose(cr,zoom_scale,gui,g_list_length(form->points));
 }
 
-void dt_masks_set_inside(float x, int y, dt_masks_form_gui_t *gui)
+void dt_masks_get_distance(float x, int y, float as, dt_masks_form_gui_t *gui, dt_masks_form_t *form, int *inside, int *inside_border, int *near)
 {
-  //we first check if it's inside borders
-  int nb = 0;
-  int last = -9999;
-  if (gui->border_count > 0)
-  {
-    for (int i=0; i<gui->border_count; i++)
-    {
-      int yy = (int) gui->border[i*2+1];
-      if (yy != last && yy == y)
-      {
-        if (gui->border[i*2] > x) nb++;
-      }
-      last = yy;
-    }  
-    if (!(nb & 1))
-    {
-      gui->form_selected = FALSE;
-      gui->border_selected = FALSE;
-      return;
-    }
-    gui->form_selected = TRUE;
-  }
-  //and we check if it's inside form
-  nb = 0;
-  last = -9999;
-  for (int i=0; i<gui->points_count; i++)
-  {
-    int yy = (int) gui->points[i*2+1];
-    if (yy != last && yy == y)
-    {
-      if (gui->points[i*2] > x) nb++;
-    }
-    last = yy;
-  }
-  if (gui->border_count>0) gui->border_selected = !(nb & 1);
-  else gui->border_selected = FALSE, gui->form_selected = (nb & 1);
+  *inside = 0;
+  *inside_border = 0;
+  *near = -1;
+  if (form->type == DT_MASKS_CIRCLE) _circle_get_distance(x,y,as,gui,inside,inside_border,near);
+  else if (form->type == DT_MASKS_BEZIER) _curve_get_distance(x,y,as,gui,g_list_length(form->points),inside,inside_border,near);
 }
 
 void dt_masks_init_formgui(dt_develop_t *dev)
@@ -1636,7 +1758,8 @@ void dt_masks_init_formgui(dt_develop_t *dev)
   dev->form_gui->border = NULL;
   dev->form_gui->posx = dev->form_gui->posy = dev->form_gui->dx = dev->form_gui->dy = 0.0f;
   dev->form_gui->form_selected = dev->form_gui->border_selected = dev->form_gui->form_dragging = FALSE;
-  dev->form_gui->point_selected = dev->form_gui->feather_selected = dev->form_gui->feather_dragging = dev->form_gui->point_dragging = -1;
+  dev->form_gui->seg_selected = dev->form_gui->point_selected = dev->form_gui->feather_selected = -1;
+  dev->form_gui->feather_dragging = dev->form_gui->point_dragging = -1;
   dev->form_gui->creation = FALSE;
   dev->form_gui->clockwise = TRUE;
 }

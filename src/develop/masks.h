@@ -114,6 +114,7 @@ typedef struct dt_masks_form_gui_t
   gboolean border_selected;
   int point_selected;
   int feather_selected;
+  int seg_selected;
   
   gboolean form_dragging;
   int point_dragging;
@@ -161,7 +162,7 @@ int dt_masks_events_mouse_scrolled (struct dt_iop_module_t *module, double x, do
 void dt_masks_events_post_expose (struct dt_iop_module_t *module, cairo_t *cr, int32_t width, int32_t height, int32_t pointerx, int32_t pointery);
 
 /** function to know if a point is inside a form return 1 if inside, 2 if inside border, 0 else*/
-void dt_masks_set_inside(float x, int y, dt_masks_form_gui_t *gui);
+void dt_masks_get_distance(float x, int y, float as, dt_masks_form_gui_t *gui, dt_masks_form_t *form, int *inside, int *inside_border, int *near);
 
 
 /** return the mask menu */
