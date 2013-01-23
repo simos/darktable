@@ -944,6 +944,49 @@ static int _curve_events_button_released(struct dt_iop_module_t *module,float pz
     
     return 1;
   }
+  else if (gui->point_selected>=0 && which == 3)
+  {
+    //we remove the point (and the entire form if there is too few points)
+    if (g_list_length(form->points) < 4)
+    {
+      //we remove the form
+      dt_masks_free_form(form);
+      module->dev->form_visible = NULL;
+      dt_masks_init_formgui(module->dev);
+      int pos = 0;
+      for (int i=0; i<module->blend_params->forms_count; i++)
+      {
+        if (module->blend_params->forms[i] == form->formid)
+        {
+          pos = i;
+          break;
+        }
+      }
+      module->blend_params->forms_count--;
+      for (int i=pos; i<module->blend_params->forms_count; i++) module->blend_params->forms[i] = module->blend_params->forms[i+1];
+      dt_iop_gui_blend_data_t *bd = (dt_iop_gui_blend_data_t *)module->blend_data;
+      gtk_widget_destroy(bd->form_label[pos]);
+      for (int i=pos; i<module->blend_params->forms_count; i++) bd->form_label[i] = bd->form_label[i+1];
+  
+      dt_control_queue_redraw_center();
+      dt_dev_add_history_item(darktable.develop, module, TRUE);
+      return 1;
+    }
+    form->points = g_list_delete_link(form->points,g_list_nth(form->points,gui->point_selected));
+    gui->point_selected = -1;
+    _curve_init_ctrl_points(form);
+    
+    dt_masks_write_form(form,module->dev);
+
+    //we recreate the form points
+    _gui_form_remove(module,form,gui);
+    _gui_form_create(module,form,gui);
+    
+    //we save the move
+    dt_dev_add_history_item(darktable.develop, module, TRUE);
+    
+    return 1;
+  }
   
   return 0;
 }
@@ -1596,13 +1639,13 @@ void dt_masks_write_forms(dt_develop_t *dev)
 void dt_masks_free_form(dt_masks_form_t *form)
 {
   if (!form) return;
-  GList *points = g_list_first(form->points);
+ /* GList *points = g_list_first(form->points);
   while(points)
   {
     free(points->data);
     points->data = NULL;
     points = g_list_next(points);
-  }
+  }*/
   g_list_free(form->points);
   free(form);
   form = NULL;
@@ -1626,7 +1669,6 @@ int dt_masks_events_mouse_moved (struct dt_iop_module_t *module, double x, doubl
 int dt_masks_events_button_released (struct dt_iop_module_t *module, double x, double y, int which, uint32_t state)
 {
   if (!module) return 0;
-  if (which != 1) return 0;
   
   dt_masks_form_t *form = module->dev->form_visible;
   dt_masks_form_gui_t *gui = module->dev->form_gui;
