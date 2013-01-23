@@ -710,7 +710,40 @@ static int _curve_events_mouse_scrolled(struct dt_iop_module_t *module, float pz
 static int _curve_events_button_pressed(struct dt_iop_module_t *module,float pzx, float pzy, int which, int type, uint32_t state,
                                           dt_masks_form_t *form, dt_masks_form_gui_t *gui)
 {
-  if (which == 1)
+  if (which == 3 || (gui->creation && gui->creation_closing_form))
+  {
+    if (gui->creation)
+    {
+      if (g_list_length(form->points) < 3)
+      {
+        //we remove the form
+        dt_masks_free_form(form);
+        module->dev->form_visible = NULL;
+        dt_masks_init_formgui(module->dev);
+        dt_control_queue_redraw_center();
+        return 1;
+      }
+      else
+      {
+        //we delete last point (the one we are currently dragging)
+        dt_masks_point_bezier_t *point = (dt_masks_point_bezier_t *)g_list_last(form->points)->data;
+        form->points = g_list_remove(form->points,point);
+        free(point);
+        point = NULL;
+        
+        gui->point_dragging = -1;
+        _curve_init_ctrl_points(form);
+         gui->clockwise = _curve_is_clockwise(form);
+        _gui_form_remove(module,form,gui);
+        _gui_form_create(module,form,gui);
+      
+        //we save the form and quit creation mode
+         _gui_form_save_creation(module,form,gui);
+         dt_dev_add_history_item(darktable.develop, module, TRUE);
+      }
+    }
+  }
+  else if (which == 1)
   {
     if (gui->creation)
     {
@@ -798,39 +831,6 @@ static int _curve_events_button_pressed(struct dt_iop_module_t *module,float pzx
       {
         //we move the entire segment
         
-      }
-    }
-  }
-  else if (which == 3)
-  {
-    if (gui->creation)
-    {
-      if (g_list_length(form->points) < 3)
-      {
-        //we remove the form
-        dt_masks_free_form(form);
-        module->dev->form_visible = NULL;
-        dt_masks_init_formgui(module->dev);
-        dt_control_queue_redraw_center();
-        return 1;
-      }
-      else
-      {
-        //we delete last point (the one we are currently dragging)
-        dt_masks_point_bezier_t *point = (dt_masks_point_bezier_t *)g_list_last(form->points)->data;
-        form->points = g_list_remove(form->points,point);
-        free(point);
-        point = NULL;
-        
-        gui->point_dragging = -1;
-        _curve_init_ctrl_points(form);
-         gui->clockwise = _curve_is_clockwise(form);
-        _gui_form_remove(module,form,gui);
-        _gui_form_create(module,form,gui);
-      
-        //we save the form and quit creation mode
-         _gui_form_save_creation(module,form,gui);
-         dt_dev_add_history_item(darktable.develop, module, TRUE);
       }
     }
   }
@@ -993,11 +993,30 @@ static int _curve_events_button_released(struct dt_iop_module_t *module,float pz
 
 static int _curve_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float pzy, int which, dt_masks_form_t *form, dt_masks_form_gui_t *gui)
 {
+  int32_t zoom, closeup;
+  DT_CTL_GET_GLOBAL(zoom, dev_zoom);
+  DT_CTL_GET_GLOBAL(closeup, dev_closeup);
+  float zoom_scale = dt_dev_get_zoom_scale(module->dev, zoom, closeup ? 2 : 1, 1);
+  float as = 0.005f/zoom_scale*module->dev->preview_pipe->backbuf_width;
+  
   if (gui->point_dragging >=0)
   {
     float wd = module->dev->preview_pipe->backbuf_width;
     float ht = module->dev->preview_pipe->backbuf_height;
     float pts[2] = {pzx*wd,pzy*ht};
+    if (gui->creation && g_list_length(form->points)>3)
+    {
+      //if we are near the first point, we have to say that the form should be closed
+      if (pts[0]-gui->points[2] < as && pts[0]-gui->points[2] > -as && pts[1]-gui->points[3] < as && pts[1]-gui->points[3] > -as)
+      {
+        gui->creation_closing_form = TRUE;
+      }
+      else
+      {
+        gui->creation_closing_form = FALSE;
+      }
+    }
+    
     dt_dev_distort_backtransform(module->dev,pts,1);
     dt_masks_point_bezier_t *bzpt = (dt_masks_point_bezier_t *)g_list_nth_data(form->points,gui->point_dragging);
     pzx = pts[0]/module->dev->preview_pipe->iwidth;
@@ -1054,11 +1073,7 @@ static int _curve_events_mouse_moved(struct dt_iop_module_t *module,float pzx, f
   gui->seg_selected = -1;
   //are we near a point or feather ?
   int nb = g_list_length(form->points);
-  int32_t zoom, closeup;
-  DT_CTL_GET_GLOBAL(zoom, dev_zoom);
-  DT_CTL_GET_GLOBAL(closeup, dev_closeup);
-  float zoom_scale = dt_dev_get_zoom_scale(module->dev, zoom, closeup ? 2 : 1, 1);
-  float as = 0.005f/zoom_scale*module->dev->preview_pipe->backbuf_width;
+
   pzx *= module->dev->preview_pipe->backbuf_width, pzy *= module->dev->preview_pipe->backbuf_height;
   gui->feather_selected = -1;
   gui->point_selected = -1;
@@ -1165,7 +1180,8 @@ static void _curve_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_fo
         anchor_size, anchor_size);
     cairo_fill_preserve(cr);
 
-    if (k == gui->point_dragging || k == gui->point_selected) cairo_set_line_width(cr, 2.0/zoom_scale);
+    if (k == gui->point_dragging || k == gui->point_selected ) cairo_set_line_width(cr, 2.0/zoom_scale);
+    else if ((k == 0 || k == nb) && gui->creation && gui->creation_closing_form) cairo_set_line_width(cr, 2.0/zoom_scale);
     else cairo_set_line_width(cr, 1.0/zoom_scale);
     cairo_set_source_rgba(cr, .3, .3, .3, .8);
     cairo_stroke(cr);
@@ -1639,13 +1655,6 @@ void dt_masks_write_forms(dt_develop_t *dev)
 void dt_masks_free_form(dt_masks_form_t *form)
 {
   if (!form) return;
- /* GList *points = g_list_first(form->points);
-  while(points)
-  {
-    free(points->data);
-    points->data = NULL;
-    points = g_list_next(points);
-  }*/
   g_list_free(form->points);
   free(form);
   form = NULL;
@@ -1802,7 +1811,7 @@ void dt_masks_init_formgui(dt_develop_t *dev)
   dev->form_gui->form_selected = dev->form_gui->border_selected = dev->form_gui->form_dragging = FALSE;
   dev->form_gui->seg_selected = dev->form_gui->point_selected = dev->form_gui->feather_selected = -1;
   dev->form_gui->feather_dragging = dev->form_gui->point_dragging = -1;
-  dev->form_gui->creation = FALSE;
+  dev->form_gui->creation_closing_form = dev->form_gui->creation = FALSE;
   dev->form_gui->clockwise = TRUE;
 }
 

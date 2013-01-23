@@ -122,6 +122,7 @@ typedef struct dt_masks_form_gui_t
   
   gboolean clockwise;
   gboolean creation;
+  gboolean creation_closing_form;
   
   //ids
   int formid;
