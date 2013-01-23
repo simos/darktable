@@ -1422,6 +1422,8 @@ static int _curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piec
     //and we determine all points by recursion (to be sure the distance between 2 points is <=1)
     float rx,ry;
     _curve_points_recurs(p1,p2,0.0,1.0,p1[0],p1[1],p2[0],p2[1],&rx,&ry,points,&pos);
+    points[pos++] = rx;
+    points[pos++] = ry;
   }
   
   if (!dt_dev_distort_transform_plus(module->dev,piece->pipe,0,module->priority,points,pos/2))
@@ -1448,63 +1450,69 @@ static int _curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piec
   
   //we create a new buffer for all the points, sorted by row values
   GList* pts = {NULL};
+  int nbp = pos/2;
   int lastx, lasty,lasty2;
-  lastx = lasty = lasty2 = INT_MIN;
-  for (int i=0; i < pos/2; i++)
+  if (nbp>2)
   {
-    int xx = (int) points[i*2];
-    int yy = (int) points[i*2+1];
-    int *p = malloc(2*sizeof(int));
-    p[0] = xx, p[1] = yy;
-    
-    if (lasty != INT_MIN)
-    {
-      //we don't store the point if it has the same y value as the last one
-      if (yy == lasty) continue;
-      
-      //we want to be sure that there is no y jump
-      if (yy-lasty > 1 || yy-lasty < -1)
-      {
-        if (yy<lasty)
-        {
-          for (int j=yy+1; j<lasty; j++)
-          {
-            int *pp = malloc(2*sizeof(int));
-            pp[0] = (j-yy)*(lastx-xx)/(float)(lasty-yy)+xx, pp[1] = j;
-            pts = g_list_append(pts,pp);
-          }
-        }
-        else
-        {
-          for (int j=lasty+1; j<yy; j++)
-          {
-            int *pp = malloc(2*sizeof(int));
-            pp[0] = (j-lasty)*(xx-lastx)/(float)(yy-lasty)+lastx, pp[1] = j;
-            pts = g_list_append(pts,pp);
-          }
-        }
-      }
-      
-      if (lasty2 != INT_MIN)
-      {
-        //if we change the direction of the curve (in y), then we add a extra point
-        if ((lasty-lasty2)*(lasty-yy)>0)
-        {
-          int *pp = malloc(2*sizeof(int));
-          pp[0] = lastx, pp[1] = lasty;
-          pts = g_list_append(pts,pp);
-        }
-      }
-    }
-    //we add the point
-    pts = g_list_append(pts,p);
-    //printf("tabl %d %d\n",p[0],p[1]);
-    //we change last values
-    lasty2 = lasty;
-    lasty = yy;
-    lastx = xx;
-  }
+    lastx = (int) points[(nbp-1)*2];
+    lasty = (int) points[(nbp-1)*2+1];
+    lasty2 = (int) points[(nbp-2)*2+1];
   
+    for (int i=0; i < nbp; i++)
+    {
+      int xx = (int) points[i*2];
+      int yy = (int) points[i*2+1];
+      int *p = malloc(2*sizeof(int));
+      p[0] = xx, p[1] = yy;
+      
+      if (lasty != INT_MIN)
+      {
+        //we don't store the point if it has the same y value as the last one
+        if (yy == lasty) continue;
+        
+        //we want to be sure that there is no y jump
+        if (yy-lasty > 1 || yy-lasty < -1)
+        {
+          if (yy<lasty)
+          {
+            for (int j=yy+1; j<lasty; j++)
+            {
+              int *pp = malloc(2*sizeof(int));
+              pp[0] = (j-yy)*(lastx-xx)/(float)(lasty-yy)+xx, pp[1] = j;
+              pts = g_list_append(pts,pp);
+            }
+          }
+          else
+          {
+            for (int j=lasty+1; j<yy; j++)
+            {
+              int *pp = malloc(2*sizeof(int));
+              pp[0] = (j-lasty)*(xx-lastx)/(float)(yy-lasty)+lastx, pp[1] = j;
+              pts = g_list_append(pts,pp);
+            }
+          }
+        }
+        
+        if (lasty2 != INT_MIN)
+        {
+          //if we change the direction of the curve (in y), then we add a extra point
+          if ((lasty-lasty2)*(lasty-yy)>0)
+          {
+            int *pp = malloc(2*sizeof(int));
+            pp[0] = lastx, pp[1] = lasty;
+            pts = g_list_append(pts,pp);
+          }
+        }
+      }
+      //we add the point
+      pts = g_list_append(pts,p);
+      //printf("tabl %d %d\n",p[0],p[1]);
+      //we change last values
+      lasty2 = lasty;
+      lasty = yy;
+      lastx = xx;
+    }
+  }
   //and we sort all the datas
   pts = g_list_sort(pts,_curve_sort_points);
   
