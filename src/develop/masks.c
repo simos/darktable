@@ -703,7 +703,73 @@ static int _curve_get_border(dt_develop_t *dev, dt_masks_form_t *form, float **p
 static int _curve_events_mouse_scrolled(struct dt_iop_module_t *module, float pzx, float pzy, int up, uint32_t state,
                                           dt_masks_form_t *form, dt_masks_form_gui_t *gui)
 {
-  
+  if (gui->form_selected)
+  {
+    float amount = 1.05;
+    if (!up) amount = 0.95;
+    //get the center of gravity of the form (like if it was a simple polygon)
+    float bx = 0.0f;
+    float by = 0.0f;
+    float surf = 0.0f;
+    int nb = g_list_length(form->points);
+    for(int k = 0; k < nb; k++)
+    {
+      int k2 = (k+1)%nb;
+      dt_masks_point_bezier_t *point1 = (dt_masks_point_bezier_t *)g_list_nth_data(form->points,k);
+      dt_masks_point_bezier_t *point2 = (dt_masks_point_bezier_t *)g_list_nth_data(form->points,k2);
+      surf += point1->corner[0]*point2->corner[1] - point2->corner[0]*point1->corner[1];
+      
+      bx += (point1->corner[0] + point2->corner[0])*(point1->corner[0]*point2->corner[1] - point2->corner[0]*point1->corner[1]);
+      by += (point1->corner[1] + point2->corner[1])*(point1->corner[0]*point2->corner[1] - point2->corner[0]*point1->corner[1]);
+    }
+    bx /= 3.0*surf;
+    by /= 3.0*surf;
+    
+    //first, we have to be sure that the shape is not too small to be resized
+    if (amount < 1.0)
+    {
+      for(int k = 0; k < nb; k++)
+      {
+        dt_masks_point_bezier_t *point = (dt_masks_point_bezier_t *)g_list_nth_data(form->points,k);
+        float l = (point->corner[0]-bx)*(point->corner[0]-bx) + (point->corner[1]-by)*(point->corner[1]-by);
+        if ( l < 0.0005f) return 1;
+      }
+    }
+    //now we move each point
+    for(int k = 0; k < nb; k++)
+    {
+      dt_masks_point_bezier_t *point = (dt_masks_point_bezier_t *)g_list_nth_data(form->points,k);
+      float x = (point->corner[0]-bx)*amount;
+      float y = (point->corner[1]-by)*amount;
+      
+      //we stretch ctrl points
+      float ct1x = (point->ctrl1[0]-point->corner[0])*amount;
+      float ct1y = (point->ctrl1[1]-point->corner[1])*amount;
+      float ct2x = (point->ctrl2[0]-point->corner[0])*amount;
+      float ct2y = (point->ctrl2[1]-point->corner[1])*amount;
+      
+      //and we set the new points
+      point->corner[0] = bx + x;
+      point->corner[1] = by + y;
+      point->ctrl1[0] = point->corner[0] + ct1x;
+      point->ctrl1[1] = point->corner[1] + ct1y;
+      point->ctrl2[0] = point->corner[0] + ct2x;
+      point->ctrl2[1] = point->corner[1] + ct2y;   
+    }
+    
+    //now the redraw/save stuff
+    _curve_init_ctrl_points(form);
+    
+    dt_masks_write_form(form,module->dev);
+
+    //we recreate the form points
+    _gui_form_remove(module,form,gui);
+    _gui_form_create(module,form,gui);
+    
+    //we save the move
+    dt_dev_add_history_item(darktable.develop, module, TRUE);
+    return 1;
+  }
   return 0;
 }
 
