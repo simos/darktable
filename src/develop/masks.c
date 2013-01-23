@@ -792,6 +792,7 @@ static int _curve_events_button_pressed(struct dt_iop_module_t *module,float pzx
       gui->posy = pzy*module->dev->preview_pipe->backbuf_height;
       gui->dx = gui->points[2] - gui->posx;
       gui->dy = gui->points[3] - gui->posy;
+      return 1;
     }
     else if (gui->point_selected >= 0)
     {
@@ -830,8 +831,13 @@ static int _curve_events_button_pressed(struct dt_iop_module_t *module,float pzx
       else
       {
         //we move the entire segment
-        
+        gui->seg_dragging = gui->seg_selected;
+        gui->posx = pzx*module->dev->preview_pipe->backbuf_width;
+        gui->posy = pzy*module->dev->preview_pipe->backbuf_height;
+        gui->dx = gui->points[gui->seg_selected*6+2] - gui->posx;
+        gui->dy = gui->points[gui->seg_selected*6+3] - gui->posy;
       }
+      return 1;
     }
   }
   return 0;
@@ -879,6 +885,12 @@ static int _curve_events_button_released(struct dt_iop_module_t *module,float pz
     //we save the move
     dt_dev_add_history_item(darktable.develop, module, TRUE);
     
+    return 1;
+  }
+  else if (gui->seg_dragging>=0)
+  {
+    gui->seg_dragging = -1;
+    dt_dev_add_history_item(darktable.develop, module, TRUE);
     return 1;
   }
   else if (gui->point_dragging >= 0)
@@ -1031,6 +1043,44 @@ static int _curve_events_mouse_moved(struct dt_iop_module_t *module,float pzx, f
     //we recreate the form points
     _gui_form_remove(module,form,gui);
     _gui_form_create(module,form,gui);
+    dt_control_queue_redraw_center();
+    return 1;
+  }
+  else if (gui->seg_dragging >= 0)
+  {
+    //we get point0 new values
+    int pos2 = (gui->seg_dragging+1)%g_list_length(form->points);
+    dt_masks_point_bezier_t *point = (dt_masks_point_bezier_t *)g_list_nth_data(form->points,gui->seg_dragging);
+    dt_masks_point_bezier_t *point2 = (dt_masks_point_bezier_t *)g_list_nth_data(form->points,pos2);
+    float wd = module->dev->preview_pipe->backbuf_width;
+    float ht = module->dev->preview_pipe->backbuf_height;
+    float pts[2] = {pzx*wd+gui->dx,pzy*ht+gui->dy};
+    dt_dev_distort_backtransform(module->dev,pts,1);
+    float dx = pts[0]/module->dev->preview_pipe->iwidth - point->corner[0];
+    float dy = pts[1]/module->dev->preview_pipe->iheight - point->corner[1];
+    
+    //we move all points
+    point->corner[0] += dx;
+    point->corner[1] += dy;
+    point->ctrl1[0] += dx;
+    point->ctrl1[1] += dy;
+    point->ctrl2[0] += dx;
+    point->ctrl2[1] += dy;
+    point2->corner[0] += dx;
+    point2->corner[1] += dy;
+    point2->ctrl1[0] += dx;
+    point2->ctrl1[1] += dy;
+    point2->ctrl2[0] += dx;
+    point2->ctrl2[1] += dy;
+    
+    _curve_init_ctrl_points(form);
+    
+    dt_masks_write_form(form,module->dev);
+
+    //we recreate the form points
+    _gui_form_remove(module,form,gui);
+    _gui_form_create(module,form,gui);
+    
     dt_control_queue_redraw_center();
     return 1;
   }
@@ -1810,7 +1860,7 @@ void dt_masks_init_formgui(dt_develop_t *dev)
   dev->form_gui->posx = dev->form_gui->posy = dev->form_gui->dx = dev->form_gui->dy = 0.0f;
   dev->form_gui->form_selected = dev->form_gui->border_selected = dev->form_gui->form_dragging = FALSE;
   dev->form_gui->seg_selected = dev->form_gui->point_selected = dev->form_gui->feather_selected = -1;
-  dev->form_gui->feather_dragging = dev->form_gui->point_dragging = -1;
+  dev->form_gui->seg_dragging = dev->form_gui->feather_dragging = dev->form_gui->point_dragging = -1;
   dev->form_gui->creation_closing_form = dev->form_gui->creation = FALSE;
   dev->form_gui->clockwise = TRUE;
 }

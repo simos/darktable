@@ -119,6 +119,7 @@ typedef struct dt_masks_form_gui_t
   gboolean form_dragging;
   int point_dragging;
   int feather_dragging;
+  int seg_dragging;
   
   gboolean clockwise;
   gboolean creation;
