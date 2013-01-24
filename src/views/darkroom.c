@@ -521,6 +521,17 @@ dt_dev_change_image(dt_develop_t *dev, const uint32_t imgid)
     dt_image_synch_xmp(dev->image_storage.id);
   }
 
+  //cleanup visible masks
+  if (!dev->form_gui) 
+  {
+    dev->form_gui = (dt_masks_form_gui_t *) malloc(sizeof(dt_masks_form_gui_t));
+    memset(dev->form_gui,0,sizeof(dt_masks_form_gui_t));
+  }
+  dt_masks_init_formgui(dev);
+  dev->form_visible = NULL;
+  dev->form_gui->pipe_hash = 0;
+  dev->form_gui->formid = 0;
+  
   select_this_image(imgid);
 
   while(dev->history)
@@ -570,6 +581,7 @@ dt_dev_change_image(dt_develop_t *dev, const uint32_t imgid)
   }
   dt_dev_pixelpipe_create_nodes(dev->pipe, dev);
   dt_dev_pixelpipe_create_nodes(dev->preview_pipe, dev);
+  dt_masks_read_forms(dev);
   dt_dev_read_history(dev);
 
   //we have to init all module instances other than "base" instance
@@ -908,6 +920,8 @@ void enter(dt_view_t *self)
     dev->form_gui = (dt_masks_form_gui_t *) malloc(sizeof(dt_masks_form_gui_t));
     memset(dev->form_gui,0,sizeof(dt_masks_form_gui_t));
   }
+  dt_masks_init_formgui(dev);
+  dev->form_visible = NULL;
   dev->form_gui->pipe_hash = 0;
   dev->form_gui->formid = 0;
   dev->gui_leaving = 0;

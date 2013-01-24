@@ -946,7 +946,11 @@ void dt_iop_gui_update_blending(dt_iop_module_t *module)
   
   /* populate form_box */
   GList *children = gtk_container_get_children(GTK_CONTAINER(bd->form_box));
-  if (g_list_length(children) == 0)
+  while (children)
+  {
+    gtk_container_remove(GTK_CONTAINER(bd->form_box),(GtkWidget *)children->data);
+    children = g_list_next(children);
+  }
   {
     GList *iter;
     for(iter = children; iter != NULL; iter = g_list_next(iter))
