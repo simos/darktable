@@ -959,7 +959,7 @@ void dt_iop_gui_update_blending(dt_iop_module_t *module)
       bd->form_label[i] = gtk_event_box_new();
       gtk_container_add(GTK_CONTAINER(bd->form_label[i]), gtk_label_new(form->name));
       gtk_widget_show_all(bd->form_label[i]);
-      g_object_set_data(G_OBJECT(bd->form_label[i]), "form", GUINT_TO_POINTER(i));
+      g_object_set_data(G_OBJECT(bd->form_label[i]), "form", GUINT_TO_POINTER(form->formid));
       g_signal_connect(G_OBJECT(bd->form_label[i]), "button-press-event", G_CALLBACK(dt_iop_gui_blend_setform_callback), module);
       gtk_box_pack_start(GTK_BOX(bd->form_box), bd->form_label[i], TRUE, TRUE,0);
     }
@@ -1171,13 +1171,20 @@ static void _mask_activate(GtkButton *button, dt_iop_module_t *data)
 void dt_iop_gui_blend_setform_callback(GtkWidget *widget, GdkEventButton *e, dt_iop_module_t *data)
 {
   //first, we need to retrieve the form position
+  int formid = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(widget), "form"));
   int pos = -1;
-  pos = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(widget), "form"));
+  for (int i=0;i<data->blend_params->forms_count;i++)
+  {
+    if (data->blend_params->forms[i] == formid)
+    {
+      pos = i;
+      break;
+    }
+  }
   if (pos < 0) return;
   
   if (e->button == 1)
   {
-    int formid = data->blend_params->forms[pos];
     int selected = 0;
     if (data->dev->form_visible)
     {

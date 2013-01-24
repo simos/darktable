@@ -95,7 +95,7 @@ static void _gui_form_save_creation(dt_iop_module_t *module, dt_masks_form_t *fo
   bd->form_label[forms_count] = gtk_event_box_new();
   gtk_container_add(GTK_CONTAINER(bd->form_label[forms_count]), gtk_label_new(form->name));
   gtk_widget_show_all(bd->form_label[forms_count]);
-  g_object_set_data(G_OBJECT(bd->form_label[forms_count]), "form", GUINT_TO_POINTER(forms_count));
+  g_object_set_data(G_OBJECT(bd->form_label[forms_count]), "form", GUINT_TO_POINTER(form->formid));
   gtk_box_pack_start(GTK_BOX(bd->form_box), bd->form_label[forms_count], TRUE, TRUE,0);
   g_signal_connect(G_OBJECT(bd->form_label[forms_count]), "button-press-event", G_CALLBACK(dt_iop_gui_blend_setform_callback), module);
   GtkStyle *style = gtk_widget_get_style(bd->form_label[forms_count]);
