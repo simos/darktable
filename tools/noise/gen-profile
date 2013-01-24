@@ -17,7 +17,7 @@ $scriptname [OPTION]...
 
 Available options:
     -C         Skip input images correctness checks.
-    -d DIR     Use DIR to read and write profiling input images.
+    -d DIR     Use DIR to read and write profiling input RAW images.
     -h         Display this usage.
     -i ISO     Limit capture to ISO sensitivity; can be specified multiple
                times for multiple ISO settings.
@@ -81,12 +81,13 @@ if ! internal_tools_available; then
 	missing_tool=1
 fi
 if ! tethering_tools_installed; then
-	tethering_enabled=1
 	cat <<EOF
 
-NOTE: Tethering tools are missing; you'll need to provide input images
-yourself.
+${color_warning}NOTE: Tethering tools are missing; you'll need to provide input images
+yourself.${color_reset}
 EOF
+else
+	tethering_enabled=1
 fi
 
 if [ "$missing_tool" = "1" ]; then
@@ -211,6 +212,67 @@ EOF
 	b1=$(cat $fit | cut -f5 -d' ')
 	b2=$(cat $fit | cut -f6 -d' ')
 
+	case "$a1" in
+	-*)
+		cat <<EOF
+
+${color_error}ERROR: Incorrect green channel.
+
+Possible reason:
+    o  The input RAW image is bad regarding lighting or exposition.
+    o  You may have set a default output profile in darktable which is
+       unsuitable for noise profiling.
+
+If the latter reason applies to you, change it back to "image settings"
+and re-run this script.${color_reset}
+EOF
+		rm -f $dat $flat_dat $curves_dat $fit "$pfm"
+		return 1
+		;;
+	esac
+
+	case "$a0" in
+	-*)
+		cat <<EOF
+
+${color_warning}WARNING: Incorrect red channel.
+
+Possible reason:
+    o  The input RAW image is bad regarding lighting or exposition.
+    o  You may have set a default output profile in darktable which is
+       unsuitable for noise profiling.
+
+If the latter reason applies to you, change it back to "image settings"
+and re-run this script.
+
+Meanwhile, this channel will be ignored.${color_reset}
+EOF
+		a0="0.0"
+		b0="0.0"
+		;;
+	esac
+
+	case "$a2" in
+	-*)
+		cat <<EOF
+
+${color_warning}WARNING: Incorrect blue channel.
+
+Possible reason:
+    o  The input RAW image is bad regarding lighting or exposition.
+    o  You may have set a default output profile in darktable which is
+       unsuitable for noise profiling.
+
+If the latter reason applies to you, change it back to "image settings"
+and re-run this script.
+
+Meanwhile, this channel will be ignored.${color_reset}
+EOF
+		a2="0.0"
+		b2="0.0"
+		;;
+	esac
+
 	echo "{\"$model iso $iso\",       \"$maker\",      \"$model\",              $iso,         {$a0, $a1, $a2}, {$b0, $b1, $b2}}," >> "$presets"
 
 	# Clean unused files.
@@ -321,10 +383,10 @@ database="$profiling_dir/library.db"
 database_orig="$HOME/.config/darktable/library.db"
 if [ ! -f "$database_orig" ]; then
 	cat <<EOF
-ERROR: Please run darktable at least once to create an initial library
+${color_error}ERROR: Please run darktable at least once to create an initial library
 or copy some valid library to $database manually before running this
 script. This is needed to setup a testing environment for your new
-presets.
+presets.${color_reset}
 EOF
 	exit 1
 fi
@@ -369,16 +431,31 @@ cd -
 echo "--> Cleanup"
 rm -f "$files_list"
 
-color_green=$'\033[32m'
-color_reset=$'\033[0m'
-
 echo ""
-echo "${color_green}== Noise profiling done! ==${color_reset}"
+echo "${color_ok}== Noise profiling done! ==${color_reset}"
 cat <<EOF
 
 Presets were inserted into $database. to test them locally, run:
 
+EOF
+
+dt_version=$(get_darktable_version)
+if cmp_darktable_version "$dt_version" "-lt" "1.2"; then
+	cat <<EOF
+  /path/to/darktable-1.2-or-later/darktable --library $database
+
+${color_warning}CAUTION: The "darktable" executable available from your system's \$PATH
+has version $dt_version. However, version 1.2 or later is required to
+test the profile. The command line shown above must be changed to point
+to your darktable 1.2+ binary.${color_reset}
+EOF
+else
+	cat <<EOF
   darktable --library $database
+EOF
+fi
+
+cat <<EOF
 
 If you're happy with the results, post the following file to us:
 

@@ -2,6 +2,11 @@
 # General purpose functions.
 # --------------------------------------------------------------------
 
+color_ok=$'\033[32m'
+color_warning=$'\033[33m'
+color_error=$'\033[31m'
+color_reset=$'\033[0m'
+
 # The functions below can be used to set/get a variable with a variable
 # name. This can be useful to have something similar to a hash map.
 #
@@ -38,6 +43,27 @@ add_to_list() {
 	echo "$list"
 }
 
+# Handle various flavors of sed(1). This function is called at the end
+# of this file.
+
+set_sed_cmd() {
+	case "$(uname -s)" in
+	Linux)
+		sed="sed -r"
+		;;
+	*)
+		# For non-Linux systems, try with gsed(1) (common name
+		# for GNU sed), otherwise, try "sed -E" which may not
+		# exist everywhere.
+		if which gsed >/dev/null 2>&1; then
+			sed="gsed -r"
+		else
+			sed="sed -E"
+		fi
+		;;
+	esac
+}
+
 # Helper function to checkif a given command is available.
 #
 # Below this function, higher-level helpers which check for sets of
@@ -51,7 +77,7 @@ tool_installed() {
 
 	# If we already checked for this tool, return. This way, we
 	# don't display the message again.
-	var="tool_$(echo "$tool" | sed -r 's/[^a-zA-Z0-9_]+/_/g')"
+	var="tool_$(echo "$tool" | $sed 's/[^a-zA-Z0-9_]+/_/g')"
 	checked=$(get_var $var)
 	if [ "$checked" = "found" ]; then
 		return 0
@@ -62,7 +88,7 @@ tool_installed() {
 
 	if ! which $tool >/dev/null 2>&1; then
 		if [ "$message" ]; then
-			echo "ERROR: $tool not found" 1>&2
+			echo "${color_error}ERROR: $tool not found${color_reset}" 1>&2
 			printf "%s\n\n" "$message" 1>&2
 		fi
 
@@ -105,6 +131,16 @@ re-run this script."; then
 	if ! tool_installed convert "
 ImageMagick is required to check input images correctness. Please
 install this package and re-run this script."; then
+		missing_tool=1
+	fi
+
+	if ! convert --version >/dev/null 2>&1; then
+		cat 1>&2 <<EOF
+ImageMagick is required to check input images correctness. Please
+install this package and re-run this script.
+
+NOTE: You may have to remove GraphicsMagick-related packages before.
+EOF
 		missing_tool=1
 	fi
 
@@ -199,6 +235,44 @@ noise profiling. Please install this command and re-run this script."; then
 	make -C "$scriptdir"
 }
 
+get_darktable_version() {
+	local version
+
+	version=$(darktable --version | head -n 1 | cut -d' ' -f 4)
+
+	echo "$version"
+}
+
+normalize_darktable_version() {
+	local version
+	version=$1
+
+	version=${version%+*}
+
+	case "$version" in
+	*.*.*) ;;
+	*)     version="$version.0" ;;
+	esac
+
+	IFS='.'
+	for i in $version; do
+		normalized="${normalized}$(printf "%03d" $i)"
+	done
+
+	echo "$normalized"
+}
+cmp_darktable_version() {
+	local v1 v2 cmp
+	v1=$1
+	cmp=$2
+	v2=$3
+
+	v1=$(normalize_darktable_version "$v1")
+	v2=$(normalize_darktable_version "$v2")
+
+	test "$v1" "$cmp" "$v2"
+}
+
 # --------------------------------------------------------------------
 # Input image file handling.
 # --------------------------------------------------------------------
@@ -231,7 +305,7 @@ get_image_iso() {
 
 	if [ -z "$iso" ]; then
 		case "$(get_image_camera_maker "$1")" in
-		NIKON*)
+		[Nn][Ii][Kk][Oo][Nn]*)
 			# Read "Exif.Nikon3.*" before "Exif.NikonIi.*":
 			#     1. "Exif.NikonIi.*" are bytes, not even
 			#        shorts, so they're smaller than other
@@ -295,8 +369,8 @@ auto_set_profiling_dir() {
 			return 0
 		else
 			cat <<EOF
-ERROR: Profiling directory doesn't exist:
-$profiling_dir
+${color_error}ERROR: Profiling directory doesn't exist:
+$profiling_dir${color_reset}
 EOF
 			return 1
 		fi
@@ -304,14 +378,14 @@ EOF
 
 	if ! camera_is_plugged; then
 		cat <<EOF
-ERROR: Please specify a directory to read or write profiling images
-(using the "$flag" flag) or plug your camera and turn it on.
+${color_error}ERROR: Please specify a directory to read or write profiling RAW images
+(using the "$flag" flag) or plug your camera and turn it on.${color_reset}
 EOF
 		return 1
 	fi
 
 	camera=$(get_camera_name)
-	subdir=$(echo $camera | sed -r 's/[^a-zA-Z0-9_]+/-/g')
+	subdir=$(echo $camera | $sed 's/[^a-zA-Z0-9_]+/-/g')
 	profiling_dir="/var/tmp/darktable-noise-profiling/$subdir/profiling"
 	test -d "$profiling_dir" || mkdir -p "$profiling_dir"
 }
@@ -325,7 +399,7 @@ list_input_images() {
 	local iso image images
 
 	echo
-	echo "===> List profiling input images"
+	echo "===> List profiling input RAW images"
 	for image in "$profiling_dir"/*; do
 		if [ "$image" = "$profiling_dir/*" ]; then
 			# Directory empty.
@@ -333,7 +407,7 @@ list_input_images() {
 		fi
 
 		case "$image" in
-		*.[jJ][pP][gG])
+		*.[Jj][Pp][Gg]|*.[Jj][Pp][Ee][Gg])
 			# Skip jpeg files, if any. Other files don't
 			# have Exif and will be skept automatically.
 			continue
@@ -401,14 +475,14 @@ check_exposition() {
 	over=$(convert "$input" $convert_flags -format "%[mean]" info: | cut -f1 -d.)
 	if [ "$over" -a "$over" -lt 80 ]; then
 		# Image not over-exposed.
-		echo "\"$orig\" not over-exposed ($over)"
+		echo "${color_error}\"$orig\" not over-exposed ($over)${color_reset}"
 		ret=1
 	fi
 
 	under=$(convert "$input" -negate $convert_flags -format "%[mean]" info: | cut -f1 -d.)
 	if [ "$under" -a "$under" -lt 80 ]; then
 		# Image not under-exposed.
-		echo "\"$orig\" not under-exposed ($under)"
+		echo "${color_error}\"$orig\" not under-exposed ($under)${color_reset}"
 		ret=1
 	fi
 
@@ -426,24 +500,46 @@ camera_is_plugged() {
 get_camera_name() {
 	local camera
 	if camera_is_plugged; then
-		camera=$(gphoto2 -a | head -n 1 | sed -r s'/^[^:]+: //')
+		camera=$(gphoto2 -a | head -n 1 | $sed 's/^[^:]+: //')
 		echo $camera
 	fi
 }
 
 get_camera_raw_setting() {
-	local raw_setting
-	raw_setting=$(gphoto2 --get-config /main/imgsettings/imageformat | awk '
+	local key raw_setting
+
+	# Try know configuration keys one after another, because cameras
+	# don't support the same keys.
+
+	# This one seems supported by most cameras.
+	key="/main/imgsettings/imageformat"
+	raw_setting=$(gphoto2 --get-config "$key" | awk "
 /^Choice: [0-9]+ RAW$/ {
-	id = $0;
-	sub(/^Choice: /, "", id);
-	sub(/ RAW$/, "", id);
-	print id;
+	id = \$0;
+	sub(/^Choice: /, \"\", id);
+	sub(/ RAW$/, \"\", id);
+	print \"$key=\" id;
 	exit;
 }
-')
+")
+	if [ "$raw_setting" ]; then
+		echo "$raw_setting"
+	fi
 
-	echo $raw_setting
+	# This one is used by Nikon cameras (at least, some).
+	key="/main/capturesettings/imagequality"
+	raw_setting=$(gphoto2 --get-config "$key" | awk "
+/^Choice: [0-9]+ NEF \(Raw\)$/ {
+	id = \$0;
+	sub(/^Choice: /, \"\", id);
+	sub(/ NEF \(Raw\)$/, \"\", id);
+	print \"$key=\" id;
+	exit;
+}
+")
+	if [ "$raw_setting" ]; then
+		echo "$raw_setting"
+	fi
 }
 
 get_camera_iso_settings() {
@@ -492,7 +588,7 @@ auto_capture_images() {
 	if [ "$do_profiling_shots" = "0" ]; then
 		cat <<EOF
 
-The script will use existing input images for the profiling. No more
+The script will use existing input RAW images for the profiling. No more
 shot will be taken.
 EOF
 		return 0
@@ -535,15 +631,19 @@ EOF
 	fi
 	while ! camera_is_plugged; do
 		cat <<EOF
-ERROR: No camera found by gphoto2(1)!
+${color_error}ERROR: No camera found by gphoto2(1)!
 
-Retry or check gphoto2 documentation.
+Retry or check gphoto2 documentation.${color_reset}
 EOF
 		read answer
 	done
 
 	# If we reach this part, a camera is plugged in and the user
 	# wants us to take the pictures for him.
+
+	if [ -z "$raw_config" ]; then
+		raw_config=$(get_camera_raw_setting)
+	fi
 
 	# If he didn't specify any ISO settings, query the camera.
 	if [ -z "$iso_settings" ]; then
@@ -561,10 +661,7 @@ EOF
 	# instance, and the benchmark script will choose the best
 	# preset.
 	shots_per_iso=1
-	case $(uname -s) in
-	Linux) shots_seq=$(seq $shots_per_iso) ;;
-	*BSD)  shots_seq=$(jot $shots_per_iso) ;;
-	esac
+	shots_seq="$shots_per_iso"
 
 	# gphoto2(1) writes images to the current directory, so cd to
 	# the profiling directory.
@@ -594,12 +691,10 @@ EOF
 			cat <<EOF
 
 $profiling_note
+
+Press Enter when ready.
 EOF
 			read answer
-		fi
-
-		if [ -z "$raw_id" ]; then
-			raw_id=$(get_camera_raw_setting)
 		fi
 
 		# This script will do $shots_seq shots for each ISO setting.
@@ -611,7 +706,7 @@ EOF
 			not_first_round=1
 
 			gphoto2						\
-			 --set-config /main/imgsettings/imageformat=$raw_id\
+			 --set-config "$raw_config"			\
 			 --set-config /main/imgsettings/iso=$iso	\
 			 --filename="$iso-$i.%C"			\
 			 --capture-image-and-download
@@ -695,3 +790,5 @@ add_profile() {
 	 "1, X'00', '', '', '', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4);" | \
 	sqlite3 $database
 }
+
+set_sed_cmd
