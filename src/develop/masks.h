@@ -166,6 +166,12 @@ void dt_masks_events_post_expose (struct dt_iop_module_t *module, cairo_t *cr, i
 /** function to know if a point is inside a form return 1 if inside, 2 if inside border, 0 else*/
 void dt_masks_get_distance(float x, int y, float as, dt_masks_form_gui_t *gui, dt_masks_form_t *form, int *inside, int *inside_border, int *near);
 
+/** functions used to manipulate gui datas */
+void dt_masks_gui_form_create (struct dt_iop_module_t *module, dt_masks_form_t *form, dt_masks_form_gui_t *gui);
+void dt_masks_gui_form_remove (struct dt_iop_module_t *module, dt_masks_form_t *form, dt_masks_form_gui_t *gui);
+void dt_masks_gui_form_update_border (struct dt_iop_module_t *module, dt_masks_form_t *form, dt_masks_form_gui_t *gui);
+void dt_masks_gui_form_test_create (struct dt_iop_module_t *module, dt_masks_form_t *form, dt_masks_form_gui_t *gui);
+void dt_masks_gui_form_save_creation (struct dt_iop_module_t *module, dt_masks_form_t *form, dt_masks_form_gui_t *gui);
 
 /** return the mask menu */
 GtkWidget *dt_masks_gui_get_menu(struct dt_iop_module_t *module);
