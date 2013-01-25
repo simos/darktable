@@ -22,7 +22,7 @@
 #include "develop/masks.h"
 #include "common/debug.h"
 
-void _circle_get_distance(float x, int y, float as, dt_masks_form_gui_t *gui, int *inside, int *inside_border, int *near)
+void dt_circle_get_distance(float x, int y, float as, dt_masks_form_gui_t *gui, int *inside, int *inside_border, int *near)
 {
   //we first check if it's inside borders
   int nb = 0;
@@ -62,7 +62,7 @@ void _circle_get_distance(float x, int y, float as, dt_masks_form_gui_t *gui, in
   *inside_border = !(nb & 1);
 }
 
-int _circle_events_mouse_scrolled(struct dt_iop_module_t *module, float pzx, float pzy, int up, uint32_t state,
+int dt_circle_events_mouse_scrolled(struct dt_iop_module_t *module, float pzx, float pzy, int up, uint32_t state,
                                           dt_masks_form_t *form, dt_masks_form_gui_t *gui)
 {
   if (gui->form_selected)
@@ -89,7 +89,7 @@ int _circle_events_mouse_scrolled(struct dt_iop_module_t *module, float pzx, flo
   return 0;
 }
 
-int _circle_events_button_pressed(struct dt_iop_module_t *module,float pzx, float pzy, int which, int type, uint32_t state,
+int dt_circle_events_button_pressed(struct dt_iop_module_t *module,float pzx, float pzy, int which, int type, uint32_t state,
                                           dt_masks_form_t *form, dt_masks_form_gui_t *gui)
 {
   if (which != 1) return 0;
@@ -134,7 +134,7 @@ int _circle_events_button_pressed(struct dt_iop_module_t *module,float pzx, floa
   return 0;
 }
 
-int _circle_events_button_released(struct dt_iop_module_t *module,float pzx, float pzy, int which, uint32_t state,
+int dt_circle_events_button_released(struct dt_iop_module_t *module,float pzx, float pzy, int which, uint32_t state,
                                           dt_masks_form_t *form, dt_masks_form_gui_t *gui)
 {
   if (gui->form_dragging)
@@ -166,7 +166,7 @@ int _circle_events_button_released(struct dt_iop_module_t *module,float pzx, flo
   return 0;
 }
 
-int _circle_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float pzy, int which, dt_masks_form_t *form, dt_masks_form_gui_t *gui)
+int dt_circle_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float pzy, int which, dt_masks_form_t *form, dt_masks_form_gui_t *gui)
 {
   if (gui->form_dragging)
   {
@@ -207,7 +207,7 @@ int _circle_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float p
   return 0;
 }
 
-void _circle_events_post_expose(cairo_t *cr,float zoom_scale,dt_masks_form_gui_t *gui)
+void dt_circle_events_post_expose(cairo_t *cr,float zoom_scale,dt_masks_form_gui_t *gui)
 {
   double dashed[] = {4.0, 4.0};
   dashed[0] /= zoom_scale;
@@ -270,7 +270,7 @@ void _circle_events_post_expose(cairo_t *cr,float zoom_scale,dt_masks_form_gui_t
   }
 }
 
-int _circle_get_points(dt_develop_t *dev, float x, float y, float radius, float **points, int *points_count)
+int dt_circle_get_points(dt_develop_t *dev, float x, float y, float radius, float **points, int *points_count)
 {
   float wd = dev->preview_pipe->iwidth;
   float ht = dev->preview_pipe->iheight;
@@ -303,7 +303,7 @@ int _circle_get_points(dt_develop_t *dev, float x, float y, float radius, float 
   return 0;  
 }
 
-int _circle_get_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, int *width, int *height, int *posx, int *posy)
+int dt_circle_get_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, int *width, int *height, int *posx, int *posy)
 {  
   //we get the cicle values
   dt_masks_point_circle_t *circle = (dt_masks_point_circle_t *) (g_list_first(form->points)->data);
@@ -351,10 +351,10 @@ int _circle_get_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_
   return 1;
 }
 
-int _circle_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, float **buffer, int *width, int *height, int *posx, int *posy)
+int dt_circle_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, float **buffer, int *width, int *height, int *posx, int *posy)
 {
   //we get the area
-  if (!_circle_get_area(module,piece,form,width,height,posx,posy)) return 0;
+  if (!dt_circle_get_area(module,piece,form,width,height,posx,posy)) return 0;
   //float wd = scale*piece->buf_in.width, ht = scale*piece->buf_in.height;
   
   //we get the cicle values

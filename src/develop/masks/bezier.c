@@ -24,7 +24,7 @@
 #include "common/debug.h"
 
 //feather calculating (must be in "real" coordinate, to be sure everything is orthonormal)
-void _curve_ctrl2_to_feather(int ptx,int pty, int ctrlx, int ctrly, int *fx, int *fy, gboolean clockwise)
+static void _curve_ctrl2_to_feather(int ptx,int pty, int ctrlx, int ctrly, int *fx, int *fy, gboolean clockwise)
 {
   if (clockwise)
   {
@@ -38,7 +38,7 @@ void _curve_ctrl2_to_feather(int ptx,int pty, int ctrlx, int ctrly, int *fx, int
   }
 }
 
-void _curve_feather_to_ctrl(int ptx,int pty, int fx, int fy, int *ctrl1x, int *ctrl1y, int *ctrl2x, int *ctrl2y, gboolean clockwise)
+static void _curve_feather_to_ctrl(int ptx,int pty, int fx, int fy, int *ctrl1x, int *ctrl1y, int *ctrl2x, int *ctrl2y, gboolean clockwise)
 {
   if (clockwise)
   {
@@ -57,7 +57,7 @@ void _curve_feather_to_ctrl(int ptx,int pty, int fx, int fy, int *ctrl1x, int *c
 }
 
 //Get the control points of a segment to match exactly a catmull-rom spline
-void _curve_catmull_to_bezier(float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4,
+static void _curve_catmull_to_bezier(float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4,
                                 float* bx1, float* by1, float* bx2, float* by2)
 {
   *bx1 = (-x1 + 6*x2 + x3) / 6;
@@ -66,7 +66,7 @@ void _curve_catmull_to_bezier(float x1, float y1, float x2, float y2, float x3, 
   *by2 = ( y2 + 6*y3 - y4) / 6;
 }
 
-void _curve_init_ctrl_points (dt_masks_form_t *form)
+static void _curve_init_ctrl_points (dt_masks_form_t *form)
 {
   //if we have less that 3 points, what to do ??
   if (g_list_length(form->points) < 2)
@@ -115,7 +115,7 @@ void _curve_init_ctrl_points (dt_masks_form_t *form)
   }
 }
 
-gboolean _curve_is_clockwise(dt_masks_form_t *form)
+static gboolean _curve_is_clockwise(dt_masks_form_t *form)
 {
   if (g_list_length(form->points) > 2)
   {
@@ -135,7 +135,7 @@ gboolean _curve_is_clockwise(dt_masks_form_t *form)
   return TRUE;
 }
 
-void _curve_points_recurs(float *p1, float *p2, 
+static void _curve_points_recurs(float *p1, float *p2, 
                                   double tmin, double tmax, float minx, float miny, float maxx, float maxy, 
                                   float *rx, float *ry, float *tabl, int *pos)
 {
@@ -181,7 +181,7 @@ void _curve_points_recurs(float *p1, float *p2,
   _curve_points_recurs(p1,p2,tx,tmax,x,y,maxx,maxy,rx,ry,tabl,pos);
 }
 
-int _curve_get_points(dt_develop_t *dev, dt_masks_form_t *form, float **points, int *points_count)
+int dt_curve_get_points(dt_develop_t *dev, dt_masks_form_t *form, float **points, int *points_count)
 {
   float wd = dev->preview_pipe->iwidth;
   float ht = dev->preview_pipe->iheight;
@@ -233,13 +233,13 @@ int _curve_get_points(dt_develop_t *dev, dt_masks_form_t *form, float **points, 
   return 0; 
 }
 
-int _curve_get_border(dt_develop_t *dev, dt_masks_form_t *form, float **points, int *points_count)
+int dt_curve_get_border(dt_develop_t *dev, dt_masks_form_t *form, float **points, int *points_count)
 {
   *points_count = 0;
   return 1;
 }
 
-int _curve_events_mouse_scrolled(struct dt_iop_module_t *module, float pzx, float pzy, int up, uint32_t state,
+int dt_curve_events_mouse_scrolled(struct dt_iop_module_t *module, float pzx, float pzy, int up, uint32_t state,
                                           dt_masks_form_t *form, dt_masks_form_gui_t *gui)
 {
   if (gui->form_selected)
@@ -312,7 +312,7 @@ int _curve_events_mouse_scrolled(struct dt_iop_module_t *module, float pzx, floa
   return 0;
 }
 
-int _curve_events_button_pressed(struct dt_iop_module_t *module,float pzx, float pzy, int which, int type, uint32_t state,
+int dt_curve_events_button_pressed(struct dt_iop_module_t *module,float pzx, float pzy, int which, int type, uint32_t state,
                                           dt_masks_form_t *form, dt_masks_form_gui_t *gui)
 {
   if (which == 3 || (gui->creation && gui->creation_closing_form))
@@ -448,7 +448,7 @@ int _curve_events_button_pressed(struct dt_iop_module_t *module,float pzx, float
   return 0;
 }
 
-int _curve_events_button_released(struct dt_iop_module_t *module,float pzx, float pzy, int which, uint32_t state,
+int dt_curve_events_button_released(struct dt_iop_module_t *module,float pzx, float pzy, int which, uint32_t state,
                                           dt_masks_form_t *form, dt_masks_form_gui_t *gui)
 {
   if (gui->creation) return 1;
@@ -608,7 +608,7 @@ int _curve_events_button_released(struct dt_iop_module_t *module,float pzx, floa
   return 0;
 }
 
-int _curve_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float pzy, int which, dt_masks_form_t *form, dt_masks_form_gui_t *gui)
+int dt_curve_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float pzy, int which, dt_masks_form_t *form, dt_masks_form_gui_t *gui)
 {
   int32_t zoom, closeup;
   DT_CTL_GET_GLOBAL(zoom, dev_zoom);
@@ -774,7 +774,7 @@ int _curve_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float pz
   return 1;
 }
 
-void _curve_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_form_gui_t *gui, int nb)
+void dt_curve_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_form_gui_t *gui, int nb)
 {
   double dashed[] = {4.0, 4.0};
   dashed[0] /= zoom_scale;
@@ -885,7 +885,7 @@ gint _curve_sort_points(gconstpointer a, gconstpointer b)
   return am[1] - bm[1];
 }
 
-int _curve_get_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, int *width, int *height, int *posx, int *posy)
+int dt_curve_get_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, int *width, int *height, int *posx, int *posy)
 {
   float wd = piece->pipe->iwidth, ht = piece->pipe->iheight;
   
@@ -936,7 +936,7 @@ int _curve_get_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_m
   return 1;
 }
 
-int _curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, float **buffer, int *width, int *height, int *posx, int *posy)
+int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, float **buffer, int *width, int *height, int *posx, int *posy)
 {
   float wd = piece->pipe->iwidth, ht = piece->pipe->iheight;
   
@@ -1088,6 +1088,36 @@ int _curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_m
   return 1;
 }
 
+void dt_curve_get_distance(float x, int y, float as, dt_masks_form_gui_t *gui, int corner_count, int *inside, int *inside_border, int *near)
+{
+  //we first check if it's inside borders
+  int nb = 0;
+  int last = -9999;
+  *inside_border = 0;
+  *near = -1;
+  
+  //and we check if it's inside form
+  int seg = 1;
+  for (int i=corner_count*3; i<gui->points_count; i++)
+  {
+    if (gui->points[i*2+1] == gui->points[seg*6+3] && gui->points[i*2] == gui->points[seg*6+2])
+    {
+      seg=(seg+1)%corner_count;
+    }
+    if (gui->points[i*2]-x < as && gui->points[i*2]-x > -as && gui->points[i*2+1]-y < as && gui->points[i*2+1]-y > -as)
+    {
+      if (seg == 0) *near = corner_count-1;
+      else *near = seg-1;
+    }
+    int yy = (int) gui->points[i*2+1];
+    if (yy != last && yy == y)
+    {
+      if (gui->points[i*2] > x) nb++;
+    }
+    last = yy;
+  }
+  *inside = (nb & 1);
+}
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
 // vim: shiftwidth=2 expandtab tabstop=2 cindent
 // kate: tab-indents: off; indent-width 2; replace-tabs on; indent-mode cstyle; remove-trailing-space on;
