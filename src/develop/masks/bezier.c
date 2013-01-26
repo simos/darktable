@@ -231,11 +231,28 @@ int dt_curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, float *
     (*points)[k*6+4] = pt->ctrl2[0]*wd;
     (*points)[k*6+5] = pt->ctrl2[1]*ht;
   }
+  //for the border, we store value too
+  for(int k = 0; k < nb; k++)
+  {
+    (*border)[k*6] = 0.0; //x position of the border point
+    (*border)[k*6+1] = 0.0; //y position of the border point
+    (*border)[k*6+2] = 0.0; //start index for the initial gap. if <0 this mean we have to skip to index (-x)
+    (*border)[k*6+3] = 0.0; //end index for the initial gap
+    (*border)[k*6+4] = 0.0; //start index for the final gap. if <0 this mean we have to stop at index (-x)
+    (*border)[k*6+5] = 0.0; //end index for the final gap
+  }
+  
   int pos = 6*nb;
-  int posb = 0;
+  int posb = 6*nb;
+  int *pos_curve = malloc(sizeof(int)*nb);
+  int *pos_border = malloc(sizeof(int)*nb);
+  float *border_init = malloc(sizeof(float)*6*nb);
   //we render all segments
   for(int k = 0; k < nb; k++)
   {
+    pos_curve[k] = pos;
+    pos_border[k] = posb;
+    border_init[k*6+2] = -posb;
     int k2 = (k+1)%nb;
     dt_masks_point_bezier_t *point1 = (dt_masks_point_bezier_t *)g_list_nth_data(form->points,k);
     dt_masks_point_bezier_t *point2 = (dt_masks_point_bezier_t *)g_list_nth_data(form->points,k2);
@@ -257,13 +274,99 @@ int dt_curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, float *
     (*points)[pos++] = rc[1];
     (*border)[posb++] = rb[0];
     (*border)[posb++] = rb[1];
+    border_init[k*6+4] = -posb;
+    border_init[k*6] = (*border)[pos_border[k]];
+    border_init[k*6+1] = (*border)[pos_border[k]+1];
   }
   *points_count = pos/2;
+  
+  //now we have do do some adujstements for the border (self-intersecting and gap due to sharp corner)
+  for(int k = 0; k < nb; k++)
+  {
+    //is the corner convex ?
+    float p1x,p1y,p2x,p2y;
+    if (k == 0)
+    {
+      p1x = (*points)[pos-6];
+      p1y = (*points)[pos-5];
+    }
+    else
+    {
+      p1x = (*points)[pos_curve[k]-6];
+      p1y = (*points)[pos_curve[k]-5];
+    }
+    p2x = (*points)[pos_curve[k]+6];
+    p2y = (*points)[pos_curve[k]+7];
+    float pdv = ((*points)[k*6+2]-p1x)*(p2y-(*points)[k*6+3]) - ((*points)[k*6+3]-p1y)*(p2x-(*points)[k*6+2]);
+    if (pdv > 0)
+    {
+      //we have to be sure there is no gap
+    }
+    else
+    {
+      //we have to get ride of self intersection
+      //we want to find the intersection
+      int pos0,pos1,pos2,pos3 ;
+      if (k==0)
+      {
+        pos0 = pos_border[nb-1];
+        pos1 = pos;
+        pos2 = pos_border[0];
+        pos3 = pos_border[1];
+      }
+      else if (k == nb-1)
+      {
+        pos0 = pos_border[k-1];
+        pos1 = pos2 = pos_border[k];
+        pos3 = pos;
+      }
+      else
+      {
+        pos0 = pos_border[k-1];
+        pos1 = pos2 = pos_border[k];
+        pos3 = pos_border[k+1];
+      }
+      printf("concave %d %d %d %d\n",pos0,pos1,pos2,pos3);
+      int inter0 = 0, inter1 = 0;
+      for (int i=pos0 ; i<pos1 ; i+=2)
+      {
+        for (int j=pos3-2 ; j>pos2 ; j-=2)
+        {
+          if ((*border)[i]-(*border)[j]<=1 && (*border)[i]-(*border)[j]>=-1 &&
+              (*border)[i+1]-(*border)[j+1]<=1 && (*border)[i+1]-(*border)[j+1]>=-1)
+          {
+            printf("yeah1 %d\n",j);
+            inter1 = j;
+            break;
+          }
+        }
+        if (inter1 > 0)
+        {
+          printf("yeah2 %d\n",i);
+          inter0 = i;
+          break;
+        }
+      }
+      if (inter0 > 0 && inter1 > 0)
+      {
+        border_init[k*6+2] = -inter1;
+        if (k==0) border_init[(nb-1)*6+4] = -inter0;
+        else border_init[(k-1)*6+4] = -inter0;
+      }
+    }
+  }
+  
   *border_count = posb/2;
+  free(pos_curve);
+  free(pos_border);  
   
   //and we transform them with all distorted modules
-  if (dt_dev_distort_transform(dev,*points,*points_count)) return 1;
-  if (dt_dev_distort_transform(dev,*border,*border_count)) return 1;
+  if (dt_dev_distort_transform(dev,*points,*points_count) && dt_dev_distort_transform(dev,*border,*border_count))
+  {
+    memcpy(*border,border_init,sizeof(float)*6*nb);
+    free(border_init);
+    return 1;
+  }
   
   //if we failed, then free all and return
   free(*points);
@@ -833,7 +936,7 @@ void dt_curve_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_form_gu
   }
   
   //draw curve
-  if (gui->points_count > nb+6)
+  if (gui->points_count > nb*3+6)
   { 
     cairo_set_dash(cr, dashed, 0, 0);
     
@@ -919,34 +1022,45 @@ void dt_curve_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_form_gu
   }
       
   //draw border
-  if (gui->border_count > 6)
+  if (gui->border_count > nb*3+6)
   { 
     cairo_move_to(cr,gui->border[0]+dx,gui->border[1]+dy);
-    for (int i=0; i<gui->border_count; i++)
+    //we draw the curve segment by segment
+    for (int k=0; k<nb; k++)
     {
-      //we decide to hightlight the form segment by segment
-      //if (gui->points[i*2+1] == gui->points[seg*6+3] && gui->points[i*2] == gui->points[seg*6+2])
+      
+      int pos1 = -gui->border[k*6+2];
+      int pos2 = -gui->border[k*6+4];
+      printf("draw %d %d\n",pos1,pos2);
+      
+      if (pos1<0)
       {
-        //this is the end of the last segment, so we have to draw it
-        
-        //and we update the segment number
-        //seg = (seg+1)%nb;
-        //seg2++;
+        //we have to draw the initial gap
       }
-      cairo_line_to(cr,gui->border[i*2]+dx,gui->border[i*2+1]+dy);
+      //we draw the segment
+      cairo_move_to(cr,gui->border[pos1]+dx,gui->border[pos1+1]+dy);
+      for (int i=pos1; i<pos2; i+=2)
+      {
+        cairo_line_to(cr,gui->border[i]+dx,gui->border[i+1]+dy);
+      }      
+      if (pos2<0)
+      {
+        //we have to draw the end gap
+      }
+      
+      //the execute the drawing
+      if(gui->form_selected || gui->form_dragging) cairo_set_line_width(cr, 2.0/zoom_scale);
+      else                                     cairo_set_line_width(cr, 1.0/zoom_scale);
+      cairo_set_source_rgba(cr, .3, .3, .3, .8);
+      cairo_set_dash(cr, dashed, len, 0);
+      cairo_stroke_preserve(cr);
+      if(gui->form_selected || gui->form_dragging) cairo_set_line_width(cr, 2.0/zoom_scale);
+      else                                     cairo_set_line_width(cr, 1.0/zoom_scale);
+      cairo_set_source_rgba(cr, .8, .8, .8, .8);
+      cairo_set_dash(cr, dashed, len, 4);
+      cairo_stroke(cr);
     }
-    if(gui->form_selected || gui->form_dragging) cairo_set_line_width(cr, 2.0/zoom_scale);
-    else                                     cairo_set_line_width(cr, 1.0/zoom_scale);
-    cairo_set_source_rgba(cr, .3, .3, .3, .8);
-    cairo_set_dash(cr, dashed, len, 0);
-    cairo_stroke_preserve(cr);
-    if(gui->form_selected || gui->form_dragging) cairo_set_line_width(cr, 2.0/zoom_scale);
-    else                                     cairo_set_line_width(cr, 1.0/zoom_scale);
-    cairo_set_source_rgba(cr, .8, .8, .8, .8);
-    cairo_set_dash(cr, dashed, len, 4);
-    cairo_stroke(cr);
   }
-  //TODO
 }
 
 gint _curve_sort_points(gconstpointer a, gconstpointer b)
