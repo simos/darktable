@@ -136,6 +136,7 @@ dt_masks_point_circle_t *dt_masks_get_circle(dt_masks_form_t *form);
 /** get points in real space with respect of distortion dx and dy are used to eventually move the center of the circle */
 int dt_masks_get_points(dt_develop_t *dev, dt_masks_form_t *form, float **points, int *points_count, float dx, float dy);
 int dt_masks_get_border(dt_develop_t *dev, dt_masks_form_t *form, float **border, int *border_count, float dx, float dy);
+int dt_masks_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, float **points, int *points_count, float **border, int *border_count, float dx, float dy);
 
 /** get the rectangle which include the form and his border */
 int dt_masks_get_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, int *width, int *height, int *posx, int *posy);

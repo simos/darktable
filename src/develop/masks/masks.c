@@ -28,13 +28,10 @@ void dt_masks_gui_form_create(dt_iop_module_t *module, dt_masks_form_t *form, dt
 {
   gui->pipe_hash = gui->formid = gui->points_count = gui->border_count = 0;
   
-  if (dt_masks_get_points(module->dev,form, &gui->points, &gui->points_count,0,0))
+  if (dt_masks_get_points_border(module->dev,form, &gui->points, &gui->points_count,&gui->border, &gui->border_count,0,0))
   {
-    if (dt_masks_get_border(module->dev,form, &gui->border, &gui->border_count,0,0))
-    {
-      gui->pipe_hash = module->dev->preview_pipe->backbuf_hash;
-      gui->formid = form->formid;
-    }
+    gui->pipe_hash = module->dev->preview_pipe->backbuf_hash;
+    gui->formid = form->formid;
   }
 }
 void dt_masks_gui_form_remove(dt_iop_module_t *module, dt_masks_form_t *form, dt_masks_form_gui_t *gui)
@@ -116,7 +113,7 @@ int dt_masks_get_points(dt_develop_t *dev, dt_masks_form_t *form, float **points
   }
   else if (form->type == DT_MASKS_BEZIER)
   {
-    return dt_curve_get_points(dev,form, points, points_count);
+    //return dt_curve_get_points(dev,form, points, points_count);
   }
   return 0;
 }
@@ -128,9 +125,25 @@ int dt_masks_get_border(dt_develop_t *dev, dt_masks_form_t *form, float **border
     dt_masks_point_circle_t *circle = (dt_masks_point_circle_t *) (g_list_first(form->points)->data);
     return dt_circle_get_points(dev,circle->center[0]-dx, circle->center[1]-dy, circle->radius + circle->border, border, border_count); 
   }
-    else if (form->type == DT_MASKS_BEZIER)
+  else if (form->type == DT_MASKS_BEZIER)
   {
-    return dt_curve_get_border(dev,form, border, border_count);
+    //return dt_curve_get_border(dev,form, border, border_count);
+  }
+  return 0;
+}
+
+int dt_masks_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, float **points, int *points_count, float **border, int *border_count, float dx, float dy)
+{
+  if (form->type == DT_MASKS_CIRCLE)
+  {
+    dt_masks_point_circle_t *circle = (dt_masks_point_circle_t *) (g_list_first(form->points)->data);
+    if (dt_circle_get_points(dev,circle->center[0]-dx, circle->center[1]-dy, circle->radius, points, points_count) &&
+    dt_circle_get_points(dev,circle->center[0]-dx, circle->center[1]-dy, circle->radius + circle->border, border, border_count))
+      return 1;
+  }
+  else if (form->type == DT_MASKS_BEZIER)
+  {
+    return dt_curve_get_points_border(dev,form, points, points_count, border, border_count);
   }
   return 0;
 }
