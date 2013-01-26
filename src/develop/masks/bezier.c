@@ -169,7 +169,7 @@ static gboolean _curve_is_clockwise(dt_masks_form_t *form)
 
 static void _curve_points_recurs(float *p1, float *p2, 
                                   double tmin, double tmax, float *curve_min, float *curve_max, float *border_min, float *border_max, 
-                                  float *rcurve, float *rborder, float *curve, float *border, int *pos_curve, int *pos_border)
+                                  float *rcurve, float *rborder, float *curve, float *border, int *pos_curve, int *pos_border, int withborder)
 {
   //we calcul points if needed
   if (curve_min[0] == -99999)
@@ -183,21 +183,22 @@ static void _curve_points_recurs(float *p1, float *p2,
                           curve_max,curve_max+1,border_max,border_max+1);
   }
   //are the point near ? (we just test y as it's the value we use for rendering
-  if (curve_min[0]-curve_max[0]<=1 && curve_min[0]-curve_max[0]>=-1 &&
+  if ((tmax-tmin < 0.000001) || (curve_min[0]-curve_max[0]<=1 && curve_min[0]-curve_max[0]>=-1 &&
       curve_min[1]-curve_max[1]<=1 && curve_min[1]-curve_max[1]>=-1 &&
+      (!withborder || (
       border_min[0]-border_max[0]<=1 && border_min[0]-border_max[0]>=-1 &&
-      border_min[1]-border_max[1]<=1 && border_min[1]-border_max[1]>=-1)
+      border_min[1]-border_max[1]<=1 && border_min[1]-border_max[1]>=-1))))
   {
     curve[*pos_curve] = curve_max[0];
     curve[*pos_curve+1] = curve_max[1];
-    border[*pos_border] = border_max[0];
-    border[*pos_border+1] = border_max[1];
+    if (withborder) border[*pos_border] = border_max[0];
+    if (withborder) border[*pos_border+1] = border_max[1];
     *pos_curve += 2;
-    *pos_border += 2;
+    if (withborder) *pos_border += 2;
     rcurve[0] = curve_max[0];
     rcurve[1] = curve_max[1];
-    rborder[0] = border_max[0];
-    rborder[1] = border_max[1];;
+    if (withborder) rborder[0] = border_max[0];
+    if (withborder) rborder[1] = border_max[1];;
     return;
   }
   
@@ -205,8 +206,8 @@ static void _curve_points_recurs(float *p1, float *p2,
   double tx = (tmin+tmax)/2.0;
   float c[2] = {-99999,-99999}, b[2]= {-99999,-99999};
   float rc[2], rb[2];
-  _curve_points_recurs(p1,p2,tmin,tx,curve_min,c,border_min,b,rc,rb,curve,border,pos_curve,pos_border);
-  _curve_points_recurs(p1,p2,tx,tmax,rc,curve_max,rb,border_max,rcurve,rborder,curve,border,pos_curve,pos_border);
+  _curve_points_recurs(p1,p2,tmin,tx,curve_min,c,border_min,b,rc,rb,curve,border,pos_curve,pos_border,withborder);
+  _curve_points_recurs(p1,p2,tx,tmax,rc,curve_max,rb,border_max,rcurve,rborder,curve,border,pos_curve,pos_border,withborder);
 }
 
 int dt_curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, float **points, int *points_count, float **border, int *border_count)
@@ -238,8 +239,8 @@ int dt_curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, float *
     int k2 = (k+1)%nb;
     dt_masks_point_bezier_t *point1 = (dt_masks_point_bezier_t *)g_list_nth_data(form->points,k);
     dt_masks_point_bezier_t *point2 = (dt_masks_point_bezier_t *)g_list_nth_data(form->points,k2);
-    float p1[5] = {point1->corner[0]*wd, point1->corner[1]*ht, point1->ctrl2[0]*wd, point1->ctrl2[1]*ht, 0.2*MIN(wd,ht)};
-    float p2[5] = {point2->corner[0]*wd, point2->corner[1]*ht, point2->ctrl1[0]*wd, point2->ctrl1[1]*ht, 0.2*MIN(wd,ht)};
+    float p1[5] = {point1->corner[0]*wd, point1->corner[1]*ht, point1->ctrl2[0]*wd, point1->ctrl2[1]*ht, point1->border[1]*MIN(wd,ht)};
+    float p2[5] = {point2->corner[0]*wd, point2->corner[1]*ht, point2->ctrl1[0]*wd, point2->ctrl1[1]*ht, point2->border[0]*MIN(wd,ht)};
     
     //we store the first point
     (*points)[pos++] = p1[0];
@@ -251,7 +252,7 @@ int dt_curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, float *
     float bmax[2] = {-99999,-99999};
     float cmin[2] = {-99999,-99999};
     float cmax[2] = {-99999,-99999};
-    _curve_points_recurs(p1,p2,0.0,1.0,cmin,cmax,bmin,bmax,rc,rb,*points,*border,&pos,&posb);
+    _curve_points_recurs(p1,p2,0.0,1.0,cmin,cmax,bmin,bmax,rc,rb,*points,*border,&pos,&posb,(nb>=3));
     (*points)[pos++] = rc[0];
     (*points)[pos++] = rc[1];
     (*border)[posb++] = rb[0];
@@ -404,7 +405,7 @@ int dt_curve_events_button_pressed(struct dt_iop_module_t *module,float pzx, flo
       bzpt->corner[0] = pts[0]/module->dev->preview_pipe->iwidth;
       bzpt->corner[1] = pts[1]/module->dev->preview_pipe->iheight;
       bzpt->ctrl1[0] = bzpt->ctrl1[1] = bzpt->ctrl2[0] = bzpt->ctrl2[1] = -1.0;
-      bzpt->border[0] = bzpt->border[1] = 0.2;
+      bzpt->border[0] = bzpt->border[1] = 0.05;
       bzpt->state = DT_MASKS_POINT_STATE_NORMAL;
       
       //if that's the first point we should had another one as base point
@@ -414,7 +415,7 @@ int dt_curve_events_button_pressed(struct dt_iop_module_t *module,float pzx, flo
         bzpt2->corner[0] = pts[0]/module->dev->preview_pipe->iwidth;
         bzpt2->corner[1] = pts[1]/module->dev->preview_pipe->iheight;
         bzpt2->ctrl1[0] = bzpt2->ctrl1[1] = bzpt2->ctrl2[0] = bzpt2->ctrl2[1] = -1.0;
-        bzpt->border[0] = bzpt->border[1] = 0.2;
+        bzpt2->border[0] = bzpt2->border[1] = 0.05;
         bzpt2->state = DT_MASKS_POINT_STATE_NORMAL;
         form->points = g_list_append(form->points,bzpt2);
         nb++;
@@ -470,7 +471,7 @@ int dt_curve_events_button_pressed(struct dt_iop_module_t *module,float pzx, flo
         bzpt->corner[1] = pts[1]/module->dev->preview_pipe->iheight;
         bzpt->ctrl1[0] = bzpt->ctrl1[1] = bzpt->ctrl2[0] = bzpt->ctrl2[1] = -1.0;
         bzpt->state = DT_MASKS_POINT_STATE_NORMAL;
-        bzpt->border[0] = bzpt->border[1] = 0.2;
+        bzpt->border[0] = bzpt->border[1] = 0.05;
         form->points = g_list_insert(form->points,bzpt,gui->seg_selected+1);
         _curve_init_ctrl_points(form);
         gui->point_dragging  = gui->point_selected = gui->seg_selected+1;
