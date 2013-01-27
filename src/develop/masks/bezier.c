@@ -210,11 +210,11 @@ static void _curve_points_recurs(float *p1, float *p2,
   _curve_points_recurs(p1,p2,tx,tmax,rc,curve_max,rb,border_max,rcurve,rborder,curve,border,pos_curve,pos_border,withborder);
 }
 
-int dt_curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, float **points, int *points_count, float **border, int *border_count)
+static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, int prio_max, dt_dev_pixelpipe_t *pipe, 
+                                      float **points, int *points_count, float **border, int *border_count)
 {
-  float wd = dev->preview_pipe->iwidth;
-  float ht = dev->preview_pipe->iheight;
-
+  float wd = pipe->iwidth, ht = pipe->iheight;
+  
   //we allocate buffer (very large) => how to handle this ???
   *points = malloc(60000*sizeof(float));
   *border = malloc(60000*sizeof(float));
@@ -260,8 +260,8 @@ int dt_curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, float *
     float p2[5] = {point2->corner[0]*wd, point2->corner[1]*ht, point2->ctrl1[0]*wd, point2->ctrl1[1]*ht, point2->border[0]*MIN(wd,ht)};
     
     //we store the first point
-    (*points)[pos++] = p1[0];
-    (*points)[pos++] = p1[1];
+    //(*points)[pos++] = p1[0];
+    //(*points)[pos++] = p1[1];
     
     //and we determine all points by recursion (to be sure the distance between 2 points is <=1)
     float rc[2],rb[2];
@@ -326,7 +326,6 @@ int dt_curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, float *
         pos1 = pos2 = pos_border[k];
         pos3 = pos_border[k+1];
       }
-      printf("concave %d %d %d %d\n",pos0,pos1,pos2,pos3);
       int inter0 = 0, inter1 = 0;
       for (int i=pos0 ; i<pos1 ; i+=2)
       {
@@ -335,14 +334,12 @@ int dt_curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, float *
           if ((*border)[i]-(*border)[j]<=1 && (*border)[i]-(*border)[j]>=-1 &&
               (*border)[i+1]-(*border)[j+1]<=1 && (*border)[i+1]-(*border)[j+1]>=-1)
           {
-            printf("yeah1 %d\n",j);
             inter1 = j;
             break;
           }
         }
         if (inter1 > 0)
         {
-          printf("yeah2 %d\n",i);
           inter0 = i;
           break;
         }
@@ -361,7 +358,7 @@ int dt_curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, float *
   free(pos_border);  
   
   //and we transform them with all distorted modules
-  if (dt_dev_distort_transform(dev,*points,*points_count) && dt_dev_distort_transform(dev,*border,*border_count))
+  if (dt_dev_distort_transform_plus(dev,pipe,0,prio_max,*points,*points_count) && dt_dev_distort_transform_plus(dev,pipe,0,prio_max,*border,*border_count))
   {
     memcpy(*border,border_init,sizeof(float)*6*nb);
     free(border_init);
@@ -376,6 +373,11 @@ int dt_curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, float *
   *border = NULL;
   *border_count = 0;
   return 0; 
+}
+
+int dt_curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, float **points, int *points_count, float **border, int *border_count)
+{
+  return _curve_get_points_border(dev,form,999999,dev->preview_pipe,points,points_count,border,border_count);
 }
 
 int dt_curve_get_border(dt_develop_t *dev, dt_masks_form_t *form, float **points, int *points_count)
@@ -1034,7 +1036,7 @@ void dt_curve_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_form_gu
     cairo_stroke(cr);
   }
       
-  //draw border
+  //draw border and corners
   if (gui->border_count > nb*3+6)
   { 
     cairo_move_to(cr,gui->border[0]+dx,gui->border[1]+dy);
@@ -1044,7 +1046,6 @@ void dt_curve_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_form_gu
       
       int pos1 = -gui->border[k*6+2];
       int pos2 = -gui->border[k*6+4];
-      printf("draw %d %d\n",pos1,pos2);
       
       if (pos1<0)
       {
@@ -1062,15 +1063,37 @@ void dt_curve_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_form_gu
       }
       
       //the execute the drawing
-      if(gui->form_selected || gui->form_dragging) cairo_set_line_width(cr, 2.0/zoom_scale);
+      if(gui->border_selected) cairo_set_line_width(cr, 2.0/zoom_scale);
       else                                     cairo_set_line_width(cr, 1.0/zoom_scale);
       cairo_set_source_rgba(cr, .3, .3, .3, .8);
       cairo_set_dash(cr, dashed, len, 0);
       cairo_stroke_preserve(cr);
-      if(gui->form_selected || gui->form_dragging) cairo_set_line_width(cr, 2.0/zoom_scale);
+      if(gui->border_selected) cairo_set_line_width(cr, 2.0/zoom_scale);
       else                                     cairo_set_line_width(cr, 1.0/zoom_scale);
       cairo_set_source_rgba(cr, .8, .8, .8, .8);
       cairo_set_dash(cr, dashed, len, 4);
+      cairo_stroke(cr);
+      
+      //draw the point
+      if (gui->border_selected)
+      {
+        anchor_size = 7.0f / zoom_scale;
+      }
+      else
+      {
+        anchor_size = 5.0f / zoom_scale;
+      }
+      cairo_set_source_rgba(cr, .8, .8, .8, .8);
+      cairo_rectangle(cr, 
+          gui->border[k*6] - (anchor_size*0.5)+dx, 
+          gui->border[k*6+1] - (anchor_size*0.5)+dy, 
+          anchor_size, anchor_size);
+      cairo_fill_preserve(cr);
+  
+      if (gui->border_selected) cairo_set_line_width(cr, 2.0/zoom_scale);
+      else cairo_set_line_width(cr, 1.0/zoom_scale);
+      cairo_set_source_rgba(cr, .3, .3, .3, .8);
+      cairo_set_dash(cr, dashed, 0, 0);
       cairo_stroke(cr);
     }
   }
@@ -1136,52 +1159,44 @@ int dt_curve_get_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt
   return 1;
 }
 
+static void _curve_falloff(float **buffer, int *p0, int *p1, int posx, int posy, int bw)
+{
+  //segment length
+  int l = sqrt((p1[0]-p0[0])*(p1[0]-p0[0])+(p1[1]-p0[1])*(p1[1]-p0[1]))+1;
+  
+  float lx = p1[0]-p0[0];
+  float ly = p1[1]-p0[1];
+  
+  for (int i=0 ; i<l; i++)
+  {
+    //position
+    int x = (int)((float)i*lx/(float)l) + p0[0] - posx;
+    int y = (int)((float)i*ly/(float)l) + p0[1] - posy;
+    float op = 1.0-(float)i/(float)l;
+    //op = op*op*(3.0f - 2.0f*op);
+    (*buffer)[y*bw+x] = op;
+    if (x > 0) (*buffer)[y*bw+x-1] = op; //this one is to avoid gap due to int rounding
+  }
+}
+
 int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, float **buffer, int *width, int *height, int *posx, int *posy)
 {
-  return 0;
-  /*float wd = piece->pipe->iwidth, ht = piece->pipe->iheight;
-  
-  //we get buffers for all points (by segments)
-  float *points = malloc(60000*sizeof(float));
-  const int nb = g_list_length(form->points);
-  //int seg[nb];
-  int pos = 0;
-  //we render all segments
-  for(int k = 0; k < nb; k++)
-  {
-    int k2 = (k+1)%nb;
-    dt_masks_point_bezier_t *point1 = (dt_masks_point_bezier_t *)g_list_nth_data(form->points,k);
-    dt_masks_point_bezier_t *point2 = (dt_masks_point_bezier_t *)g_list_nth_data(form->points,k2);
-    float p1[4] = {point1->corner[0]*wd, point1->corner[1]*ht, point1->ctrl2[0]*wd, point1->ctrl2[1]*ht};
-    float p2[4] = {point2->corner[0]*wd, point2->corner[1]*ht, point2->ctrl1[0]*wd, point2->ctrl1[1]*ht};
-    
-    //we store the first point
-    points[pos++] = p1[0];
-    points[pos++] = p1[1];
-    
-    //and we determine all points by recursion (to be sure the distance between 2 points is <=1)
-    float rx,ry;
-    _curve_points_recurs(p1,p2,0.0,1.0,p1[0],p1[1],p2[0],p2[1],&rx,&ry,points,&pos);
-    points[pos++] = rx;
-    points[pos++] = ry;
-  }
-  
-  if (!dt_dev_distort_transform_plus(module->dev,piece->pipe,0,module->priority,points,pos/2))
-  {
-    free(points);
-    return 0;
-  }
+  //we get buffers for all points
+  float *points, *border;
+  int points_count,border_count;
+  if (!_curve_get_points_border(module->dev,form,module->priority,piece->pipe,&points,&points_count,&border,&border_count)) return 0;
   
   //now we want to find the area, so we search min/max points
   float xmin, xmax, ymin, ymax;
   xmin = ymin = FLT_MAX;
   xmax = ymax = FLT_MIN;
-  for (int i=0; i < pos/2; i++)
+  int nb_corner = g_list_length(form->points);
+  for (int i=nb_corner*3; i < border_count; i++)
   {
-    xmin = fminf(points[i*2],xmin);
-    xmax = fmaxf(points[i*2],xmax);
-    ymin = fminf(points[i*2+1],ymin);
-    ymax = fmaxf(points[i*2+1],ymax);
+    xmin = fminf(border[i*2],xmin);
+    xmax = fmaxf(border[i*2],xmax);
+    ymin = fminf(border[i*2+1],ymin);
+    ymax = fmaxf(border[i*2+1],ymax);
   }
   *height = ymax-ymin+1;
   *width = xmax-xmin+1;
@@ -1190,7 +1205,7 @@ int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt
   
   //we create a new buffer for all the points, sorted by row values
   GList* pts = {NULL};
-  int nbp = pos/2;
+  int nbp = border_count;
   int lastx, lasty,lasty2;
   if (nbp>2)
   {
@@ -1198,7 +1213,7 @@ int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt
     lasty = (int) points[(nbp-1)*2+1];
     lasty2 = (int) points[(nbp-2)*2+1];
   
-    for (int i=0; i < nbp; i++)
+    for (int i=nb_corner*3; i < nbp; i++)
     {
       int xx = (int) points[i*2];
       int yy = (int) points[i*2+1];
@@ -1285,7 +1300,56 @@ int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt
     ppts = g_list_next(ppts);
   }
   
-  free(points);*/
+  //now we fill the falloff
+  int pos = nb_corner*6;
+  int p0[2], p1[2];
+  int last0[2] = {-100,-100}, last1[2] = {-100,-100};
+  for (int k=0; k<nb_corner; k++)
+  {
+    int pos1 = -border[k*6+2];
+    int pos2 = -border[k*6+4];
+    //from pos to pos1
+    p1[0] = border[pos1], p1[1] = border[pos1+1];
+    for (int i=pos; i<pos1; i+=2)
+    {
+      p0[0] = points[i], p0[1] = points[i+1];
+      if (last0[0] != p0[0] || last0[1] != p0[1] || last1[0] != p1[0] || last1[1] != p1[1])
+      {
+        _curve_falloff(buffer,p0,p1,*posx,*posy,*width);
+        last0[0] = p0[0], last0[1] = p0[1];
+        last1[0] = p1[0], last1[1] = p1[1];
+      }
+    }
+    pos = pos1;
+    //from pos1 to pos2
+    for (int i=pos1; i<pos2; i+=2)
+    {
+      p0[0] = points[i], p0[1] = points[i+1];
+      p1[0] = border[i], p1[1] = border[i+1];
+      if (last0[0] != p0[0] || last0[1] != p0[1] || last1[0] != p1[0] || last1[1] != p1[1])
+      {
+        _curve_falloff(buffer,p0,p1,*posx,*posy,*width);
+        last0[0] = p0[0], last0[1] = p0[1];
+        last1[0] = p1[0], last1[1] = p1[1];
+      }
+    }
+    pos = pos2;
+  }
+  //now if pos != border_count
+  p1[0] = border[pos], p1[1] = border[pos+1];
+  for (int i=pos; i<border_count*2; i+=2)
+  {
+    p0[0] = points[i], p0[1] = points[i+1];
+    if (last0[0] != p0[0] || last0[1] != p0[1] || last1[0] != p1[0] || last1[1] != p1[1])
+    {
+      _curve_falloff(buffer,p0,p1,*posx,*posy,*width);
+      last0[0] = p0[0], last0[1] = p0[1];
+      last1[0] = p1[0], last1[1] = p1[1];
+    }
+  }
+  
+  free(points);
+  free(border);
   return 1;
 }
 
