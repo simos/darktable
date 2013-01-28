@@ -735,7 +735,7 @@ int dt_curve_events_button_released(struct dt_iop_module_t *module,float pzx, fl
     gui->point_border_dragging = -1;
     //we save the move
     dt_dev_add_history_item(darktable.develop, module, TRUE);
-    
+    dt_control_queue_redraw_center();
     return 1;
   }
   else if (gui->point_selected>=0 && which == 3)
@@ -779,6 +779,25 @@ int dt_curve_events_button_released(struct dt_iop_module_t *module,float pzx, fl
     //we save the move
     dt_dev_add_history_item(darktable.develop, module, TRUE);
     
+    return 1;
+  }
+  else if (gui->feather_selected>=0 && which == 3)
+  {
+    dt_masks_point_bezier_t *point = (dt_masks_point_bezier_t *)g_list_nth_data(form->points,gui->feather_selected);
+    if (point->state != DT_MASKS_POINT_STATE_NORMAL)
+    {
+      point->state = DT_MASKS_POINT_STATE_NORMAL;
+      _curve_init_ctrl_points(form);
+      
+      dt_masks_write_form(form,module->dev);
+  
+      //we recreate the form points
+      dt_masks_gui_form_remove(module,form,gui);
+      dt_masks_gui_form_create(module,form,gui);
+      
+      //we save the move
+      dt_dev_add_history_item(darktable.develop, module, TRUE);
+    }
     return 1;
   }
   
@@ -902,7 +921,7 @@ int dt_curve_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float 
     float b = gui->points[k*6+3]-a*gui->points[k*6+2];
     
     float pts[2];
-    pts[0] = (a*pzx*wd+pzy*ht-b*a)/(a*a+1.0);
+    pts[0] = (a*pzy*ht+pzx*wd-b*a)/(a*a+1.0);
     pts[1] = a*pts[0]+b;
     
     dt_dev_distort_backtransform(module->dev,pts,1);
@@ -933,6 +952,7 @@ int dt_curve_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float 
   gui->feather_selected  = -1;
   gui->point_selected = -1;
   gui->seg_selected = -1;
+  gui->point_border_selected = -1;
   //are we near a point or feather ?
   int nb = g_list_length(form->points);
 
