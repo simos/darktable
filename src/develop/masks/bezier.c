@@ -573,6 +573,12 @@ int dt_curve_events_button_pressed(struct dt_iop_module_t *module,float pzx, flo
       dt_control_queue_redraw_center();
       return 1;
     }
+    else if (gui->point_border_selected >= 0)
+    {
+      gui->point_border_dragging = gui->point_border_selected;
+      dt_control_queue_redraw_center();
+      return 1;
+    }
     else if (gui->seg_selected >= 0)
     {
       if ((state&GDK_CONTROL_MASK) == GDK_CONTROL_MASK)
@@ -719,6 +725,14 @@ int dt_curve_events_button_released(struct dt_iop_module_t *module,float pzx, fl
     dt_masks_gui_form_remove(module,form,gui);
     dt_masks_gui_form_create(module,form,gui);
     
+    //we save the move
+    dt_dev_add_history_item(darktable.develop, module, TRUE);
+    
+    return 1;
+  }
+  else if (gui->point_border_dragging >= 0)
+  {
+    gui->point_border_dragging = -1;
     //we save the move
     dt_dev_add_history_item(darktable.develop, module, TRUE);
     
@@ -876,6 +890,36 @@ int dt_curve_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float 
     dt_control_queue_redraw_center();
     return 1;
   }
+  else if (gui->point_border_dragging >= 0)
+  {
+    float wd = module->dev->preview_pipe->backbuf_width;
+    float ht = module->dev->preview_pipe->backbuf_height;
+    
+    int k = gui->point_border_dragging;
+    
+    //now we want to know the position reflected on actual corner/border segment
+    float a = (gui->border[k*6+1]-gui->points[k*6+3])/(float)(gui->border[k*6]-gui->points[k*6+2]);
+    float b = gui->points[k*6+3]-a*gui->points[k*6+2];
+    
+    float pts[2];
+    pts[0] = (a*pzx*wd+pzy*ht-b*a)/(a*a+1.0);
+    pts[1] = a*pts[0]+b;
+    
+    dt_dev_distort_backtransform(module->dev,pts,1);
+    
+    dt_masks_point_bezier_t *point = (dt_masks_point_bezier_t *)g_list_nth_data(form->points,k);
+    float nx = point->corner[0]*module->dev->preview_pipe->iwidth;
+    float ny = point->corner[1]*module->dev->preview_pipe->iheight;
+    float nr = sqrtf((pts[0]-nx)*(pts[0]-nx) + (pts[1]-ny)*(pts[1]-ny));
+    
+    point->border[0] = point->border[1] = nr/fminf(module->dev->preview_pipe->iwidth,module->dev->preview_pipe->iheight);
+    
+    //we recreate the form points
+    dt_masks_gui_form_remove(module,form,gui);
+    dt_masks_gui_form_create(module,form,gui);
+    dt_control_queue_redraw_center();
+    return 1;
+  }
   else if (gui->form_dragging)
   {
     gui->posx = pzx*module->dev->preview_pipe->backbuf_width;
@@ -911,6 +955,14 @@ int dt_curve_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float 
     if (pzx-gui->points[k*6+2]>-as && pzx-gui->points[k*6+2]<as && pzy-gui->points[k*6+3]>-as && pzy-gui->points[k*6+3]<as)
     {
       gui->point_selected = k;
+      dt_control_queue_redraw_center();
+      return 1;
+    }
+    
+    //border corner ??
+    if (pzx-gui->border[k*6]>-as && pzx-gui->border[k*6]<as && pzy-gui->border[k*6+1]>-as && pzy-gui->border[k*6+1]<as)
+    {
+      gui->point_border_selected = k;
       dt_control_queue_redraw_center();
       return 1;
     }
@@ -1075,7 +1127,7 @@ void dt_curve_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_form_gu
       cairo_stroke(cr);
       
       //draw the point
-      if (gui->border_selected)
+      if (gui->point_border_selected == k)
       {
         anchor_size = 7.0f / zoom_scale;
       }
@@ -1090,7 +1142,7 @@ void dt_curve_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_form_gu
           anchor_size, anchor_size);
       cairo_fill_preserve(cr);
   
-      if (gui->border_selected) cairo_set_line_width(cr, 2.0/zoom_scale);
+      if (gui->point_border_selected == k) cairo_set_line_width(cr, 2.0/zoom_scale);
       else cairo_set_line_width(cr, 1.0/zoom_scale);
       cairo_set_source_rgba(cr, .3, .3, .3, .8);
       cairo_set_dash(cr, dashed, 0, 0);
