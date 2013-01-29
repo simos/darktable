@@ -247,6 +247,8 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
   int *pos_curve = malloc(sizeof(int)*nb);
   int *pos_border = malloc(sizeof(int)*nb);
   float *border_init = malloc(sizeof(float)*6*nb);
+  int cw = _curve_is_clockwise(form);
+  if (cw == 0) cw = -1;
   //we render all segments
   for(int k = 0; k < nb; k++)
   {
@@ -256,8 +258,8 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
     int k2 = (k+1)%nb;
     dt_masks_point_bezier_t *point1 = (dt_masks_point_bezier_t *)g_list_nth_data(form->points,k);
     dt_masks_point_bezier_t *point2 = (dt_masks_point_bezier_t *)g_list_nth_data(form->points,k2);
-    float p1[5] = {point1->corner[0]*wd, point1->corner[1]*ht, point1->ctrl2[0]*wd, point1->ctrl2[1]*ht, point1->border[1]*MIN(wd,ht)};
-    float p2[5] = {point2->corner[0]*wd, point2->corner[1]*ht, point2->ctrl1[0]*wd, point2->ctrl1[1]*ht, point2->border[0]*MIN(wd,ht)};
+    float p1[5] = {point1->corner[0]*wd, point1->corner[1]*ht, point1->ctrl2[0]*wd, point1->ctrl2[1]*ht, cw*point1->border[1]*MIN(wd,ht)};
+    float p2[5] = {point2->corner[0]*wd, point2->corner[1]*ht, point2->ctrl1[0]*wd, point2->ctrl1[1]*ht, cw*point2->border[0]*MIN(wd,ht)};
     
     //we store the first point
     //(*points)[pos++] = p1[0];
