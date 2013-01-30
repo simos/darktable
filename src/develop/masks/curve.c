@@ -363,7 +363,12 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
   //and we transform them with all distorted modules
   if (dt_dev_distort_transform_plus(dev,pipe,0,prio_max,*points,*points_count) && dt_dev_distort_transform_plus(dev,pipe,0,prio_max,*border,*border_count))
   {
-    memcpy(*border,border_init,sizeof(float)*6*nb);
+    //memcpy(*border,border_init,sizeof(float)*6*nb);
+    //we don't want to copy the falloff points
+    for(int k = 0; k < nb; k++)
+    {
+      for (int i=2; i<6; i++) (*border)[k*6+i] = border_init[k*6+i]; 
+    }
     free(border_init);
     return 1;
   }
