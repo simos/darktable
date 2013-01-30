@@ -36,6 +36,7 @@ typedef struct dt_lib_masks_t
 {
   /* vbox with managed history items */
   GtkWidget *title;
+  GtkWidget *bt_circle, *bt_curve, *bt_exist;
   GtkWidget *vbox;
 }
 dt_lib_masks_t;
@@ -275,34 +276,46 @@ static void _lib_masks_recreate_list(dt_lib_module_t *self)
   gtk_label_set_text(GTK_LABEL(d->title),iop->name());
   
   /* iterate over history items and add them to list*/
-  for (int i=0; i<iop->blend_params->forms_count; i++)
+  if (iop->flags()&IOP_FLAGS_SUPPORTS_BLENDING)
   {
-    dt_masks_form_t *form = dt_masks_get_from_id(darktable.develop,iop->blend_params->forms[i]);
-    if (!form) continue;
-    GtkWidget *hb = gtk_hbox_new(FALSE,0);
-    
-    GtkWidget *item = dtgtk_togglebutton_new(dtgtk_cairo_paint_masks_eye, CPF_STYLE_FLAT|CPF_DO_NOT_USE_BORDER);
-    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(item), (iop->blend_params->forms_state[i] & DT_MASKS_STATE_USE));
-    g_signal_connect (G_OBJECT (item), "toggled", G_CALLBACK (_lib_masks_show_toggle_callback), form);
-    gtk_widget_set_size_request(item,bs,bs);
-    
-    GtkWidget *evb = gtk_event_box_new();
-    GtkWidget *lb = gtk_label_new(form->name);
-    if (form == darktable.develop->form_visible)
+    for (int i=0; i<iop->blend_params->forms_count; i++)
     {
-      char *markup = g_markup_printf_escaped ("<b>%s</b>", form->name);
-      gtk_label_set_markup (GTK_LABEL (lb), markup);
-      g_free (markup);
+      dt_masks_form_t *form = dt_masks_get_from_id(darktable.develop,iop->blend_params->forms[i]);
+      if (!form) continue;
+      GtkWidget *hb = gtk_hbox_new(FALSE,0);
+      
+      GtkWidget *item = dtgtk_togglebutton_new(dtgtk_cairo_paint_masks_eye, CPF_STYLE_FLAT|CPF_DO_NOT_USE_BORDER);
+      gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(item), (iop->blend_params->forms_state[i] & DT_MASKS_STATE_USE));
+      g_signal_connect (G_OBJECT (item), "toggled", G_CALLBACK (_lib_masks_show_toggle_callback), form);
+      gtk_widget_set_size_request(item,bs,bs);
+      
+      GtkWidget *evb = gtk_event_box_new();
+      GtkWidget *lb = gtk_label_new(form->name);
+      if (form == darktable.develop->form_visible)
+      {
+        char *markup = g_markup_printf_escaped ("<b>%s</b>", form->name);
+        gtk_label_set_markup (GTK_LABEL (lb), markup);
+        g_free (markup);
+      }
+      gtk_container_add(GTK_CONTAINER(evb),lb);
+      g_signal_connect (G_OBJECT (evb), "button-press-event", G_CALLBACK(_lib_masks_click_callback), form);
+      
+      gtk_box_pack_start (GTK_BOX (hb),item,FALSE,FALSE,2);
+      gtk_box_pack_start (GTK_BOX (hb),evb,FALSE,FALSE,2);
+      
+      gtk_box_pack_start (GTK_BOX (d->vbox),hb,FALSE,FALSE,0);
     }
-    gtk_container_add(GTK_CONTAINER(evb),lb);
-    g_signal_connect (G_OBJECT (evb), "button-press-event", G_CALLBACK(_lib_masks_click_callback), form);
-    
-    gtk_box_pack_start (GTK_BOX (hb),item,FALSE,FALSE,2);
-    gtk_box_pack_start (GTK_BOX (hb),evb,FALSE,FALSE,2);
-    
-    gtk_box_pack_start (GTK_BOX (d->vbox),hb,FALSE,FALSE,0);
   }
-
+  else
+  {
+    GtkWidget *lb = gtk_label_new(_("this module doesn't support masks"));
+    gtk_box_pack_start (GTK_BOX (d->vbox),lb,FALSE,FALSE,0);
+  }
+  //set the "add new" buttons enable state
+  gtk_widget_set_sensitive(d->bt_circle,(iop->flags()&IOP_FLAGS_SUPPORTS_BLENDING));
+  gtk_widget_set_sensitive(d->bt_curve,(iop->flags()&IOP_FLAGS_SUPPORTS_BLENDING));
+  gtk_widget_set_sensitive(d->bt_exist,(iop->flags()&IOP_FLAGS_SUPPORTS_BLENDING));
+  
   /* show all widgets */
   gtk_widget_show_all(d->vbox);
 }
@@ -324,17 +337,17 @@ void gui_init(dt_lib_module_t *self)
   self->widget =  gtk_vbox_new (FALSE,2);
   GtkWidget *hb = gtk_hbox_new(FALSE,2);
   
-  GtkWidget *item = dtgtk_button_new(dtgtk_cairo_paint_masks_multi, 0);
-  g_signal_connect(G_OBJECT(item), "button-press-event", G_CALLBACK(_lib_masks_new_exist_callback), self);
-  gtk_box_pack_end (GTK_BOX (hb),item,FALSE,FALSE,0);
+  d->bt_exist = dtgtk_button_new(dtgtk_cairo_paint_masks_multi, 0);
+  g_signal_connect(G_OBJECT(d->bt_exist), "button-press-event", G_CALLBACK(_lib_masks_new_exist_callback), self);
+  gtk_box_pack_end (GTK_BOX (hb),d->bt_exist,FALSE,FALSE,0);
   
-  item = dtgtk_button_new(dtgtk_cairo_paint_masks_curve, 0);
-  g_signal_connect(G_OBJECT(item), "button-press-event", G_CALLBACK(_lib_masks_new_curve_callback), self);
-  gtk_box_pack_end (GTK_BOX (hb),item,FALSE,FALSE,0);
+  d->bt_curve = dtgtk_button_new(dtgtk_cairo_paint_masks_curve, 0);
+  g_signal_connect(G_OBJECT(d->bt_curve), "button-press-event", G_CALLBACK(_lib_masks_new_curve_callback), self);
+  gtk_box_pack_end (GTK_BOX (hb),d->bt_curve,FALSE,FALSE,0);
   
-  item = dtgtk_button_new(dtgtk_cairo_paint_masks_circle, 0);
-  g_signal_connect(G_OBJECT(item), "button-press-event", G_CALLBACK(_lib_masks_new_circle_callback), self);
-  gtk_box_pack_end (GTK_BOX (hb),item,FALSE,FALSE,0);  
+  d->bt_circle = dtgtk_button_new(dtgtk_cairo_paint_masks_circle, 0);
+  g_signal_connect(G_OBJECT(d->bt_circle), "button-press-event", G_CALLBACK(_lib_masks_new_circle_callback), self);
+  gtk_box_pack_end (GTK_BOX (hb),d->bt_circle,FALSE,FALSE,0);  
   
   if (iop) d->title = gtk_label_new(iop->name());
   else d->title = gtk_label_new(_("no module selected"));
