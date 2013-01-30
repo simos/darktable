@@ -1144,9 +1144,6 @@ dt_iop_gui_multimenu_callback(GtkButton *button, gpointer user_data)
   g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (dt_iop_gui_delete_callback), module);
   gtk_widget_set_sensitive(item, module->multi_show_close);
   gtk_menu_append(menu, item);
-
-  item = dt_masks_gui_get_menu(module);
-  gtk_menu_append(menu, item);
   
   gtk_widget_show_all(menu);
   //popup
@@ -1721,15 +1718,6 @@ void dt_iop_request_focus(dt_iop_module_t *module)
     /*reset mask view */
     darktable.develop->form_visible = NULL;
     dt_masks_init_formgui(darktable.develop);
-    dt_iop_gui_blend_data_t *bd = (dt_iop_gui_blend_data_t *)darktable.develop->gui_module->blend_data;
-    if (bd)
-    {
-      for (int i=0; i<darktable.develop->gui_module->blend_params->forms_count; i++)
-      {
-        GtkWidget *w = bd->form_label[i];
-        if (w) gtk_widget_modify_bg(w, GTK_STATE_SELECTED, NULL);
-      }
-    }
   }
 
   darktable.develop->gui_module = module;

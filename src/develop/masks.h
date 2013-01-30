@@ -176,9 +176,6 @@ void dt_masks_gui_form_update_border (struct dt_iop_module_t *module, dt_masks_f
 void dt_masks_gui_form_test_create (struct dt_iop_module_t *module, dt_masks_form_t *form, dt_masks_form_gui_t *gui);
 void dt_masks_gui_form_save_creation (struct dt_iop_module_t *module, dt_masks_form_t *form, dt_masks_form_gui_t *gui);
 
-/** return the mask menu */
-GtkWidget *dt_masks_gui_get_menu(struct dt_iop_module_t *module);
-
 #endif
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
 // vim: shiftwidth=2 expandtab tabstop=2 cindent

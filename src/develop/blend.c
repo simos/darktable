@@ -2185,40 +2185,6 @@ dt_develop_blend_legacy_params (dt_iop_module_t *module, const void *const old_p
   return 1;
 }
 
-int dt_develop_blend_add_form (dt_iop_module_t *module, int id, uint32_t state)
-{
-  dt_iop_gui_blend_data_t *bd = (dt_iop_gui_blend_data_t*)module->blend_data;
-  dt_masks_form_t *form = dt_masks_get_from_id(module->dev,id);
-  if (!form) return 0;
-  
-  //update params
-  int forms_count = module->blend_params->forms_count;
-  module->blend_params->forms[forms_count] = id;
-  module->blend_params->forms_state[forms_count] = state;
-  if (form->type == DT_MASKS_CIRCLE) snprintf(form->name,128,"mask circle #%d",forms_count);
-  dt_masks_write_form(form,module->dev);
-  
-  //update gui
-  bd->form_label[forms_count] = gtk_event_box_new();
-  gtk_container_add(GTK_CONTAINER(bd->form_label[forms_count]), gtk_label_new(form->name));
-  gtk_widget_show_all(bd->form_label[forms_count]);
-  g_object_set_data(G_OBJECT(bd->form_label[forms_count]), "form", GUINT_TO_POINTER(forms_count));
-  gtk_box_pack_end(GTK_BOX(bd->form_box), bd->form_label[forms_count], TRUE, TRUE,0);
-  g_signal_connect(G_OBJECT(bd->form_label[forms_count]), "button-press-event", G_CALLBACK(dt_iop_gui_blend_setform_callback), module);
-  
-  module->blend_params->forms_count++;
-  
-  //show the form if needed
-  if (state & DT_MASKS_STATE_SHOW)
-  {
-    module->dev->form_visible = dt_masks_get_from_id(module->dev,id);
-    module->dev->form_gui->formid = id;
-  }
-  dt_dev_add_history_item(darktable.develop, module, TRUE);
-  
-  return 1;
-}
-
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
 // vim: shiftwidth=2 expandtab tabstop=2 cindent
 // kate: tab-indents: off; indent-width 2; replace-tabs on; indent-mode cstyle; remove-trailing-space on;

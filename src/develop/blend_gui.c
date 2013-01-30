@@ -944,30 +944,15 @@ void dt_iop_gui_update_blending(dt_iop_module_t *module)
 
   dt_iop_gui_update_blendif(module);
   
-  /* populate form_box */
-  GList *children = gtk_container_get_children(GTK_CONTAINER(bd->form_box));
-  while (children)
+  /* update masks state */
+  if (module->blend_params->forms_count>0)
   {
-    gtk_container_remove(GTK_CONTAINER(bd->form_box),(GtkWidget *)children->data);
-    children = g_list_next(children);
+    char txt[512];
+    snprintf(txt,512,"%d shapes used",module->blend_params->forms_count);
+    gtk_label_set_text(GTK_LABEL(bd->masks_state),txt);
   }
-  {
-    GList *iter;
-    for(iter = children; iter != NULL; iter = g_list_next(iter))
-      gtk_container_remove(GTK_CONTAINER(bd->form_box),GTK_WIDGET(iter->data));
+  else gtk_label_set_text(GTK_LABEL(bd->masks_state),_("no masks used"));
   
-    for (int i=0; i<module->blend_params->forms_count; i++)
-    {
-      dt_masks_form_t *form = dt_masks_get_from_id(module->dev,module->blend_params->forms[i]);
-      if (!form) continue;
-      bd->form_label[i] = gtk_event_box_new();
-      gtk_container_add(GTK_CONTAINER(bd->form_label[i]), gtk_label_new(form->name));
-      gtk_widget_show_all(bd->form_label[i]);
-      g_object_set_data(G_OBJECT(bd->form_label[i]), "form", GUINT_TO_POINTER(form->formid));
-      g_signal_connect(G_OBJECT(bd->form_label[i]), "button-press-event", G_CALLBACK(dt_iop_gui_blend_setform_callback), module);
-      gtk_box_pack_start(GTK_BOX(bd->form_box), bd->form_label[i], TRUE, TRUE,0);
-    }
-  }
   /* now show hide controls as required */
   if(bd->modes[dt_bauhaus_combobox_get(bd->blend_modes_combo)].mode == DEVELOP_BLEND_DISABLED)
   {
@@ -1067,8 +1052,12 @@ void dt_iop_gui_init_blending(GtkWidget *iopw, dt_iop_module_t *module)
     dt_bauhaus_slider_set_format(bd->opacity_slider, "%.0f%%");
     module->fusion_slider = bd->opacity_slider;
 
-    bd->form_box = GTK_VBOX(gtk_vbox_new(FALSE,DT_GUI_IOP_MODULE_CONTROL_SPACING));
-
+    //masks line
+    GtkWidget *hb = gtk_hbox_new(FALSE,DT_GUI_IOP_MODULE_CONTROL_SPACING);
+    gtk_box_pack_start(GTK_BOX(hb), gtk_label_new(_("masks")), FALSE,FALSE,0);
+    bd->masks_state = gtk_label_new(_("no masks used"));
+    gtk_misc_set_alignment(GTK_MISC(bd->masks_state), 1.0f, 0.0f);
+    gtk_box_pack_start(GTK_BOX(hb), bd->masks_state, TRUE, TRUE,5);
   
     for(int k = 0; k < bd->number_modes; k++)
       dt_bauhaus_combobox_add(bd->blend_modes_combo, bd->modes[k].name);
@@ -1083,7 +1072,7 @@ void dt_iop_gui_init_blending(GtkWidget *iopw, dt_iop_module_t *module)
     g_signal_connect (G_OBJECT (bd->blend_modes_combo), "value-changed",
                       G_CALLBACK (_blendop_mode_callback), bd);
 
-    gtk_box_pack_start(GTK_BOX(iopw), GTK_WIDGET(bd->form_box), TRUE, TRUE,0);
+    gtk_box_pack_start(GTK_BOX(iopw), GTK_WIDGET(hb), TRUE, TRUE,0);
     gtk_box_pack_start(GTK_BOX(iopw), bd->blend_modes_combo, TRUE, TRUE,0);
     gtk_box_pack_start(GTK_BOX(iopw), bd->opacity_slider, TRUE, TRUE,0);
 
@@ -1094,155 +1083,6 @@ void dt_iop_gui_init_blending(GtkWidget *iopw, dt_iop_module_t *module)
     bd->blend_inited = 1;
     gtk_widget_queue_draw(GTK_WIDGET(iopw));
     dt_iop_gui_update_blending(module);
-  }
-}
-
-static void _mask_delete(GtkButton *button, dt_iop_module_t *data)
-{
-  //first, we need to retrieve the form position
-  int pos = -1;
-  pos = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(button), "form"));
-  if (pos < 0) return;
-  
-  int formid = data->blend_params->forms[pos];
-  //if the form is selected, we deselect it
-  if (data->dev->form_visible)
-  {
-    if (data->dev->form_visible->formid == formid)
-    {
-      data->dev->form_visible = NULL;
-      dt_masks_init_formgui(data->dev);
-      dt_control_queue_redraw_center();
-    }
-  }
-  
-  //we remove the form from the module
-  data->blend_params->forms_count--;
-  for (int i=pos; i<data->blend_params->forms_count; i++) data->blend_params->forms[i] = data->blend_params->forms[i+1];
-  dt_iop_gui_blend_data_t *bd = (dt_iop_gui_blend_data_t *)data->blend_data;
-  gtk_widget_destroy(bd->form_label[pos]);
-  for (int i=pos; i<data->blend_params->forms_count; i++) bd->form_label[i] = bd->form_label[i+1];
-  
-  dt_dev_add_history_item(darktable.develop, data, TRUE);
-  
-  //we search if the form is still used
-  GList *modules = g_list_first(data->dev->iop);
-  while(modules)
-  {
-    dt_iop_module_t *module = (dt_iop_module_t *)modules->data;
-    if (module)
-    {
-      if (module->blend_params)
-      {
-        for (int i=0; i<module->blend_params->forms_count; i++)
-        {
-          if (module->blend_params->forms[i] == formid) return;
-        }
-      }
-    }
-    modules = g_list_next(modules);
-  }
- 
-  //we completly remove the form if not used anymore
-  //TODO : take styles and groups in account
-  dt_masks_form_t *form = dt_masks_get_from_id(data->dev,formid);
-  if (form)
-  {
-    data->dev->forms = g_list_remove(data->dev->forms, form);
-    dt_masks_free_form(form);
-    dt_masks_write_forms(data->dev);
-  }
-}
-
-static void _mask_activate(GtkButton *button, dt_iop_module_t *data)
-{
-  //first, we need to retrieve the form position
-  int pos = -1;
-  pos = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(button), "form"));
-  if (pos < 0) return;
-  
-  if (data->blend_params->forms_state[pos] & DT_MASKS_STATE_USE)
-  {
-    data->blend_params->forms_state[pos] -= DT_MASKS_STATE_USE;
-  }
-  else
-  {
-    data->blend_params->forms_state[pos] += DT_MASKS_STATE_USE;
-  }
-  
-  dt_dev_add_history_item(darktable.develop, data, TRUE);
-}
-void dt_iop_gui_blend_setform_callback(GtkWidget *widget, GdkEventButton *e, dt_iop_module_t *data)
-{
-  //first, we need to retrieve the form position
-  int formid = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(widget), "form"));
-  int pos = -1;
-  for (int i=0;i<data->blend_params->forms_count;i++)
-  {
-    if (data->blend_params->forms[i] == formid)
-    {
-      pos = i;
-      break;
-    }
-  }
-  if (pos < 0) return;
-  
-  if (e->button == 1)
-  {
-    int selected = 0;
-    if (data->dev->form_visible)
-    {
-      if (data->dev->form_visible->formid == formid)
-      {
-        data->dev->form_visible = NULL;
-        dt_masks_init_formgui(data->dev);
-        selected = 1;
-      }
-    }
-    //we set colors
-    GtkContainer *box = GTK_CONTAINER(gtk_widget_get_parent(widget));
-    GList *childs = gtk_container_get_children(box);
-    while(childs)
-    {
-      GtkWidget *w = (GtkWidget *) childs->data;
-      if (w == widget && selected == 0)
-      {
-        GtkStyle *style = gtk_widget_get_style(w);
-        gtk_widget_modify_bg(w, GTK_STATE_SELECTED, &style->bg[GTK_STATE_NORMAL]);
-      }
-      else
-      {
-        gtk_widget_modify_bg(w, GTK_STATE_SELECTED, NULL);
-      }    
-      childs = g_list_next(childs);
-    }   
-    
-    if (selected == 0)
-    {
-      dt_masks_init_formgui(data->dev);
-      data->dev->form_visible = dt_masks_get_from_id(data->dev,formid);
-    }
-    dt_control_queue_redraw_center();
-  }
-  else if (e->button == 3)
-  {
-    GtkWidget *menu = gtk_menu_new();
-    GtkWidget *item;
-  
-    item = gtk_menu_item_new_with_label(_("delete"));
-    g_object_set_data(G_OBJECT(item), "form", GUINT_TO_POINTER(pos));
-    g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (_mask_delete), data);
-    gtk_menu_append(menu, item);
-    
-    if (data->blend_params->forms_state[pos] & DT_MASKS_STATE_USE) item = gtk_menu_item_new_with_label(_("desactivate"));
-    else item = gtk_menu_item_new_with_label(_("activate"));
-    g_object_set_data(G_OBJECT(item), "form", GUINT_TO_POINTER(pos));
-    g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (_mask_activate), data);
-    gtk_menu_append(menu, item);
-    
-    gtk_widget_show_all(menu);
-    //popup
-    gtk_menu_popup (GTK_MENU (menu), NULL, NULL, NULL, NULL, 0, gtk_get_current_event_time());
   }
 }
 

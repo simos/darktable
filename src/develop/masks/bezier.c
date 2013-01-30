@@ -760,9 +760,7 @@ int dt_curve_events_button_released(struct dt_iop_module_t *module,float pzx, fl
       }
       module->blend_params->forms_count--;
       for (int i=pos; i<module->blend_params->forms_count; i++) module->blend_params->forms[i] = module->blend_params->forms[i+1];
-      dt_iop_gui_blend_data_t *bd = (dt_iop_gui_blend_data_t *)module->blend_data;
-      gtk_widget_destroy(bd->form_label[pos]);
-      for (int i=pos; i<module->blend_params->forms_count; i++) bd->form_label[i] = bd->form_label[i+1];
+      dt_iop_gui_update_blending(module);
   
       dt_control_queue_redraw_center();
       dt_dev_add_history_item(darktable.develop, module, TRUE);
