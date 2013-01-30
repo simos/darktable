@@ -430,13 +430,11 @@ int dt_masks_events_mouse_scrolled (struct dt_iop_module_t *module, double x, do
 void dt_masks_events_post_expose (struct dt_iop_module_t *module, cairo_t *cr, int32_t width, int32_t height, int32_t pointerx, int32_t pointery)
 {
   if (!module) return;
-  
   dt_develop_t *dev = module->dev;
   dt_masks_form_t *form = module->dev->form_visible;
   dt_masks_form_gui_t *gui = module->dev->form_gui;
   //if it's a spot in creation, nothing to draw
   if (form->type == DT_MASKS_CIRCLE && gui->creation) return;
-  
   float wd = dev->preview_pipe->backbuf_width;
   float ht = dev->preview_pipe->backbuf_height;
   if (wd < 1.0 || ht < 1.0) return;
@@ -459,7 +457,7 @@ void dt_masks_events_post_expose (struct dt_iop_module_t *module, cairo_t *cr, i
   cairo_translate(cr, -.5f*wd-zoom_x*wd, -.5f*ht-zoom_y*ht);
   
   cairo_set_line_cap(cr,CAIRO_LINE_CAP_ROUND);
-  
+
   //we update the form if needed
   dt_masks_gui_form_test_create(module,form,gui);
     
