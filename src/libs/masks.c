@@ -152,7 +152,7 @@ static void _lib_history_change_callback(gpointer instance, gpointer user_data)
     if (!form) continue;
     GtkWidget *hb = gtk_hbox_new(FALSE,0);
     
-    GtkWidget *item = dtgtk_togglebutton_new(dtgtk_cairo_paint_eye, CPF_STYLE_FLAT|CPF_DO_NOT_USE_BORDER);
+    GtkWidget *item = dtgtk_togglebutton_new(dtgtk_cairo_paint_eye_masks, CPF_STYLE_FLAT|CPF_DO_NOT_USE_BORDER);
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(item), (iop->blend_params->forms_state[i] & DT_MASKS_STATE_USE));
     g_signal_connect (G_OBJECT (item), "toggled", G_CALLBACK (_lib_masks_show_toggle_callback), form);
     gtk_widget_set_size_request(item,bs,bs);
