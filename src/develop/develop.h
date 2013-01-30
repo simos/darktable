@@ -129,6 +129,15 @@ typedef struct dt_develop_t
     }
     snapshot;
 
+    // masks plugin hooks
+    struct
+    {
+      struct dt_lib_module_t *module;
+      /* switch module */
+      void (*switch_module)(struct dt_lib_module_t *self);
+    }
+    masks;
+    
   }
   proxy;
 }
@@ -208,6 +217,11 @@ void dt_dev_snapshot_request(dt_develop_t *dev, const char *filename);
 /** update gliding average for pixelpipe delay */
 void dt_dev_average_delay_update(const dt_times_t *start, uint32_t *average_delay);
 
+/*
+ * masks plugin hooks
+ */
+void dt_dev_masks_switch_module(dt_develop_t *dev);
+ 
 /*
  * multi instances
  */

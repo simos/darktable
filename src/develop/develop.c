@@ -1158,6 +1158,11 @@ void dt_dev_modulegroups_switch(dt_develop_t *dev, dt_iop_module_t *module)
     dev->proxy.modulegroups.switch_group(dev->proxy.modulegroups.module, module);
 }
 
+void dt_dev_masks_switch_module(dt_develop_t *dev)
+{
+  if (dev->proxy.masks.module && dev->proxy.masks.switch_module)
+    dev->proxy.masks.switch_module(dev->proxy.masks.module);
+}
 
 void dt_dev_snapshot_request(dt_develop_t *dev, const char *filename)
 {

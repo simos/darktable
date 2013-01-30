@@ -61,6 +61,136 @@ int position()
   return 10;
 }
 
+static void _lib_masks_add_exist_callback(GtkButton *button, dt_masks_form_t *form)
+{
+  dt_iop_module_t *iop = darktable.develop->gui_module;
+  if (!iop) return;
+  
+  //add the iop to the current module
+  int forms_count = iop->blend_params->forms_count;
+  iop->blend_params->forms[forms_count] = form->formid;
+  iop->blend_params->forms_state[forms_count] = DT_MASKS_STATE_SHOW | DT_MASKS_STATE_USE;
+  iop->blend_params->forms_count++;
+  
+  //set the form in editing mode
+  dt_masks_init_formgui(darktable.develop);
+  darktable.develop->form_visible = form;
+  
+  //save that in the history
+  dt_dev_add_history_item(darktable.develop, iop, TRUE);
+}
+
+static void _lib_masks_new_circle_callback(GtkWidget *widget, GdkEventButton *e, dt_lib_module_t *self)
+{
+  dt_lib_masks_t *d = (dt_lib_masks_t *)self->data;
+  //we create the new form
+  dt_masks_form_t *spot = dt_masks_create(DT_MASKS_CIRCLE);
+  dt_masks_init_formgui(darktable.develop);
+  darktable.develop->form_visible = spot;
+  darktable.develop->form_gui->creation = TRUE;
+
+  //we remove visible selection on labels if any
+  GList *childs = gtk_container_get_children(GTK_CONTAINER(d->vbox));
+  while(childs)
+  {
+    GtkWidget *w = (GtkWidget *) childs->data;
+    GtkWidget *evb = (GtkWidget *) g_list_nth_data(gtk_container_get_children(GTK_CONTAINER(w)),1);
+    GtkWidget *lb = (GtkWidget *) g_list_nth_data(gtk_container_get_children(GTK_CONTAINER(evb)),0);
+    
+    char *markup = g_markup_printf_escaped ("%s", gtk_label_get_text(GTK_LABEL(lb)));
+    gtk_label_set_markup (GTK_LABEL (lb), markup);
+    g_free (markup);  
+    
+    childs = g_list_next(childs);
+  } 
+  
+  dt_control_queue_redraw_center();
+}
+static void _lib_masks_new_curve_callback(GtkWidget *widget, GdkEventButton *e, dt_lib_module_t *self)
+{
+  dt_lib_masks_t *d = (dt_lib_masks_t *)self->data;
+  //we create the new form
+  dt_masks_form_t *form = dt_masks_create(DT_MASKS_BEZIER);
+  dt_masks_init_formgui(darktable.develop);
+  darktable.develop->form_visible = form;
+  darktable.develop->form_gui->creation = TRUE;
+
+  //we remove visible selection on labels if any
+  GList *childs = gtk_container_get_children(GTK_CONTAINER(d->vbox));
+  while(childs)
+  {
+    GtkWidget *w = (GtkWidget *) childs->data;
+    GtkWidget *evb = (GtkWidget *) g_list_nth_data(gtk_container_get_children(GTK_CONTAINER(w)),1);
+    GtkWidget *lb = (GtkWidget *) g_list_nth_data(gtk_container_get_children(GTK_CONTAINER(evb)),0);
+    
+    char *markup = g_markup_printf_escaped ("%s", gtk_label_get_text(GTK_LABEL(lb)));
+    gtk_label_set_markup (GTK_LABEL (lb), markup);
+    g_free (markup);  
+    
+    childs = g_list_next(childs);
+  } 
+  
+  dt_control_queue_redraw_center();
+}
+static void _lib_masks_new_exist_callback(GtkWidget *widget, GdkEventButton *e, dt_lib_module_t *self)
+{
+  GtkWidget *menu = gtk_menu_new();
+  GtkWidget *item;
+  
+  //existing forms
+  GList *forms = g_list_first(darktable.develop->forms);
+  while (forms)
+  {
+    dt_masks_form_t *form = (dt_masks_form_t *)forms->data;
+    char str[10000] = "";
+    strcat(str,form->name);
+    int nbuse = 0;
+    
+    //we search were this form is used
+    GList *modules = g_list_first(darktable.develop->iop);
+    while (modules)
+    {
+      dt_iop_module_t *m = (dt_iop_module_t *)modules->data;
+      
+      if (m->blend_params)
+      {
+        for (int i=0; i<m->blend_params->forms_count; i++)
+        {
+          if (m->blend_params->forms[i] == form->formid)
+          {
+            if (m == darktable.develop->gui_module)
+            {
+              nbuse = -1;
+              break;
+            }
+            if (nbuse==0) strcat(str," (");
+            strcat(str," ");
+            strcat(str,m->name());
+            nbuse++;
+          }
+        }
+      }
+      modules = g_list_next(modules);
+    }
+    if (nbuse != -1)
+    {
+      if (nbuse>0) strcat(str," )");
+      
+      //we add the menu entry
+      item = gtk_menu_item_new_with_label(str);
+      //g_object_set_data(G_OBJECT(item), "formid", GUINT_TO_POINTER(form->formid));
+      g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (_lib_masks_add_exist_callback), form);
+      gtk_menu_append(menu, item);
+    }
+    forms = g_list_next(forms);
+  }
+  
+  gtk_widget_show_all(menu);
+
+  //we show the menu
+  gtk_menu_popup (GTK_MENU (menu), NULL, NULL, NULL, NULL, 0, gtk_get_current_event_time());
+}
+
 static void _lib_masks_click_callback(GtkWidget *widget, GdkEventButton *e, dt_masks_form_t *form)
 {
   int select = 1;
@@ -130,10 +260,9 @@ static void _lib_masks_show_toggle_callback(GtkWidget *widget, dt_masks_form_t *
   dt_dev_add_history_item(darktable.develop, iop, TRUE);
 }
 
-static void _lib_history_change_callback(gpointer instance, gpointer user_data)
+static void _lib_masks_recreate_list(dt_lib_module_t *self)
 {
   const int bs = 12;
-  dt_lib_module_t *self = (dt_lib_module_t *)user_data;
   dt_lib_masks_t *d = (dt_lib_masks_t *)self->data;
 
   /* first destroy all buttons in list */
@@ -152,13 +281,20 @@ static void _lib_history_change_callback(gpointer instance, gpointer user_data)
     if (!form) continue;
     GtkWidget *hb = gtk_hbox_new(FALSE,0);
     
-    GtkWidget *item = dtgtk_togglebutton_new(dtgtk_cairo_paint_eye_masks, CPF_STYLE_FLAT|CPF_DO_NOT_USE_BORDER);
+    GtkWidget *item = dtgtk_togglebutton_new(dtgtk_cairo_paint_masks_eye, CPF_STYLE_FLAT|CPF_DO_NOT_USE_BORDER);
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(item), (iop->blend_params->forms_state[i] & DT_MASKS_STATE_USE));
     g_signal_connect (G_OBJECT (item), "toggled", G_CALLBACK (_lib_masks_show_toggle_callback), form);
     gtk_widget_set_size_request(item,bs,bs);
     
     GtkWidget *evb = gtk_event_box_new();
-    gtk_container_add(GTK_CONTAINER(evb), gtk_label_new(form->name));
+    GtkWidget *lb = gtk_label_new(form->name);
+    if (form == darktable.develop->form_visible)
+    {
+      char *markup = g_markup_printf_escaped ("<b>%s</b>", form->name);
+      gtk_label_set_markup (GTK_LABEL (lb), markup);
+      g_free (markup);
+    }
+    gtk_container_add(GTK_CONTAINER(evb),lb);
     g_signal_connect (G_OBJECT (evb), "button-press-event", G_CALLBACK(_lib_masks_click_callback), form);
     
     gtk_box_pack_start (GTK_BOX (hb),item,FALSE,FALSE,2);
@@ -169,6 +305,11 @@ static void _lib_history_change_callback(gpointer instance, gpointer user_data)
 
   /* show all widgets */
   gtk_widget_show_all(d->vbox);
+}
+static void _lib_history_change_callback(gpointer instance, gpointer user_data)
+{
+  dt_lib_module_t *self = (dt_lib_module_t *)user_data;
+  _lib_masks_recreate_list(self);
 }
 
 void gui_init(dt_lib_module_t *self)
@@ -181,8 +322,24 @@ void gui_init(dt_lib_module_t *self)
   dt_iop_module_t *iop = darktable.develop->gui_module;
 
   self->widget =  gtk_vbox_new (FALSE,2);
+  GtkWidget *hb = gtk_hbox_new(FALSE,2);
+  
+  GtkWidget *item = dtgtk_button_new(dtgtk_cairo_paint_masks_multi, 0);
+  g_signal_connect(G_OBJECT(item), "button-press-event", G_CALLBACK(_lib_masks_new_exist_callback), self);
+  gtk_box_pack_end (GTK_BOX (hb),item,FALSE,FALSE,0);
+  
+  item = dtgtk_button_new(dtgtk_cairo_paint_masks_curve, 0);
+  g_signal_connect(G_OBJECT(item), "button-press-event", G_CALLBACK(_lib_masks_new_curve_callback), self);
+  gtk_box_pack_end (GTK_BOX (hb),item,FALSE,FALSE,0);
+  
+  item = dtgtk_button_new(dtgtk_cairo_paint_masks_circle, 0);
+  g_signal_connect(G_OBJECT(item), "button-press-event", G_CALLBACK(_lib_masks_new_circle_callback), self);
+  gtk_box_pack_end (GTK_BOX (hb),item,FALSE,FALSE,0);  
+  
   if (iop) d->title = gtk_label_new(iop->name());
   else d->title = gtk_label_new(_("no module selected"));
+  gtk_box_pack_end (GTK_BOX (hb),d->title,TRUE,TRUE,0);
+  
   d->vbox = gtk_vbox_new(FALSE,0);
   
   //populate the vbox
@@ -198,7 +355,7 @@ void gui_init(dt_lib_module_t *self)
   }
 
   /* add history list and buttonbox to widget */
-  gtk_box_pack_start (GTK_BOX (self->widget),d->title,FALSE,FALSE,0);
+  gtk_box_pack_start (GTK_BOX (self->widget),hb,FALSE,FALSE,0);
   gtk_box_pack_start (GTK_BOX (self->widget),d->vbox,FALSE,FALSE,0);
 
   gtk_widget_show_all (self->widget);
@@ -206,6 +363,9 @@ void gui_init(dt_lib_module_t *self)
   /* connect to history change signal for updating the history view */
   dt_control_signal_connect(darktable.signals, DT_SIGNAL_DEVELOP_HISTORY_CHANGE, G_CALLBACK(_lib_history_change_callback), self);
 
+  // set proxy functions
+  darktable.develop->proxy.masks.module = self;
+  darktable.develop->proxy.masks.switch_module = _lib_masks_recreate_list;
 }
 
 void gui_cleanup(dt_lib_module_t *self)
