@@ -82,6 +82,8 @@ static void _lib_masks_remove_callback(GtkButton *button, dt_masks_form_t *form)
     dt_masks_init_formgui(darktable.develop);
   }
   
+  dt_iop_gui_update_blending(iop);
+  
   //save that in the history
   dt_dev_add_history_item(darktable.develop, iop, TRUE);
 }
