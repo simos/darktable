@@ -111,7 +111,7 @@ static void _lib_masks_new_curve_callback(GtkWidget *widget, GdkEventButton *e, 
 {
   dt_lib_masks_t *d = (dt_lib_masks_t *)self->data;
   //we create the new form
-  dt_masks_form_t *form = dt_masks_create(DT_MASKS_BEZIER);
+  dt_masks_form_t *form = dt_masks_create(DT_MASKS_CURVE);
   dt_masks_init_formgui(darktable.develop);
   darktable.develop->form_visible = form;
   darktable.develop->form_gui->creation = TRUE;
@@ -339,14 +339,17 @@ void gui_init(dt_lib_module_t *self)
   
   d->bt_exist = dtgtk_button_new(dtgtk_cairo_paint_masks_multi, 0);
   g_signal_connect(G_OBJECT(d->bt_exist), "button-press-event", G_CALLBACK(_lib_masks_new_exist_callback), self);
+  g_object_set(G_OBJECT(d->bt_exist), "tooltip-text", _("add existing shape"), (char *)NULL);
   gtk_box_pack_end (GTK_BOX (hb),d->bt_exist,FALSE,FALSE,0);
   
   d->bt_curve = dtgtk_button_new(dtgtk_cairo_paint_masks_curve, 0);
   g_signal_connect(G_OBJECT(d->bt_curve), "button-press-event", G_CALLBACK(_lib_masks_new_curve_callback), self);
+  g_object_set(G_OBJECT(d->bt_curve), "tooltip-text", _("add curve shape"), (char *)NULL);
   gtk_box_pack_end (GTK_BOX (hb),d->bt_curve,FALSE,FALSE,0);
   
   d->bt_circle = dtgtk_button_new(dtgtk_cairo_paint_masks_circle, 0);
   g_signal_connect(G_OBJECT(d->bt_circle), "button-press-event", G_CALLBACK(_lib_masks_new_circle_callback), self);
+  g_object_set(G_OBJECT(d->bt_circle), "tooltip-text", _("add circular shape"), (char *)NULL);
   gtk_box_pack_end (GTK_BOX (hb),d->bt_circle,FALSE,FALSE,0);  
   
   if (iop) d->title = gtk_label_new(iop->name());
