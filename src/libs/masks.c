@@ -62,6 +62,40 @@ int position()
   return 10;
 }
 
+static void _lib_masks_remove_callback(GtkButton *button, dt_masks_form_t *form)
+{
+  dt_iop_module_t *iop = darktable.develop->gui_module;
+  if (!iop) return;
+  
+  int ok = 0;
+  for (int i=0; i<iop->blend_params->forms_count; i++)
+  {
+    if (iop->blend_params->forms[i] == form->formid) ok = 1;
+    if (ok) iop->blend_params->forms[i] = iop->blend_params->forms[i+1];
+  }
+  iop->blend_params->forms_count--;
+  
+  //we unselect it if it's in editing mode
+  if (darktable.develop->form_visible == form)
+  {
+    darktable.develop->form_visible = NULL;
+    dt_masks_init_formgui(darktable.develop);
+  }
+  
+  //save that in the history
+  dt_dev_add_history_item(darktable.develop, iop, TRUE);
+}
+
+static void _lib_masks_delete_callback(GtkButton *button, dt_masks_form_t *form)
+{
+  //we first remove it
+  _lib_masks_remove_callback(button,form);
+  
+  //and then delete it permanently
+  darktable.develop->forms = g_list_remove(darktable.develop->forms,form);
+  dt_masks_write_forms(darktable.develop);
+}
+
 static void _lib_masks_add_exist_callback(GtkButton *button, dt_masks_form_t *form)
 {
   dt_iop_module_t *iop = darktable.develop->gui_module;
@@ -194,43 +228,110 @@ static void _lib_masks_new_exist_callback(GtkWidget *widget, GdkEventButton *e, 
 
 static void _lib_masks_click_callback(GtkWidget *widget, GdkEventButton *e, dt_masks_form_t *form)
 {
-  int select = 1;
-  dt_masks_init_formgui(darktable.develop);
-  if (darktable.develop->form_visible == form)
+  if (e->button == 1)
   {
-    select = 0;
-    darktable.develop->form_visible = NULL;
-  }
-  else darktable.develop->form_visible = form;
-  
-  //set colors
-  GtkWidget *hb = gtk_widget_get_parent(widget);
-  GtkWidget *vb = gtk_widget_get_parent(hb);
-
-  GList *childs = gtk_container_get_children(GTK_CONTAINER(vb));
-  while(childs)
-  {
-    GtkWidget *w = (GtkWidget *) childs->data;
-    GtkWidget *evb = (GtkWidget *) g_list_nth_data(gtk_container_get_children(GTK_CONTAINER(w)),1);
-    GtkWidget *lb = (GtkWidget *) g_list_nth_data(gtk_container_get_children(GTK_CONTAINER(evb)),0);
-    if (w == hb && select)
+    int select = 1;
+    dt_masks_init_formgui(darktable.develop);
+    if (darktable.develop->form_visible == form)
     {
-      char *markup = g_markup_printf_escaped ("<b>%s</b>", gtk_label_get_text(GTK_LABEL(lb)));
-      gtk_label_set_markup (GTK_LABEL (lb), markup);
-      g_free (markup);
-      //GtkStyle *style = gtk_widget_get_style(lb);
-      //gtk_widget_modify_bg(lb, GTK_STATE_SELECTED, &style->bg[GTK_STATE_NORMAL]);
+      select = 0;
+      darktable.develop->form_visible = NULL;
     }
-    else
-    {
-      char *markup = g_markup_printf_escaped ("%s", gtk_label_get_text(GTK_LABEL(lb)));
-      gtk_label_set_markup (GTK_LABEL (lb), markup);
-      g_free (markup);
-    }    
-    childs = g_list_next(childs);
-  }   
+    else darktable.develop->form_visible = form;
     
-  dt_control_queue_redraw_center();
+    //set colors
+    GtkWidget *hb = gtk_widget_get_parent(widget);
+    GtkWidget *vb = gtk_widget_get_parent(hb);
+  
+    GList *childs = gtk_container_get_children(GTK_CONTAINER(vb));
+    while(childs)
+    {
+      GtkWidget *w = (GtkWidget *) childs->data;
+      GtkWidget *evb = (GtkWidget *) g_list_nth_data(gtk_container_get_children(GTK_CONTAINER(w)),1);
+      GtkWidget *lb = (GtkWidget *) g_list_nth_data(gtk_container_get_children(GTK_CONTAINER(evb)),0);
+      if (w == hb && select)
+      {
+        char *markup = g_markup_printf_escaped ("<b>%s</b>", gtk_label_get_text(GTK_LABEL(lb)));
+        gtk_label_set_markup (GTK_LABEL (lb), markup);
+        g_free (markup);
+      }
+      else
+      {
+        char *markup = g_markup_printf_escaped ("%s", gtk_label_get_text(GTK_LABEL(lb)));
+        gtk_label_set_markup (GTK_LABEL (lb), markup);
+        g_free (markup);
+      }    
+      childs = g_list_next(childs);
+    }   
+      
+    dt_control_queue_redraw_center();
+  }
+  else if (e->button == 3)
+  {
+    //we search if the form is already used in another iop
+    int used = 0;
+    GList *modules = g_list_first(darktable.develop->iop);
+    while (modules)
+    {
+      dt_iop_module_t *m = (dt_iop_module_t *)modules->data;
+      
+      if (m->blend_params)
+      {
+        for (int i=0; i<m->blend_params->forms_count; i++)
+        {
+          if (m->blend_params->forms[i] == form->formid && m != darktable.develop->gui_module)
+          {
+            used = 1;
+            break;
+          }
+        }
+      }
+      if (used) break;
+      modules = g_list_next(modules);
+    }
+    
+    //we display a context menu
+    GtkWidget *menu = gtk_menu_new();
+    GtkWidget *item;
+    
+    item = gtk_menu_item_new_with_label(_("remove from module"));
+    g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (_lib_masks_remove_callback), form);
+    gtk_menu_append(menu, item);
+    
+    item = gtk_menu_item_new_with_label(_("permanently delete"));
+    gtk_widget_set_sensitive(item,!used);
+    g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (_lib_masks_delete_callback), form);
+    gtk_menu_append(menu, item);
+    
+    gtk_menu_append(menu,gtk_separator_menu_item_new());
+    
+    item = gtk_menu_item_new_with_label(_("use a copy of the shape"));
+    gtk_widget_set_sensitive(item,!used);
+    //g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (_lib_masks_add_exist_callback), form);
+    gtk_menu_append(menu, item);
+
+    gtk_menu_append(menu,gtk_separator_menu_item_new());
+        
+    item = gtk_menu_item_new_with_label(_("move up"));
+    gtk_widget_set_sensitive(item,FALSE);
+    //g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (_lib_masks_add_exist_callback), form);
+    gtk_menu_append(menu, item);
+    
+    item = gtk_menu_item_new_with_label(_("move down"));
+    gtk_widget_set_sensitive(item,FALSE);
+    //g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (_lib_masks_add_exist_callback), form);
+    gtk_menu_append(menu, item);
+    
+    item = gtk_menu_item_new_with_label(_("inverse"));
+    gtk_widget_set_sensitive(item,FALSE);
+    //g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (_lib_masks_add_exist_callback), form);
+    gtk_menu_append(menu, item);
+    
+    gtk_widget_show_all(menu);
+
+    //we show the menu
+    gtk_menu_popup (GTK_MENU (menu), NULL, NULL, NULL, NULL, 0, gtk_get_current_event_time());
+  }
 }
 static void _lib_masks_show_toggle_callback(GtkWidget *widget, dt_masks_form_t *form)
 {
