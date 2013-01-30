@@ -300,7 +300,7 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
     p2x = (*points)[pos_curve[k]+6];
     p2y = (*points)[pos_curve[k]+7];
     float pdv = ((*points)[k*6+2]-p1x)*(p2y-(*points)[k*6+3]) - ((*points)[k*6+3]-p1y)*(p2x-(*points)[k*6+2]);
-    if (pdv > 0)
+    if (cw*pdv > 0)
     {
       //we have to be sure there is no gap
     }
@@ -346,6 +346,7 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
           break;
         }
       }
+
       if (inter0 > 0 && inter1 > 0)
       {
         border_init[k*6+2] = -inter1;
