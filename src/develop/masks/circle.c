@@ -22,17 +22,19 @@
 #include "develop/masks.h"
 #include "common/debug.h"
 
-void dt_circle_get_distance(float x, int y, float as, dt_masks_form_gui_t *gui, int *inside, int *inside_border, int *near)
+void dt_circle_get_distance(float x, int y, float as, dt_masks_form_gui_t *gui, int index, int *inside, int *inside_border, int *near)
 {
   //we first check if it's inside borders
   int nb = 0;
   int last = -9999;
-  for (int i=0; i<gui->border_count; i++)
+  dt_masks_form_gui_points_t *gpt = (dt_masks_form_gui_points_t *) g_list_nth_data(gui->points,index);
+  
+  for (int i=0; i<gpt->border_count; i++)
   {
-    int yy = (int) gui->border[i*2+1];
+    int yy = (int) gpt->border[i*2+1];
     if (yy != last && yy == y)
     {
-      if (gui->border[i*2] > x) nb++;
+      if (gpt->border[i*2] > x) nb++;
     }
     last = yy;
   }  
@@ -49,13 +51,13 @@ void dt_circle_get_distance(float x, int y, float as, dt_masks_form_gui_t *gui, 
   //and we check if it's inside form
   nb = 0;
   last = -9999;
-  for (int i=0; i<gui->points_count; i++)
+  for (int i=0; i<gpt->points_count; i++)
   {
-    int yy = (int) gui->points[i*2+1];
+    int yy = (int) gpt->points[i*2+1];
     if (yy != last && yy == y)
     {
-      if (gui->points[i*2] > x) nb++;
-      if (gui->points[i*2] - x < as && gui->points[i*2] - x > -as) *near = 1;
+      if (gpt->points[i*2] > x) nb++;
+      if (gpt->points[i*2] - x < as && gpt->points[i*2] - x > -as) *near = 1;
     }
     last = yy;
   }
@@ -63,7 +65,7 @@ void dt_circle_get_distance(float x, int y, float as, dt_masks_form_gui_t *gui, 
 }
 
 int dt_circle_events_mouse_scrolled(struct dt_iop_module_t *module, float pzx, float pzy, int up, uint32_t state,
-                                          dt_masks_form_t *form, dt_masks_form_gui_t *gui)
+                                          dt_masks_form_t *form, dt_masks_form_gui_t *gui, int index)
 {
   if (gui->form_selected)
   {
@@ -73,15 +75,15 @@ int dt_circle_events_mouse_scrolled(struct dt_iop_module_t *module, float pzx, f
       if(up && circle->border > 0.002f) circle->border *= 0.9f;
       else  if(circle->border < 1.0f  ) circle->border *= 1.0f/0.9f;
       dt_masks_write_form(form,module->dev);
-      dt_masks_gui_form_update_border(module,form,gui);
+      dt_masks_gui_form_update_border(module,form,gui,index);
     }
     else
     {
       if(up && circle->radius > 0.002f) circle->radius *= 0.9f;
       else  if(circle->radius < 1.0f  ) circle->radius *= 1.0f/0.9f;
       dt_masks_write_form(form,module->dev);
-      dt_masks_gui_form_remove(module,form,gui);
-      dt_masks_gui_form_create(module,form,gui);
+      dt_masks_gui_form_remove(module,form,gui,index);
+      dt_masks_gui_form_create(module,form,gui,index);
     }
     dt_dev_add_history_item(darktable.develop, module, TRUE);
     return 1;
@@ -90,17 +92,19 @@ int dt_circle_events_mouse_scrolled(struct dt_iop_module_t *module, float pzx, f
 }
 
 int dt_circle_events_button_pressed(struct dt_iop_module_t *module,float pzx, float pzy, int which, int type, uint32_t state,
-                                          dt_masks_form_t *form, dt_masks_form_gui_t *gui)
+                                          dt_masks_form_t *form, dt_masks_form_gui_t *gui, int index)
 {
   if (which != 1) return 0;
+
   if (gui->form_selected && !gui->creation)
   {
+    dt_masks_form_gui_points_t *gpt = (dt_masks_form_gui_points_t *) g_list_nth_data(gui->points,index);
     //we start the form dragging
     gui->form_dragging = TRUE;
     gui->posx = pzx*module->dev->preview_pipe->backbuf_width;
     gui->posy = pzy*module->dev->preview_pipe->backbuf_height;
-    gui->dx = gui->points[0] - gui->posx;
-    gui->dy = gui->points[1] - gui->posy;
+    gui->dx = gpt->points[0] - gui->posx;
+    gui->dy = gpt->points[1] - gui->posy;
     return 1;
   }
   else if (gui->creation)
@@ -123,8 +127,8 @@ int dt_circle_events_button_pressed(struct dt_iop_module_t *module,float pzx, fl
     dt_masks_gui_form_save_creation(module,form,gui);
     
     //we recreate the form points
-    dt_masks_gui_form_remove(module,form,gui);
-    dt_masks_gui_form_create(module,form,gui);
+    dt_masks_gui_form_remove(module,form,gui,index);
+    dt_masks_gui_form_create(module,form,gui,index);
     
     //we save the move
     dt_dev_add_history_item(darktable.develop, module, TRUE);
@@ -135,7 +139,7 @@ int dt_circle_events_button_pressed(struct dt_iop_module_t *module,float pzx, fl
 }
 
 int dt_circle_events_button_released(struct dt_iop_module_t *module,float pzx, float pzy, int which, uint32_t state,
-                                          dt_masks_form_t *form, dt_masks_form_gui_t *gui)
+                                          dt_masks_form_t *form, dt_masks_form_gui_t *gui,int index)
 {
   if (gui->form_dragging)
   {
@@ -155,8 +159,8 @@ int dt_circle_events_button_released(struct dt_iop_module_t *module,float pzx, f
     dt_masks_write_form(form,module->dev);
 
     //we recreate the form points
-    dt_masks_gui_form_remove(module,form,gui);
-    dt_masks_gui_form_create(module,form,gui);
+    dt_masks_gui_form_remove(module,form,gui,index);
+    dt_masks_gui_form_create(module,form,gui,index);
     
     //we save the move
     dt_dev_add_history_item(darktable.develop, module, TRUE);
@@ -166,7 +170,7 @@ int dt_circle_events_button_released(struct dt_iop_module_t *module,float pzx, f
   return 0;
 }
 
-int dt_circle_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float pzy, int which, dt_masks_form_t *form, dt_masks_form_gui_t *gui)
+int dt_circle_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float pzy, int which, dt_masks_form_t *form, dt_masks_form_gui_t *gui, int index)
 {
   if (gui->form_dragging)
   {
@@ -183,7 +187,7 @@ int dt_circle_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float
     float zoom_scale = dt_dev_get_zoom_scale(module->dev, zoom, closeup ? 2 : 1, 1);
     float as = 0.005f/zoom_scale*module->dev->preview_pipe->backbuf_width;
     int in,inb,near;
-    dt_masks_get_distance(pzx*module->dev->preview_pipe->backbuf_width,pzy*module->dev->preview_pipe->backbuf_height,as,gui,form,&in,&inb,&near);
+    dt_circle_get_distance(pzx*module->dev->preview_pipe->backbuf_width,pzy*module->dev->preview_pipe->backbuf_height,as,gui,index,&in,&inb,&near);
     if (inb)
     {
       gui->form_selected = TRUE;
@@ -207,14 +211,15 @@ int dt_circle_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float
   return 0;
 }
 
-void dt_circle_events_post_expose(cairo_t *cr,float zoom_scale,dt_masks_form_gui_t *gui)
+void dt_circle_events_post_expose(cairo_t *cr,float zoom_scale,dt_masks_form_gui_t *gui,int index)
 {
   double dashed[] = {4.0, 4.0};
   dashed[0] /= zoom_scale;
   dashed[1] /= zoom_scale;
   int len  = sizeof(dashed) / sizeof(dashed[0]);
+  dt_masks_form_gui_points_t *gpt = (dt_masks_form_gui_points_t *) g_list_nth_data(gui->points,index);
   
-  if (gui->points_count > 6)
+  if (gpt->points_count > 6)
   { 
     cairo_set_dash(cr, dashed, 0, 0);     
     if(gui->form_selected || gui->form_dragging) cairo_set_line_width(cr, 5.0/zoom_scale);
@@ -222,22 +227,22 @@ void dt_circle_events_post_expose(cairo_t *cr,float zoom_scale,dt_masks_form_gui
     cairo_set_source_rgba(cr, .3, .3, .3, .8);
     if (gui->form_dragging)
     {
-      float dx = gui->posx + gui->dx - gui->points[0], dy = gui->posy + gui->dy - gui->points[1];
-      cairo_move_to(cr,gui->points[2]+dx,gui->points[3]+dy);
-      for (int i=2; i<gui->points_count; i++)
+      float dx = gui->posx + gui->dx - gpt->points[0], dy = gui->posy + gui->dy - gpt->points[1];
+      cairo_move_to(cr,gpt->points[2]+dx,gpt->points[3]+dy);
+      for (int i=2; i<gpt->points_count; i++)
       {
-        cairo_line_to(cr,gui->points[i*2]+dx,gui->points[i*2+1]+dy);
+        cairo_line_to(cr,gpt->points[i*2]+dx,gpt->points[i*2+1]+dy);
       }
-      cairo_line_to(cr,gui->points[2]+dx,gui->points[3]+dy);
+      cairo_line_to(cr,gpt->points[2]+dx,gpt->points[3]+dy);
     }
     else
     {
-      cairo_move_to(cr,gui->points[2],gui->points[3]);
-      for (int i=2; i<gui->points_count; i++)
+      cairo_move_to(cr,gpt->points[2],gpt->points[3]);
+      for (int i=2; i<gpt->points_count; i++)
       {
-        cairo_line_to(cr,gui->points[i*2],gui->points[i*2+1]);
+        cairo_line_to(cr,gpt->points[i*2],gpt->points[i*2+1]);
       }
-      cairo_line_to(cr,gui->points[2],gui->points[3]);
+      cairo_line_to(cr,gpt->points[2],gpt->points[3]);
     }
     cairo_stroke_preserve(cr);
     if(gui->form_selected || gui->form_dragging) cairo_set_line_width(cr, 2.0/zoom_scale);
@@ -247,19 +252,19 @@ void dt_circle_events_post_expose(cairo_t *cr,float zoom_scale,dt_masks_form_gui
   }
 
   //draw border
-  if ((!gui->form_dragging) && gui->border_count > 6)
+  if ((!gui->form_dragging) && gpt->border_count > 6)
   { 
     cairo_set_dash(cr, dashed, len, 0);     
     if(gui->border_selected) cairo_set_line_width(cr, 2.0/zoom_scale);
     else                     cairo_set_line_width(cr, 1.0/zoom_scale);
     cairo_set_source_rgba(cr, .3, .3, .3, .8);
       
-    cairo_move_to(cr,gui->border[2],gui->border[3]);
-    for (int i=2; i<gui->border_count; i++)
+    cairo_move_to(cr,gpt->border[2],gpt->border[3]);
+    for (int i=2; i<gpt->border_count; i++)
     {
-      cairo_line_to(cr,gui->border[i*2],gui->border[i*2+1]);
+      cairo_line_to(cr,gpt->border[i*2],gpt->border[i*2+1]);
     }
-    cairo_line_to(cr,gui->border[2],gui->border[3]);
+    cairo_line_to(cr,gpt->border[2],gpt->border[3]);
 
     cairo_stroke_preserve(cr);
     if(gui->border_selected) cairo_set_line_width(cr, 2.0/zoom_scale);

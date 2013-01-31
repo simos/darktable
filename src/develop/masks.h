@@ -78,9 +78,8 @@ dt_masks_point_curve_t;
 /** structure used to store all forms's id for a group */
 typedef struct dt_masks_point_group_t
 {
-  int forms[64];
-  dt_masks_states_t states[64];
-  int forms_count;
+  int formid;
+  dt_masks_states_t state;
 }
 dt_masks_point_group_t;
 
@@ -99,15 +98,22 @@ typedef struct dt_masks_form_t
 }
 dt_masks_form_t;
 
-/** structure used to display a form */
-typedef struct dt_masks_form_gui_t
+typedef struct dt_masks_form_gui_points_t
 {
-  //points used to draw the form
   float *points;
   int points_count;
   float *border;
   int border_count;
-  
+  gboolean clockwise;
+}
+dt_masks_form_gui_points_t;
+
+/** structure used to display a form */
+typedef struct dt_masks_form_gui_t
+{
+  //points used to draw the form
+  GList *points;  //list of dt_masks_form_gui_points_t
+   
   //values for mouse positions, etc...
   float posx, posy, dx, dy;
   gboolean form_selected;
@@ -123,7 +129,10 @@ typedef struct dt_masks_form_gui_t
   int seg_dragging;
   int point_border_dragging;
   
-  gboolean clockwise;
+  int group_edited;
+  int group_selected;
+  
+
   gboolean creation;
   gboolean creation_closing_form;
   
@@ -166,13 +175,10 @@ int dt_masks_events_button_pressed (struct dt_iop_module_t *module, double x, do
 int dt_masks_events_mouse_scrolled (struct dt_iop_module_t *module, double x, double y, int up, uint32_t state);
 void dt_masks_events_post_expose (struct dt_iop_module_t *module, cairo_t *cr, int32_t width, int32_t height, int32_t pointerx, int32_t pointery);
 
-/** function to know if a point is inside a form return 1 if inside, 2 if inside border, 0 else*/
-void dt_masks_get_distance(float x, int y, float as, dt_masks_form_gui_t *gui, dt_masks_form_t *form, int *inside, int *inside_border, int *near);
-
 /** functions used to manipulate gui datas */
-void dt_masks_gui_form_create (struct dt_iop_module_t *module, dt_masks_form_t *form, dt_masks_form_gui_t *gui);
-void dt_masks_gui_form_remove (struct dt_iop_module_t *module, dt_masks_form_t *form, dt_masks_form_gui_t *gui);
-void dt_masks_gui_form_update_border (struct dt_iop_module_t *module, dt_masks_form_t *form, dt_masks_form_gui_t *gui);
+void dt_masks_gui_form_create (struct dt_iop_module_t *module, dt_masks_form_t *form, dt_masks_form_gui_t *gui,int index);
+void dt_masks_gui_form_remove (struct dt_iop_module_t *module, dt_masks_form_t *form, dt_masks_form_gui_t *gui, int index);
+void dt_masks_gui_form_update_border (struct dt_iop_module_t *module, dt_masks_form_t *form, dt_masks_form_gui_t *gui, int index);
 void dt_masks_gui_form_test_create (struct dt_iop_module_t *module, dt_masks_form_t *form, dt_masks_form_gui_t *gui);
 void dt_masks_gui_form_save_creation (struct dt_iop_module_t *module, dt_masks_form_t *form, dt_masks_form_gui_t *gui);
 
