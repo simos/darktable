@@ -222,7 +222,7 @@ void dt_circle_events_post_expose(cairo_t *cr,float zoom_scale,dt_masks_form_gui
   if (gpt->points_count > 6)
   { 
     cairo_set_dash(cr, dashed, 0, 0);     
-    if(gui->form_selected || gui->form_dragging) cairo_set_line_width(cr, 5.0/zoom_scale);
+    if ((gui->group_selected == index) && (gui->form_selected || gui->form_dragging)) cairo_set_line_width(cr, 5.0/zoom_scale);
     else                                     cairo_set_line_width(cr, 3.0/zoom_scale);
     cairo_set_source_rgba(cr, .3, .3, .3, .8);
     if (gui->form_dragging)
@@ -245,7 +245,7 @@ void dt_circle_events_post_expose(cairo_t *cr,float zoom_scale,dt_masks_form_gui
       cairo_line_to(cr,gpt->points[2],gpt->points[3]);
     }
     cairo_stroke_preserve(cr);
-    if(gui->form_selected || gui->form_dragging) cairo_set_line_width(cr, 2.0/zoom_scale);
+    if ((gui->group_selected == index) && (gui->form_selected || gui->form_dragging)) cairo_set_line_width(cr, 2.0/zoom_scale);
     else                                     cairo_set_line_width(cr, 1.0/zoom_scale);
     cairo_set_source_rgba(cr, .8, .8, .8, .8);
     cairo_stroke(cr);
@@ -255,7 +255,7 @@ void dt_circle_events_post_expose(cairo_t *cr,float zoom_scale,dt_masks_form_gui
   if ((!gui->form_dragging) && gpt->border_count > 6)
   { 
     cairo_set_dash(cr, dashed, len, 0);     
-    if(gui->border_selected) cairo_set_line_width(cr, 2.0/zoom_scale);
+    if ((gui->group_selected == index) && (gui->border_selected)) cairo_set_line_width(cr, 2.0/zoom_scale);
     else                     cairo_set_line_width(cr, 1.0/zoom_scale);
     cairo_set_source_rgba(cr, .3, .3, .3, .8);
       
@@ -267,7 +267,7 @@ void dt_circle_events_post_expose(cairo_t *cr,float zoom_scale,dt_masks_form_gui
     cairo_line_to(cr,gpt->border[2],gpt->border[3]);
 
     cairo_stroke_preserve(cr);
-    if(gui->border_selected) cairo_set_line_width(cr, 2.0/zoom_scale);
+    if ((gui->group_selected == index) && (gui->border_selected)) cairo_set_line_width(cr, 2.0/zoom_scale);
     else                     cairo_set_line_width(cr, 1.0/zoom_scale);
     cairo_set_source_rgba(cr, .8, .8, .8, .8);
     cairo_set_dash(cr, dashed, len, 4);

@@ -104,6 +104,12 @@ int dt_group_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float 
   //now we check if we are near a form
   GList *fpts = g_list_first(form->points);
   int pos = 0;
+  gui->form_selected = gui->border_selected = FALSE;
+  gui->feather_selected  = -1;
+  gui->point_selected = -1;
+  gui->seg_selected = -1;
+  gui->point_border_selected = -1;
+  gui->group_selected = -1;
   while(fpts)
   {
     dt_masks_point_group_t *fpt = (dt_masks_point_group_t *) fpts->data;
@@ -111,8 +117,9 @@ int dt_group_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float 
     int inside, inside_border, near;
     inside = inside_border = 0;
     near = -1;
-    if (sel->type == DT_MASKS_CIRCLE) dt_circle_get_distance(pzx,pzy,as,gui,pos,&inside, &inside_border, &near);
-    else if (sel->type == DT_MASKS_CURVE) dt_curve_get_distance(pzx,pzy,as,gui,pos,g_list_length(sel->points),&inside, &inside_border, &near);
+    float xx = pzx*module->dev->preview_pipe->backbuf_width, yy = pzy*module->dev->preview_pipe->backbuf_height;
+    if (sel->type == DT_MASKS_CIRCLE) dt_circle_get_distance(xx,yy,as,gui,pos,&inside, &inside_border, &near);
+    else if (sel->type == DT_MASKS_CURVE) dt_curve_get_distance(xx,yy,as,gui,pos,g_list_length(sel->points),&inside, &inside_border, &near);
     if (inside || inside_border || near >= 0)
     {
       gui->group_selected = pos;
@@ -122,7 +129,7 @@ int dt_group_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float 
     fpts = g_list_next(fpts);
     pos++;
   }
-  
+  dt_control_queue_redraw_center();
   return 0;
 }
 

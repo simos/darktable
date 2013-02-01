@@ -543,8 +543,27 @@ void dt_masks_init_formgui(dt_develop_t *dev)
   dev->form_gui->point_border_dragging = dev->form_gui->seg_dragging = dev->form_gui->feather_dragging = dev->form_gui->point_dragging = -1;
   dev->form_gui->creation_closing_form = dev->form_gui->creation = FALSE;
   
-  dev->form_gui->group_edited = 0;
+  dev->form_gui->group_edited = -1;
   dev->form_gui->group_selected = -1;
+}
+
+void dt_masks_iop_edit_toggle_callback(GtkWidget *widget, dt_iop_module_t *module)
+{
+  //we create a "group" form with all form in use in the iop
+  dt_masks_form_t *grp = dt_masks_create(DT_MASKS_GROUP);
+  
+  for (int i=0; i<module->blend_params->forms_count; i++)
+  {
+    dt_masks_point_group_t *fpt = (dt_masks_point_group_t *) malloc(sizeof(dt_masks_point_group_t));
+    fpt->formid = module->blend_params->forms[i];
+    fpt->state = module->blend_params->forms_state[i];
+    grp->points = g_list_append(grp->points,fpt);
+  }
+  
+  //reset the gui
+  dt_masks_init_formgui(module->dev);
+  module->dev->form_visible = grp;
+  dt_control_queue_redraw_center();
 }
 
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh

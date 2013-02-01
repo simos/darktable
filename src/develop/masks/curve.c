@@ -1088,11 +1088,11 @@ void dt_curve_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_form_gu
       if (gpt->points[i*2+1] == gpt->points[seg*6+3] && gpt->points[i*2] == gpt->points[seg*6+2])
       {
         //this is the end of the last segment, so we have to draw it
-        if(gui->form_selected || gui->form_dragging || gui->seg_selected==seg2) cairo_set_line_width(cr, 5.0/zoom_scale);
+        if ((gui->group_selected == index) && (gui->form_selected || gui->form_dragging || gui->seg_selected==seg2)) cairo_set_line_width(cr, 5.0/zoom_scale);
         else                                     cairo_set_line_width(cr, 3.0/zoom_scale);
         cairo_set_source_rgba(cr, .3, .3, .3, .8);
         cairo_stroke_preserve(cr);
-        if(gui->form_selected || gui->form_dragging || gui->seg_selected==seg2) cairo_set_line_width(cr, 2.0/zoom_scale);
+        if ((gui->group_selected == index) && (gui->form_selected || gui->form_dragging || gui->seg_selected==seg2)) cairo_set_line_width(cr, 2.0/zoom_scale);
         else                                     cairo_set_line_width(cr, 1.0/zoom_scale);
         cairo_set_source_rgba(cr, .8, .8, .8, .8);
         cairo_stroke(cr);
@@ -1123,8 +1123,8 @@ void dt_curve_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_form_gu
         anchor_size, anchor_size);
     cairo_fill_preserve(cr);
 
-    if (k == gui->point_dragging || k == gui->point_selected ) cairo_set_line_width(cr, 2.0/zoom_scale);
-    else if ((k == 0 || k == nb) && gui->creation && gui->creation_closing_form) cairo_set_line_width(cr, 2.0/zoom_scale);
+    if ((gui->group_selected == index) && (k == gui->point_dragging || k == gui->point_selected )) cairo_set_line_width(cr, 2.0/zoom_scale);
+    else if ((gui->group_selected == index) && ((k == 0 || k == nb) && gui->creation && gui->creation_closing_form)) cairo_set_line_width(cr, 2.0/zoom_scale);
     else cairo_set_line_width(cr, 1.0/zoom_scale);
     cairo_set_source_rgba(cr, .3, .3, .3, .8);
     cairo_stroke(cr);
@@ -1151,7 +1151,7 @@ void dt_curve_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_form_gu
     cairo_set_source_rgba(cr, .8, .8, .8, .8);
     cairo_stroke(cr);
     
-    if (k == gui->feather_dragging || k == gui->feather_selected) cairo_arc (cr, ffx,ffy, 3.0f / zoom_scale, 0, 2.0*M_PI);
+    if ((gui->group_selected == index) && (k == gui->feather_dragging || k == gui->feather_selected)) cairo_arc (cr, ffx,ffy, 3.0f / zoom_scale, 0, 2.0*M_PI);
     else cairo_arc (cr, ffx,ffy, 1.5f / zoom_scale, 0, 2.0*M_PI);
     cairo_set_source_rgba(cr, .8, .8, .8, .8);
     cairo_fill_preserve(cr);
@@ -1188,19 +1188,19 @@ void dt_curve_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_form_gu
       }
       
       //the execute the drawing
-      if(gui->border_selected) cairo_set_line_width(cr, 2.0/zoom_scale);
+      if ((gui->group_selected == index) && (gui->border_selected)) cairo_set_line_width(cr, 2.0/zoom_scale);
       else                                     cairo_set_line_width(cr, 1.0/zoom_scale);
       cairo_set_source_rgba(cr, .3, .3, .3, .8);
       cairo_set_dash(cr, dashed, len, 0);
       cairo_stroke_preserve(cr);
-      if(gui->border_selected) cairo_set_line_width(cr, 2.0/zoom_scale);
+      if ((gui->group_selected == index) && (gui->border_selected)) cairo_set_line_width(cr, 2.0/zoom_scale);
       else                                     cairo_set_line_width(cr, 1.0/zoom_scale);
       cairo_set_source_rgba(cr, .8, .8, .8, .8);
       cairo_set_dash(cr, dashed, len, 4);
       cairo_stroke(cr);
       
       //draw the point
-      if (gui->point_border_selected == k)
+      if ((gui->group_selected == index) && (gui->point_border_selected == k))
       {
         anchor_size = 7.0f / zoom_scale;
       }
@@ -1215,7 +1215,7 @@ void dt_curve_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_form_gu
           anchor_size, anchor_size);
       cairo_fill_preserve(cr);
   
-      if (gui->point_border_selected == k) cairo_set_line_width(cr, 2.0/zoom_scale);
+      if ((gui->group_selected == index) && (gui->point_border_selected == k)) cairo_set_line_width(cr, 2.0/zoom_scale);
       else cairo_set_line_width(cr, 1.0/zoom_scale);
       cairo_set_source_rgba(cr, .3, .3, .3, .8);
       cairo_set_dash(cr, dashed, 0, 0);
