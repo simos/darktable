@@ -439,6 +439,8 @@ int dt_masks_events_mouse_moved (struct dt_iop_module_t *module, double x, doubl
   
   if (form->type == DT_MASKS_CIRCLE) return dt_circle_events_mouse_moved(module,pzx,pzy,which,form,gui,0);
   else if (form->type == DT_MASKS_CURVE) return dt_curve_events_mouse_moved(module,pzx,pzy,which,form,gui,0);
+  else if (form->type == DT_MASKS_GROUP) return dt_group_events_mouse_moved(module,pzx,pzy,which,form,gui);
+  
   return 0;
 }
 int dt_masks_events_button_released (struct dt_iop_module_t *module, double x, double y, int which, uint32_t state)
@@ -454,6 +456,7 @@ int dt_masks_events_button_released (struct dt_iop_module_t *module, double x, d
   
   if (form->type == DT_MASKS_CIRCLE) return dt_circle_events_button_released(module,pzx,pzy,which,state,form,gui,0);
   else if (form->type == DT_MASKS_CURVE) return dt_curve_events_button_released(module,pzx,pzy,which,state,form,gui,0);
+  else if (form->type == DT_MASKS_GROUP) return dt_group_events_button_released(module,pzx,pzy,which,state,form,gui);
   
   return 0;
 }
@@ -470,6 +473,7 @@ int dt_masks_events_button_pressed (struct dt_iop_module_t *module, double x, do
       
   if (form->type == DT_MASKS_CIRCLE) return dt_circle_events_button_pressed(module,pzx,pzy,which,type,state,form,gui,0);
   else if (form->type == DT_MASKS_CURVE) return dt_curve_events_button_pressed(module,pzx,pzy,which,type,state,form,gui,0);
+  else if (form->type == DT_MASKS_GROUP) return dt_group_events_button_pressed(module,pzx,pzy,which,type,state,form,gui);
   
   return 0;
 }
@@ -482,6 +486,7 @@ int dt_masks_events_mouse_scrolled (struct dt_iop_module_t *module, double x, do
   
   if (form->type == DT_MASKS_CIRCLE) return dt_circle_events_mouse_scrolled(module,0.0,0.0,up,state,form,gui,0);
   else if (form->type == DT_MASKS_CURVE) return dt_curve_events_mouse_scrolled(module,0.0,0.0,up,state,form,gui,0);
+  else if (form->type == DT_MASKS_GROUP) return dt_group_events_mouse_scrolled(module,0.0,0.0,up,state,form,gui);
   
   return 0;
 }
@@ -524,6 +529,7 @@ void dt_masks_events_post_expose (struct dt_iop_module_t *module, cairo_t *cr, i
   //draw form
   if (form->type == DT_MASKS_CIRCLE) dt_circle_events_post_expose(cr,zoom_scale,gui,0);
   else if (form->type == DT_MASKS_CURVE) dt_curve_events_post_expose(cr,zoom_scale,gui,0,g_list_length(form->points));
+  else if (form->type == DT_MASKS_GROUP) dt_group_events_post_expose(cr,zoom_scale,form,gui);
 }
 
 void dt_masks_init_formgui(dt_develop_t *dev)
