@@ -21,9 +21,10 @@
 #include "control/conf.h"
 #include "develop/masks.h"
 #include "common/debug.h"
+
 #include "develop/masks/circle.c"
 #include "develop/masks/curve.c"
-
+#include "develop/masks/group.c"
 void dt_masks_gui_form_create(dt_iop_module_t *module, dt_masks_form_t *form, dt_masks_form_gui_t *gui, int index)
 {
   if (g_list_length(gui->points) == index)
@@ -80,9 +81,20 @@ void dt_masks_gui_form_test_create(dt_iop_module_t *module, dt_masks_form_t *for
   //we create the spots if needed
   if (gui->pipe_hash == 0)
   {
-    int nb = 1;
-    if (form->type == DT_MASKS_GROUP) nb = g_list_length(form->points);
-    for (int i=0; i<nb; i++) dt_masks_gui_form_create(module,form,gui,i);
+    if (form->type == DT_MASKS_GROUP)
+    {
+      GList *fpts = g_list_first(form->points);
+      int pos = 0;
+      while(fpts)
+      {
+        dt_masks_point_group_t *fpt = (dt_masks_point_group_t *) fpts->data;
+        dt_masks_form_t *sel = dt_masks_get_from_id(module->dev,fpt->formid);
+        dt_masks_gui_form_create(module,sel,gui,pos);
+        fpts = g_list_next(fpts);
+        pos++;
+      }
+    }
+    else dt_masks_gui_form_create(module,form,gui,0);
   }
 }
 
