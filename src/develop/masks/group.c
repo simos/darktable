@@ -31,8 +31,8 @@ int dt_group_events_mouse_scrolled(struct dt_iop_module_t *module, float pzx, fl
     dt_masks_point_group_t *fpt = (dt_masks_point_group_t *)g_list_nth_data(form->points,gui->group_edited);
     dt_masks_form_t *sel = dt_masks_get_from_id(module->dev,fpt->formid);
     if (!sel) return 0;
-    if (sel->type == DT_MASKS_CIRCLE) return dt_circle_events_mouse_scrolled(module,pzx,pzy,up,state,form,gui,gui->group_edited);
-    else if (sel->type == DT_MASKS_CURVE) return dt_curve_events_mouse_scrolled(module,pzx,pzy,up,state,form,gui,gui->group_edited);
+    if (sel->type == DT_MASKS_CIRCLE) return dt_circle_events_mouse_scrolled(module,pzx,pzy,up,state,sel,gui,gui->group_edited);
+    else if (sel->type == DT_MASKS_CURVE) return dt_curve_events_mouse_scrolled(module,pzx,pzy,up,state,sel,gui,gui->group_edited);
   }
   return 0;
 }
@@ -59,8 +59,8 @@ int dt_group_events_button_pressed(struct dt_iop_module_t *module,float pzx, flo
     dt_masks_point_group_t *fpt = (dt_masks_point_group_t *)g_list_nth_data(form->points,gui->group_edited);
     dt_masks_form_t *sel = dt_masks_get_from_id(module->dev,fpt->formid);
     if (!sel) return 0;
-    if (sel->type == DT_MASKS_CIRCLE) return dt_circle_events_button_pressed(module,pzx,pzy,which,type,state,form,gui,gui->group_edited);
-    else if (sel->type == DT_MASKS_CURVE) return dt_curve_events_button_pressed(module,pzx,pzy,which,type,state,form,gui,gui->group_edited);
+    if (sel->type == DT_MASKS_CIRCLE) return dt_circle_events_button_pressed(module,pzx,pzy,which,type,state,sel,gui,gui->group_edited);
+    else if (sel->type == DT_MASKS_CURVE) return dt_curve_events_button_pressed(module,pzx,pzy,which,type,state,sel,gui,gui->group_edited);
   }
   return 0;
 }
@@ -74,8 +74,8 @@ int dt_group_events_button_released(struct dt_iop_module_t *module,float pzx, fl
     dt_masks_point_group_t *fpt = (dt_masks_point_group_t *)g_list_nth_data(form->points,gui->group_edited);
     dt_masks_form_t *sel = dt_masks_get_from_id(module->dev,fpt->formid);
     if (!sel) return 0;
-    if (sel->type == DT_MASKS_CIRCLE) return dt_circle_events_button_released(module,pzx,pzy,which,state,form,gui,gui->group_edited);
-    else if (sel->type == DT_MASKS_CURVE) return dt_curve_events_button_released(module,pzx,pzy,which,state,form,gui,gui->group_edited);
+    if (sel->type == DT_MASKS_CIRCLE) return dt_circle_events_button_released(module,pzx,pzy,which,state,sel,gui,gui->group_edited);
+    else if (sel->type == DT_MASKS_CURVE) return dt_curve_events_button_released(module,pzx,pzy,which,state,sel,gui,gui->group_edited);
   }
   return 0;
 }
@@ -109,7 +109,7 @@ int dt_group_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float 
   gui->point_selected = -1;
   gui->seg_selected = -1;
   gui->point_border_selected = -1;
-  gui->group_selected = -1;
+  gui->group_edited = gui->group_selected = -1;
   while(fpts)
   {
     dt_masks_point_group_t *fpt = (dt_masks_point_group_t *) fpts->data;
@@ -122,9 +122,9 @@ int dt_group_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float 
     else if (sel->type == DT_MASKS_CURVE) dt_curve_get_distance(xx,yy,as,gui,pos,g_list_length(sel->points),&inside, &inside_border, &near);
     if (inside || inside_border || near >= 0)
     {
-      gui->group_selected = pos;
-      if (sel->type == DT_MASKS_CIRCLE) return dt_circle_events_mouse_moved(module,pzx,pzy,which,form,gui,pos);
-      else if (sel->type == DT_MASKS_CURVE) return dt_curve_events_mouse_moved(module,pzx,pzy,which,form,gui,pos);
+      gui->group_edited = gui->group_selected = pos;
+      if (sel->type == DT_MASKS_CIRCLE) return dt_circle_events_mouse_moved(module,pzx,pzy,which,sel,gui,pos);
+      else if (sel->type == DT_MASKS_CURVE) return dt_curve_events_mouse_moved(module,pzx,pzy,which,sel,gui,pos);
     }
     fpts = g_list_next(fpts);
     pos++;
