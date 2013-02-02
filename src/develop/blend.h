@@ -250,6 +250,9 @@ typedef struct dt_iop_gui_blend_data_t
   float increments[8];
   
   GtkWidget* masks_state;
+  GtkWidget* masks_edit;
+  GtkWidget* masks_dropdown;
+  GtkWidget* masks_hbox;
 }
 dt_iop_gui_blend_data_t;
 

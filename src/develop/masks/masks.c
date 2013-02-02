@@ -550,20 +550,120 @@ void dt_masks_init_formgui(dt_develop_t *dev)
 void dt_masks_iop_edit_toggle_callback(GtkWidget *widget, dt_iop_module_t *module)
 {
   //we create a "group" form with all form in use in the iop
-  dt_masks_form_t *grp = dt_masks_create(DT_MASKS_GROUP);
+  dt_masks_form_t *grp = NULL;
   
-  for (int i=0; i<module->blend_params->forms_count; i++)
+  if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(widget)))
   {
-    dt_masks_point_group_t *fpt = (dt_masks_point_group_t *) malloc(sizeof(dt_masks_point_group_t));
-    fpt->formid = module->blend_params->forms[i];
-    fpt->state = module->blend_params->forms_state[i];
-    grp->points = g_list_append(grp->points,fpt);
+    grp = dt_masks_create(DT_MASKS_GROUP);
+    
+    for (int i=0; i<module->blend_params->forms_count; i++)
+    {
+      dt_masks_point_group_t *fpt = (dt_masks_point_group_t *) malloc(sizeof(dt_masks_point_group_t));
+      fpt->formid = module->blend_params->forms[i];
+      fpt->state = module->blend_params->forms_state[i];
+      grp->points = g_list_append(grp->points,fpt);
+    }
   }
-  
   //reset the gui
   dt_masks_init_formgui(module->dev);
   module->dev->form_visible = grp;
   dt_control_queue_redraw_center();
+}
+
+void _menu_position(GtkMenu *menu, int *x, int *y, gboolean *push_in, gpointer user_data)
+{
+  dt_iop_module_t *module = (dt_iop_module_t *)user_data;
+  dt_iop_gui_blend_data_t *bd = (dt_iop_gui_blend_data_t *)module->blend_data;
+  GtkWidget *hb = bd->masks_hbox;
+  int yy,xx; 
+  gdk_window_get_origin(hb->window,&xx,&yy);
+  *y = hb->allocation.y + hb->allocation.height+yy;
+  *x = hb->allocation.x + xx;
+  *push_in = TRUE;
+}
+
+void dt_masks_iop_dropdown_callback(GtkWidget *widget, struct dt_iop_module_t *module)
+{
+  GtkWidget *menu0 = gtk_menu_new();
+  GtkWidget *menu = gtk_menu_new();
+  GtkWidget *item;
+  
+  item = gtk_menu_item_new_with_label(_("don't use masks"));
+  //g_object_set_data(G_OBJECT(item), "formid", GUINT_TO_POINTER(form->formid));
+  //g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (_menu_no_masks), module);
+  gtk_menu_append(menu0, item);
+  
+  gtk_menu_append(menu0, gtk_separator_menu_item_new());
+  
+  item = gtk_menu_item_new_with_label(_("add circle shape"));
+  //g_object_set_data(G_OBJECT(item), "formid", GUINT_TO_POINTER(form->formid));
+  //g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (_menu_add_circle), module);
+  gtk_menu_append(menu0, item);
+  item = gtk_menu_item_new_with_label(_("add curve shape"));
+  //g_object_set_data(G_OBJECT(item), "formid", GUINT_TO_POINTER(form->formid));
+  //g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (_menu_add_curve), module);
+  gtk_menu_append(menu0, item);
+      
+  //existing forms
+  GList *forms = g_list_first(darktable.develop->forms);
+  while (forms)
+  {
+    dt_masks_form_t *form = (dt_masks_form_t *)forms->data;
+    char str[10000] = "";
+    strcat(str,form->name);
+    int nbuse = 0;
+    
+    //we search were this form is used
+    GList *modules = g_list_first(darktable.develop->iop);
+    while (modules)
+    {
+      dt_iop_module_t *m = (dt_iop_module_t *)modules->data;
+      
+      if (m->blend_params)
+      {
+        for (int i=0; i<m->blend_params->forms_count; i++)
+        {
+          if (m->blend_params->forms[i] == form->formid)
+          {
+            if (m == module)
+            {
+              nbuse = -1;
+              break;
+            }
+            if (nbuse==0) strcat(str," (");
+            strcat(str," ");
+            strcat(str,m->name());
+            nbuse++;
+          }
+        }
+      }
+      modules = g_list_next(modules);
+    }
+    if (nbuse != -1)
+    {
+      if (nbuse>0) strcat(str," )");
+      
+      //we add the menu entry
+      item = gtk_menu_item_new_with_label(str);
+      //g_object_set_data(G_OBJECT(item), "formid", GUINT_TO_POINTER(form->formid));
+      //g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (_menu_add_exist), form);
+      gtk_menu_append(menu, item);
+    }
+    forms = g_list_next(forms);
+  }
+  
+  item = gtk_menu_item_new_with_label(_("add existing shape"));
+  gtk_menu_item_set_submenu(GTK_MENU_ITEM(item), menu);
+  gtk_menu_append(menu0, item);
+  
+  dt_iop_gui_blend_data_t *bd = (dt_iop_gui_blend_data_t *)module->blend_data;
+  GtkWidget *hb = bd->masks_hbox;
+  gtk_widget_set_size_request(menu0,hb->allocation.width,-1); 
+  
+  gtk_widget_show_all(menu0);
+
+  //we show the menu
+  gtk_menu_popup (GTK_MENU (menu0), NULL, NULL, _menu_position, module, 0, gtk_get_current_event_time());
 }
 
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh

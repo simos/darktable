@@ -1053,15 +1053,20 @@ void dt_iop_gui_init_blending(GtkWidget *iopw, dt_iop_module_t *module)
     module->fusion_slider = bd->opacity_slider;
 
     //masks line
-    GtkWidget *hb = gtk_hbox_new(FALSE,DT_GUI_IOP_MODULE_CONTROL_SPACING);
-    gtk_box_pack_start(GTK_BOX(hb), gtk_label_new(_("masks")), FALSE,FALSE,0);
+    bd->masks_hbox = gtk_hbox_new(FALSE,DT_GUI_IOP_MODULE_CONTROL_SPACING);
+  
+    gtk_box_pack_start(GTK_BOX(bd->masks_hbox), gtk_label_new(_("masks")), FALSE,FALSE,0);
     bd->masks_state = gtk_label_new(_("no masks used"));
-    gtk_misc_set_alignment(GTK_MISC(bd->masks_state), 1.0f, 0.0f);
-    gtk_box_pack_start(GTK_BOX(hb), bd->masks_state, TRUE, TRUE,5);
-    GtkWidget *bt_masks_edit = dtgtk_togglebutton_new(dtgtk_cairo_paint_masks_eye, CPF_STYLE_FLAT|CPF_DO_NOT_USE_BORDER);
-    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(bt_masks_edit), TRUE);
-    g_signal_connect (G_OBJECT (bt_masks_edit), "toggled", G_CALLBACK (dt_masks_iop_edit_toggle_callback), module);
-    gtk_box_pack_start(GTK_BOX(hb), bt_masks_edit, FALSE,FALSE,0);
+    gtk_misc_set_alignment(GTK_MISC(bd->masks_state), 1.0f, 0.5f);
+    gtk_box_pack_start(GTK_BOX(bd->masks_hbox), bd->masks_state, TRUE, TRUE,5);
+    bd->masks_dropdown = dtgtk_button_new(dtgtk_cairo_paint_solid_arrow,CPF_STYLE_FLAT|CPF_DO_NOT_USE_BORDER|CPF_DIRECTION_DOWN);
+    g_signal_connect (G_OBJECT (bd->masks_dropdown), "clicked", G_CALLBACK (dt_masks_iop_dropdown_callback), module);
+    gtk_widget_set_size_request(GTK_WIDGET(bd->masks_dropdown),14,14);
+    gtk_box_pack_start(GTK_BOX(bd->masks_hbox), bd->masks_dropdown, FALSE,FALSE,0);
+    bd->masks_edit = dtgtk_togglebutton_new(dtgtk_cairo_paint_masks_eye, CPF_STYLE_FLAT|CPF_DO_NOT_USE_BORDER);
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(bd->masks_edit), FALSE);
+    g_signal_connect (G_OBJECT (bd->masks_edit), "toggled", G_CALLBACK (dt_masks_iop_edit_toggle_callback), module);
+    gtk_box_pack_start(GTK_BOX(bd->masks_hbox), bd->masks_edit, FALSE,FALSE,0);
   
     for(int k = 0; k < bd->number_modes; k++)
       dt_bauhaus_combobox_add(bd->blend_modes_combo, bd->modes[k].name);
@@ -1076,7 +1081,7 @@ void dt_iop_gui_init_blending(GtkWidget *iopw, dt_iop_module_t *module)
     g_signal_connect (G_OBJECT (bd->blend_modes_combo), "value-changed",
                       G_CALLBACK (_blendop_mode_callback), bd);
 
-    gtk_box_pack_start(GTK_BOX(iopw), GTK_WIDGET(hb), TRUE, TRUE,0);
+    gtk_box_pack_start(GTK_BOX(iopw), GTK_WIDGET(bd->masks_hbox), TRUE, TRUE,0);
     gtk_box_pack_start(GTK_BOX(iopw), bd->blend_modes_combo, TRUE, TRUE,0);
     gtk_box_pack_start(GTK_BOX(iopw), bd->opacity_slider, TRUE, TRUE,0);
 
