@@ -609,7 +609,15 @@ static void _menu_no_masks(GtkButton *button, struct dt_iop_module_t *module)
 {
   //we drop all the forms in the iop
   //NOTE : maybe a little bit too definitive ? just add a state "not used" ?
+  module->blend_params->forms_count = 0;
   
+  //and we update the iop
+  dt_iop_gui_blend_data_t *bd = (dt_iop_gui_blend_data_t *)module->blend_data;
+  dt_masks_set_edit_mode(module,FALSE);
+  gtk_widget_set_sensitive(bd->masks_edit,FALSE);
+  gtk_label_set_text(GTK_LABEL(bd->masks_state),_("no masks used"));
+  
+  dt_dev_add_history_item(darktable.develop, module, TRUE);
 }
 static void _menu_add_circle(GtkButton *button, struct dt_iop_module_t *module)
 {
