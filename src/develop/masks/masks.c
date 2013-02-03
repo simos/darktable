@@ -670,6 +670,7 @@ void dt_masks_iop_dropdown_callback(GtkWidget *widget, struct dt_iop_module_t *m
   item = gtk_menu_item_new_with_label(_("don't use masks"));
   //g_object_set_data(G_OBJECT(item), "formid", GUINT_TO_POINTER(form->formid));
   g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (_menu_no_masks), module);
+  gtk_widget_set_sensitive(item,(module->blend_params->forms_count>0));
   gtk_menu_append(menu0, item);
   
   gtk_menu_append(menu0, gtk_separator_menu_item_new());
