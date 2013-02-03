@@ -127,11 +127,14 @@ int dt_circle_events_button_pressed(struct dt_iop_module_t *module,float pzx, fl
     dt_masks_gui_form_save_creation(module,form,gui);
     
     //we recreate the form points
-    dt_masks_gui_form_remove(module,form,gui,index);
-    dt_masks_gui_form_create(module,form,gui,index);
+    //dt_masks_gui_form_remove(module,form,gui,index);
+    //dt_masks_gui_form_create(module,form,gui,index);
     
     //we save the move
     dt_dev_add_history_item(darktable.develop, module, TRUE);
+    
+    //and we switch in edit mode to show all the forms
+    dt_masks_set_edit_mode(module, TRUE);
     
     return 1;
   }
@@ -218,6 +221,12 @@ void dt_circle_events_post_expose(cairo_t *cr,float zoom_scale,dt_masks_form_gui
   dashed[1] /= zoom_scale;
   int len  = sizeof(dashed) / sizeof(dashed[0]);
   dt_masks_form_gui_points_t *gpt = (dt_masks_form_gui_points_t *) g_list_nth_data(gui->points,index);
+  float dx=0, dy=0; 
+  if ((gui->group_selected == index) && gui->form_dragging)
+  {
+    dx = gui->posx + gui->dx - gpt->points[0];
+    dy = gui->posy + gui->dy - gpt->points[1];
+  }
   
   if (gpt->points_count > 6)
   { 
@@ -227,7 +236,6 @@ void dt_circle_events_post_expose(cairo_t *cr,float zoom_scale,dt_masks_form_gui
     cairo_set_source_rgba(cr, .3, .3, .3, .8);
     if (gui->form_dragging)
     {
-      float dx = gui->posx + gui->dx - gpt->points[0], dy = gui->posy + gui->dy - gpt->points[1];
       cairo_move_to(cr,gpt->points[2]+dx,gpt->points[3]+dy);
       for (int i=2; i<gpt->points_count; i++)
       {
@@ -252,7 +260,7 @@ void dt_circle_events_post_expose(cairo_t *cr,float zoom_scale,dt_masks_form_gui
   }
 
   //draw border
-  if ((!gui->form_dragging) && gpt->border_count > 6)
+  if ((gui->group_selected == index) && gpt->border_count > 6)
   { 
     cairo_set_dash(cr, dashed, len, 0);     
     if ((gui->group_selected == index) && (gui->border_selected)) cairo_set_line_width(cr, 2.0/zoom_scale);

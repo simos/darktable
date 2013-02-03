@@ -547,6 +547,29 @@ void dt_masks_init_formgui(dt_develop_t *dev)
   dev->form_gui->group_selected = -1;
 }
 
+void dt_masks_set_edit_mode(struct dt_iop_module_t *module,gboolean value)
+{
+  dt_iop_gui_blend_data_t *bd = (dt_iop_gui_blend_data_t *)module->blend_data;
+
+  dt_masks_form_t *grp = NULL;
+  if (value)
+  {
+    grp = dt_masks_create(DT_MASKS_GROUP);
+    
+    for (int i=0; i<module->blend_params->forms_count; i++)
+    {
+      dt_masks_point_group_t *fpt = (dt_masks_point_group_t *) malloc(sizeof(dt_masks_point_group_t));
+      fpt->formid = module->blend_params->forms[i];
+      fpt->state = module->blend_params->forms_state[i];
+      grp->points = g_list_append(grp->points,fpt);
+    }
+  }
+  gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(bd->masks_edit),value);
+  dt_masks_init_formgui(module->dev);
+  module->dev->form_visible = grp;
+  dt_control_queue_redraw_center();
+}
+
 void dt_masks_iop_edit_toggle_callback(GtkWidget *widget, dt_iop_module_t *module)
 {
   //we create a "group" form with all form in use in the iop
@@ -570,7 +593,7 @@ void dt_masks_iop_edit_toggle_callback(GtkWidget *widget, dt_iop_module_t *modul
   dt_control_queue_redraw_center();
 }
 
-void _menu_position(GtkMenu *menu, int *x, int *y, gboolean *push_in, gpointer user_data)
+static void _menu_position(GtkMenu *menu, int *x, int *y, gboolean *push_in, gpointer user_data)
 {
   dt_iop_module_t *module = (dt_iop_module_t *)user_data;
   dt_iop_gui_blend_data_t *bd = (dt_iop_gui_blend_data_t *)module->blend_data;
@@ -582,6 +605,39 @@ void _menu_position(GtkMenu *menu, int *x, int *y, gboolean *push_in, gpointer u
   *push_in = TRUE;
 }
 
+static void _menu_no_masks(GtkButton *button, struct dt_iop_module_t *module)
+{
+  //we drop all the forms in the iop
+  //NOTE : maybe a little bit too definitive ? just add a state "not used" ?
+  
+}
+static void _menu_add_circle(GtkButton *button, struct dt_iop_module_t *module)
+{
+  //we want to be sure that the iop has focus
+  dt_iop_request_focus(module);
+  //we create the new form
+  dt_masks_form_t *spot = dt_masks_create(DT_MASKS_CIRCLE);
+  dt_masks_init_formgui(darktable.develop);
+  darktable.develop->form_visible = spot;
+  darktable.develop->form_gui->creation = TRUE;
+  dt_control_queue_redraw_center();
+}
+static void _menu_add_curve(GtkButton *button, struct dt_iop_module_t *module)
+{
+  //we want to be sure that the iop has focus
+  dt_iop_request_focus(module);
+  //we create the new form
+  dt_masks_form_t *form = dt_masks_create(DT_MASKS_CURVE);
+  dt_masks_init_formgui(darktable.develop);
+  darktable.develop->form_visible = form;
+  darktable.develop->form_gui->creation = TRUE;
+  dt_control_queue_redraw_center();
+}
+static void _menu_add_exist(GtkButton *button, struct dt_iop_module_t *module)
+{
+  
+}
+
 void dt_masks_iop_dropdown_callback(GtkWidget *widget, struct dt_iop_module_t *module)
 {
   GtkWidget *menu0 = gtk_menu_new();
@@ -590,18 +646,18 @@ void dt_masks_iop_dropdown_callback(GtkWidget *widget, struct dt_iop_module_t *m
   
   item = gtk_menu_item_new_with_label(_("don't use masks"));
   //g_object_set_data(G_OBJECT(item), "formid", GUINT_TO_POINTER(form->formid));
-  //g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (_menu_no_masks), module);
+  g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (_menu_no_masks), module);
   gtk_menu_append(menu0, item);
   
   gtk_menu_append(menu0, gtk_separator_menu_item_new());
   
   item = gtk_menu_item_new_with_label(_("add circle shape"));
   //g_object_set_data(G_OBJECT(item), "formid", GUINT_TO_POINTER(form->formid));
-  //g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (_menu_add_circle), module);
+  g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (_menu_add_circle), module);
   gtk_menu_append(menu0, item);
   item = gtk_menu_item_new_with_label(_("add curve shape"));
   //g_object_set_data(G_OBJECT(item), "formid", GUINT_TO_POINTER(form->formid));
-  //g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (_menu_add_curve), module);
+  g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (_menu_add_curve), module);
   gtk_menu_append(menu0, item);
       
   //existing forms
@@ -646,7 +702,7 @@ void dt_masks_iop_dropdown_callback(GtkWidget *widget, struct dt_iop_module_t *m
       //we add the menu entry
       item = gtk_menu_item_new_with_label(str);
       //g_object_set_data(G_OBJECT(item), "formid", GUINT_TO_POINTER(form->formid));
-      //g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (_menu_add_exist), form);
+      g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (_menu_add_exist), form);
       gtk_menu_append(menu, item);
     }
     forms = g_list_next(forms);

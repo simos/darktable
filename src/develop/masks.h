@@ -184,6 +184,8 @@ void dt_masks_gui_form_save_creation (struct dt_iop_module_t *module, dt_masks_f
 
 void dt_masks_iop_edit_toggle_callback(GtkWidget *widget, struct dt_iop_module_t *module);
 void dt_masks_iop_dropdown_callback(GtkWidget *widget, struct dt_iop_module_t *module);
+void dt_masks_set_edit_mode(struct dt_iop_module_t *module,gboolean value);
+
 #endif
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
 // vim: shiftwidth=2 expandtab tabstop=2 cindent

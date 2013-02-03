@@ -553,12 +553,14 @@ int dt_curve_events_button_pressed(struct dt_iop_module_t *module,float pzx, flo
         gui->point_dragging = -1;
         _curve_init_ctrl_points(form);
 
-        dt_masks_gui_form_remove(module,form,gui,index);
-        dt_masks_gui_form_create(module,form,gui,index);
+        //dt_masks_gui_form_remove(module,form,gui,index);
+        //dt_masks_gui_form_create(module,form,gui,index);
       
         //we save the form and quit creation mode
-         dt_masks_gui_form_save_creation(module,form,gui);
-         dt_dev_add_history_item(darktable.develop, module, TRUE);
+        dt_masks_gui_form_save_creation(module,form,gui);
+        dt_dev_add_history_item(darktable.develop, module, TRUE);
+        //and we switch in edit mode to show all the forms
+        dt_masks_set_edit_mode(module, TRUE);
       }
     }
   }
@@ -1069,7 +1071,7 @@ void dt_curve_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_form_gu
   int len  = sizeof(dashed) / sizeof(dashed[0]);
   float dx=0, dy=0;
   dt_masks_form_gui_points_t *gpt = (dt_masks_form_gui_points_t *) g_list_nth_data(gui->points,index);
-  if (gui->form_dragging)
+  if ((gui->group_selected == index) && gui->form_dragging)
   {
     dx = gui->posx + gui->dx - gpt->points[2];
     dy = gui->posy + gui->dy - gpt->points[3];
@@ -1162,7 +1164,7 @@ void dt_curve_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_form_gu
   }
       
   //draw border and corners
-  if (gpt->border_count > nb*3+6)
+  if ((gui->group_selected == index) && gpt->border_count > nb*3+6)
   { 
     cairo_move_to(cr,gpt->border[0]+dx,gpt->border[1]+dy);
     //we draw the curve segment by segment
