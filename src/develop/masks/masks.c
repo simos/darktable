@@ -641,13 +641,28 @@ static void _menu_add_curve(GtkButton *button, struct dt_iop_module_t *module)
   darktable.develop->form_gui->creation = TRUE;
   dt_control_queue_redraw_center();
 }
-static void _menu_add_exist(GtkButton *button, struct dt_iop_module_t *module)
+static void _menu_add_exist(GtkButton *button, dt_masks_form_t *form)
 {
+  dt_iop_module_t *iop = darktable.develop->gui_module;
+  if (!iop) return;
   
+  //add the iop to the current module
+  int forms_count = iop->blend_params->forms_count;
+  iop->blend_params->forms[forms_count] = form->formid;
+  iop->blend_params->forms_state[forms_count] = DT_MASKS_STATE_SHOW | DT_MASKS_STATE_USE;
+  iop->blend_params->forms_count++;
+  
+  //and we ensure that we are in edit mode
+  dt_masks_set_edit_mode(iop,TRUE);
+  dt_dev_add_history_item(darktable.develop, iop, TRUE);
+  dt_iop_gui_update_blending(iop);
 }
 
 void dt_masks_iop_dropdown_callback(GtkWidget *widget, struct dt_iop_module_t *module)
 {
+  //we ensure that the module has focus
+  dt_iop_request_focus(module);
+  
   GtkWidget *menu0 = gtk_menu_new();
   GtkWidget *menu = gtk_menu_new();
   GtkWidget *item;

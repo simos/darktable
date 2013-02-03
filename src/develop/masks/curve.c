@@ -561,6 +561,7 @@ int dt_curve_events_button_pressed(struct dt_iop_module_t *module,float pzx, flo
         dt_dev_add_history_item(darktable.develop, module, TRUE);
         //and we switch in edit mode to show all the forms
         dt_masks_set_edit_mode(module, TRUE);
+        dt_iop_gui_update_blending(module);
       }
     }
   }
