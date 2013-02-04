@@ -60,6 +60,157 @@ int position()
   return 10;
 }
 
+static int _tree_button_pressed (GtkWidget *treeview, GdkEventButton *event, gpointer userdata)
+{
+  /* single click with the right mouse button? */
+  if (event->type == GDK_BUTTON_PRESS  &&  event->button == 3)
+  {
+    //we first need to adjust selection
+    GtkTreeSelection *selection;
+    selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(treeview));
+
+    if (gtk_tree_selection_count_selected_rows(selection)  <= 1)
+    {
+       GtkTreePath *path;
+       if (gtk_tree_view_get_path_at_pos(GTK_TREE_VIEW(treeview),
+                                         (gint) event->x, 
+                                         (gint) event->y,
+                                         &path, NULL, NULL, NULL))
+       {
+         if (!(event->state & GDK_CONTROL_MASK)) gtk_tree_selection_unselect_all(selection);
+         gtk_tree_selection_select_path(selection, path);
+         gtk_tree_path_free(path);
+       }
+    }
+    
+    //and we display the context-menu
+    GtkWidget *menu, *item;
+    menu = gtk_menu_new();
+    
+    //we get all infos from selection
+    int nb = gtk_tree_selection_count_selected_rows(selection);
+    int from_all = 0;
+    int from_group = 0;
+    int from_base = 0;
+    GtkTreePath *it0 = (GtkTreePath *)g_list_nth_data(gtk_tree_selection_get_selected_rows(selection,NULL),0);
+    int *indices = gtk_tree_path_get_indices (it0);
+    int depth = gtk_tree_path_get_depth (it0);
+    if (depth > 2) from_group = 1;
+    else if (depth == 1) from_base = 1;
+    if (indices[0] == 0) from_all = 1;
+    
+    if (from_base)
+    {
+      item = gtk_menu_item_new_with_label(_("add circle shape"));
+      //g_signal_connect(item, "activate",(GCallback) view_popup_menu_onDoSomething, treeview);
+      gtk_menu_append(menu, item);
+      
+      item = gtk_menu_item_new_with_label(_("add curve shape"));
+      //g_signal_connect(item, "activate",(GCallback) view_popup_menu_onDoSomething, treeview);
+      gtk_menu_append(menu, item);
+      
+      if (!from_all)
+      {
+        item = gtk_menu_item_new_with_label(_("add existing shape"));
+        gtk_menu_append(menu, item);
+        //existing forms
+        GtkWidget *menu0 = gtk_menu_new();
+        GList *forms = g_list_first(darktable.develop->forms);
+        while (forms)
+        {
+          dt_masks_form_t *form = (dt_masks_form_t *)forms->data;
+          char str[10000] = "";
+          strcat(str,form->name);
+          int nbuse = 0;
+          
+          //we search were this form is used
+          GList *modules = g_list_first(darktable.develop->iop);
+          while (modules)
+          {
+            dt_iop_module_t *m = (dt_iop_module_t *)modules->data;
+            
+            if (m->blend_params)
+            {
+              for (int i=0; i<m->blend_params->forms_count; i++)
+              {
+                if (m->blend_params->forms[i] == form->formid)
+                {
+                  if (m == darktable.develop->gui_module)
+                  {
+                    nbuse = -1;
+                    break;
+                  }
+                  if (nbuse==0) strcat(str," (");
+                  strcat(str," ");
+                  strcat(str,m->name());
+                  nbuse++;
+                }
+              }
+            }
+            modules = g_list_next(modules);
+          }
+          if (nbuse != -1)
+          {
+            if (nbuse>0) strcat(str," )");
+            
+            //we add the menu entry
+            item = gtk_menu_item_new_with_label(str);
+            //g_object_set_data(G_OBJECT(item), "formid", GUINT_TO_POINTER(form->formid));
+            //g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (_menu_add_exist), form);
+            gtk_menu_append(menu0, item);
+          }
+          forms = g_list_next(forms);
+        }
+        gtk_menu_item_set_submenu(GTK_MENU_ITEM(item), menu0);
+      }
+      
+      gtk_menu_append(menu, gtk_separator_menu_item_new());
+    }
+    if (from_all)
+    {
+      item = gtk_menu_item_new_with_label(_("delete this shape"));
+      //g_signal_connect(item, "activate",(GCallback) view_popup_menu_onDoSomething, treeview);
+      gtk_menu_append(menu, item);
+    }
+    else
+    {
+      item = gtk_menu_item_new_with_label(_("remove from module"));
+      //g_signal_connect(item, "activate",(GCallback) view_popup_menu_onDoSomething, treeview);
+      gtk_menu_append(menu, item);
+    }
+    
+    gtk_menu_append(menu, gtk_separator_menu_item_new());
+    
+    if (nb>1)
+    {
+      item = gtk_menu_item_new_with_label(_("group the forms"));
+      //g_signal_connect(item, "activate",(GCallback) view_popup_menu_onDoSomething, treeview);
+      gtk_menu_append(menu, item);
+    }
+    
+    gtk_menu_append(menu, gtk_separator_menu_item_new());
+    
+    if (from_group || !from_all)
+    {
+      item = gtk_menu_item_new_with_label(_("use inversed shape"));
+      //g_signal_connect(item, "activate",(GCallback) view_popup_menu_onDoSomething, treeview);
+      gtk_menu_append(menu, item);
+      item = gtk_menu_item_new_with_label(_("move up"));
+      //g_signal_connect(item, "activate",(GCallback) view_popup_menu_onDoSomething, treeview);
+      gtk_menu_append(menu, item);
+      item = gtk_menu_item_new_with_label(_("move down"));
+      //g_signal_connect(item, "activate",(GCallback) view_popup_menu_onDoSomething, treeview);
+      gtk_menu_append(menu, item);
+    }
+    gtk_widget_show_all(menu);
+    gtk_menu_popup(GTK_MENU(menu), NULL, NULL, NULL, NULL,0, gdk_event_get_time((GdkEvent*)event));
+
+    return 1;
+  }
+
+  return 0;
+}
+
 static void _lib_masks_recreate_list(dt_lib_module_t *self)
 {
   //const int bs = 12;
@@ -89,6 +240,8 @@ static void _lib_masks_recreate_list(dt_lib_module_t *self)
   
   //now we display shapes iop by iop
   GList *iops = g_list_first(darktable.develop->iop);
+  int act = -1;
+  int pos = 1;
   while(iops)
   {
     dt_iop_module_t *module = (dt_iop_module_t *)iops->data;
@@ -105,15 +258,17 @@ static void _lib_masks_recreate_list(dt_lib_module_t *self)
         gtk_tree_store_append(treestore, &child, &toplevel);
         gtk_tree_store_set(treestore, &child, 0, form->name, -1);
       }
+      if (module == darktable.develop->gui_module) act = pos;
     }
     iops = g_list_next(iops);
+    pos++;
   }
   
   GtkWidget *view = gtk_tree_view_new();
   GtkTreeViewColumn *col = gtk_tree_view_column_new();
   gtk_tree_view_column_set_title(col, "shapes");
   gtk_tree_view_append_column(GTK_TREE_VIEW(view), col);
-
+  
   GtkCellRenderer *renderer = gtk_cell_renderer_text_new();
   gtk_tree_view_column_pack_start(col, renderer, TRUE);
   gtk_tree_view_column_add_attribute(col, renderer, "text", 0);
@@ -121,7 +276,12 @@ static void _lib_masks_recreate_list(dt_lib_module_t *self)
   gtk_tree_view_set_model(GTK_TREE_VIEW(view), GTK_TREE_MODEL(treestore));
   g_object_unref(treestore);
   
-  //GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(view));
+  //we expand the "all" entry and the actual module one
+  gtk_tree_view_expand_row (GTK_TREE_VIEW(view),gtk_tree_path_new_from_indices (0,-1),FALSE);
+  if (act >= 0) gtk_tree_view_expand_row (GTK_TREE_VIEW(view),gtk_tree_path_new_from_indices (act,-1),FALSE);
+  
+  GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(view));
+  gtk_tree_selection_set_mode(selection,GTK_SELECTION_MULTIPLE);
   GtkWidget *sw = gtk_scrolled_window_new(NULL, NULL);
   gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(sw), GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
   gtk_tree_view_set_headers_visible(GTK_TREE_VIEW(view), FALSE);
@@ -131,7 +291,8 @@ static void _lib_masks_recreate_list(dt_lib_module_t *self)
   gtk_box_pack_start(GTK_BOX(self->widget), sw, TRUE, TRUE, 1);
 
   //g_signal_connect(selection, "changed", G_CALLBACK(on_changed), statusbar);
-  
+  g_signal_connect(view, "button-press-event", (GCallback) _tree_button_pressed, NULL);
+    
   /* show all widgets */
   gtk_widget_show_all(sw);
 }
