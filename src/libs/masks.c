@@ -211,6 +211,42 @@ static int _tree_button_pressed (GtkWidget *treeview, GdkEventButton *event, gpo
   return 0;
 }
 
+static gboolean _tree_restrict_select (GtkTreeSelection *selection, GtkTreeModel *model, GtkTreePath *path, gboolean path_currently_selected, gpointer data)
+{
+  //if the change is SELECT->UNSELECT no pb
+  if (path_currently_selected) return TRUE;
+  
+  //we can't select a primary node
+  int depth = gtk_tree_path_get_depth (path);
+  if (depth == 1) return FALSE;
+  
+  //if selection is empty, no pb
+  if (gtk_tree_selection_count_selected_rows(selection) == 0) return TRUE;
+  
+  //now we unselect all members of selection with not the same parent node
+  //idem for all those with a different depth
+  int *indices = gtk_tree_path_get_indices (path);
+  
+  GList *items = g_list_first(gtk_tree_selection_get_selected_rows(selection,NULL));
+  while(items)
+  {
+    GtkTreePath *item = (GtkTreePath *)items->data;
+    int dd = gtk_tree_path_get_depth (item);
+    int *ii = gtk_tree_path_get_indices (item);
+    int ok = 1;
+    if (dd != depth) ok = 0;
+    else if (ii[dd-2] != indices[dd-2]) ok = 0;
+    if (!ok)
+    {
+      gtk_tree_selection_unselect_path(selection,item);
+      items = g_list_first(gtk_tree_selection_get_selected_rows(selection,NULL));
+      continue;
+    }
+    items = g_list_next(items);
+  }
+  return TRUE;
+}
+
 static void _lib_masks_recreate_list(dt_lib_module_t *self)
 {
   //const int bs = 12;
@@ -282,6 +318,7 @@ static void _lib_masks_recreate_list(dt_lib_module_t *self)
   
   GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(view));
   gtk_tree_selection_set_mode(selection,GTK_SELECTION_MULTIPLE);
+  gtk_tree_selection_set_select_function(selection,_tree_restrict_select,NULL,NULL);
   GtkWidget *sw = gtk_scrolled_window_new(NULL, NULL);
   gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(sw), GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
   gtk_tree_view_set_headers_visible(GTK_TREE_VIEW(view), FALSE);
