@@ -512,14 +512,14 @@ int dt_curve_events_mouse_scrolled(struct dt_iop_module_t *module, float pzx, fl
       _curve_init_ctrl_points(form);
     }
   
-    dt_masks_write_form(form,module->dev);
+    dt_masks_write_form(form,darktable.develop);
 
     //we recreate the form points
-    dt_masks_gui_form_remove(module,form,gui,index);
-    dt_masks_gui_form_create(module,form,gui,index);
+    dt_masks_gui_form_remove(form,gui,index);
+    dt_masks_gui_form_create(form,gui,index);
     
     //we save the move
-    dt_dev_add_history_item(darktable.develop, module, TRUE);
+    if (module) dt_dev_add_history_item(darktable.develop, module, TRUE);
     return 1;
   }
   return 0;
@@ -537,13 +537,14 @@ int dt_curve_events_button_pressed(struct dt_iop_module_t *module,float pzx, flo
       {
         //we remove the form
         dt_masks_free_form(form);
-        module->dev->form_visible = NULL;
-        dt_masks_init_formgui(module->dev);
+        darktable.develop->form_visible = NULL;
+        dt_masks_init_formgui(darktable.develop);
         dt_control_queue_redraw_center();
         return 1;
       }
       else
       {
+        dt_iop_module_t *crea_module = gui->creation_module;
         //we delete last point (the one we are currently dragging)
         dt_masks_point_curve_t *point = (dt_masks_point_curve_t *)g_list_last(form->points)->data;
         form->points = g_list_remove(form->points,point);
@@ -557,11 +558,15 @@ int dt_curve_events_button_pressed(struct dt_iop_module_t *module,float pzx, flo
         //dt_masks_gui_form_create(module,form,gui,index);
       
         //we save the form and quit creation mode
-        dt_masks_gui_form_save_creation(module,form,gui);
-        dt_dev_add_history_item(darktable.develop, module, TRUE);
-        //and we switch in edit mode to show all the forms
-        dt_masks_set_edit_mode(module, TRUE);
-        dt_iop_gui_update_blending(module);
+        dt_masks_gui_form_save_creation(crea_module,form,gui);
+        if (crea_module)
+        {
+          dt_dev_add_history_item(darktable.develop, crea_module, TRUE);
+          //and we switch in edit mode to show all the forms
+          dt_masks_set_edit_mode(crea_module, TRUE);
+          dt_iop_gui_update_blending(crea_module);
+          gui->creation_module = NULL;
+        }
       }
     }
   }
@@ -572,13 +577,13 @@ int dt_curve_events_button_pressed(struct dt_iop_module_t *module,float pzx, flo
       dt_masks_point_curve_t *bzpt = (dt_masks_point_curve_t *) (malloc(sizeof(dt_masks_point_curve_t)));
       int nb = g_list_length(form->points);
       //change the values
-      float wd = module->dev->preview_pipe->backbuf_width;
-      float ht = module->dev->preview_pipe->backbuf_height;
+      float wd = darktable.develop->preview_pipe->backbuf_width;
+      float ht = darktable.develop->preview_pipe->backbuf_height;
       float pts[2] = {pzx*wd,pzy*ht};
-      dt_dev_distort_backtransform(module->dev,pts,1);
+      dt_dev_distort_backtransform(darktable.develop,pts,1);
       
-      bzpt->corner[0] = pts[0]/module->dev->preview_pipe->iwidth;
-      bzpt->corner[1] = pts[1]/module->dev->preview_pipe->iheight;
+      bzpt->corner[0] = pts[0]/darktable.develop->preview_pipe->iwidth;
+      bzpt->corner[1] = pts[1]/darktable.develop->preview_pipe->iheight;
       bzpt->ctrl1[0] = bzpt->ctrl1[1] = bzpt->ctrl2[0] = bzpt->ctrl2[1] = -1.0;
       bzpt->border[0] = bzpt->border[1] = 0.05;
       bzpt->state = DT_MASKS_POINT_STATE_NORMAL;
@@ -587,8 +592,8 @@ int dt_curve_events_button_pressed(struct dt_iop_module_t *module,float pzx, flo
       if (nb == 0)
       {
         dt_masks_point_curve_t *bzpt2 = (dt_masks_point_curve_t *) (malloc(sizeof(dt_masks_point_curve_t)));
-        bzpt2->corner[0] = pts[0]/module->dev->preview_pipe->iwidth;
-        bzpt2->corner[1] = pts[1]/module->dev->preview_pipe->iheight;
+        bzpt2->corner[0] = pts[0]/darktable.develop->preview_pipe->iwidth;
+        bzpt2->corner[1] = pts[1]/darktable.develop->preview_pipe->iheight;
         bzpt2->ctrl1[0] = bzpt2->ctrl1[1] = bzpt2->ctrl2[0] = bzpt2->ctrl2[1] = -1.0;
         bzpt2->border[0] = bzpt2->border[1] = 0.05;
         bzpt2->state = DT_MASKS_POINT_STATE_NORMAL;
@@ -602,8 +607,8 @@ int dt_curve_events_button_pressed(struct dt_iop_module_t *module,float pzx, flo
       _curve_init_ctrl_points(form);      
       
       //we recreate the form points
-      dt_masks_gui_form_remove(module,form,gui,index);
-      dt_masks_gui_form_create(module,form,gui,index);
+      dt_masks_gui_form_remove(form,gui,index);
+      dt_masks_gui_form_create(form,gui,index);
       
       dt_control_queue_redraw_center();
       return 1;
@@ -611,8 +616,8 @@ int dt_curve_events_button_pressed(struct dt_iop_module_t *module,float pzx, flo
     else if (gui->form_selected)
     {
       gui->form_dragging = TRUE;
-      gui->posx = pzx*module->dev->preview_pipe->backbuf_width;
-      gui->posy = pzy*module->dev->preview_pipe->backbuf_height;
+      gui->posx = pzx*darktable.develop->preview_pipe->backbuf_width;
+      gui->posy = pzy*darktable.develop->preview_pipe->backbuf_height;
       gui->dx = gpt->points[2] - gui->posx;
       gui->dy = gpt->points[3] - gui->posy;
       return 1;
@@ -642,13 +647,13 @@ int dt_curve_events_button_pressed(struct dt_iop_module_t *module,float pzx, flo
         //we add a new point to the curve
         dt_masks_point_curve_t *bzpt = (dt_masks_point_curve_t *) (malloc(sizeof(dt_masks_point_curve_t)));
         //change the values
-        float wd = module->dev->preview_pipe->backbuf_width;
-        float ht = module->dev->preview_pipe->backbuf_height;
+        float wd = darktable.develop->preview_pipe->backbuf_width;
+        float ht = darktable.develop->preview_pipe->backbuf_height;
         float pts[2] = {pzx*wd,pzy*ht};
-        dt_dev_distort_backtransform(module->dev,pts,1);
+        dt_dev_distort_backtransform(darktable.develop,pts,1);
         
-        bzpt->corner[0] = pts[0]/module->dev->preview_pipe->iwidth;
-        bzpt->corner[1] = pts[1]/module->dev->preview_pipe->iheight;
+        bzpt->corner[0] = pts[0]/darktable.develop->preview_pipe->iwidth;
+        bzpt->corner[1] = pts[1]/darktable.develop->preview_pipe->iheight;
         bzpt->ctrl1[0] = bzpt->ctrl1[1] = bzpt->ctrl2[0] = bzpt->ctrl2[1] = -1.0;
         bzpt->state = DT_MASKS_POINT_STATE_NORMAL;
         bzpt->border[0] = bzpt->border[1] = 0.05;
@@ -662,8 +667,8 @@ int dt_curve_events_button_pressed(struct dt_iop_module_t *module,float pzx, flo
       {
         //we move the entire segment
         gui->seg_dragging = gui->seg_selected;
-        gui->posx = pzx*module->dev->preview_pipe->backbuf_width;
-        gui->posy = pzy*module->dev->preview_pipe->backbuf_height;
+        gui->posx = pzx*darktable.develop->preview_pipe->backbuf_width;
+        gui->posy = pzy*darktable.develop->preview_pipe->backbuf_height;
         gui->dx = gpt->points[gui->seg_selected*6+2] - gui->posx;
         gui->dy = gpt->points[gui->seg_selected*6+3] - gui->posy;
       }
@@ -685,12 +690,12 @@ int dt_curve_events_button_released(struct dt_iop_module_t *module,float pzx, fl
     
     //we get point0 new values
     dt_masks_point_curve_t *point = (dt_masks_point_curve_t *)g_list_first(form->points)->data;
-    float wd = module->dev->preview_pipe->backbuf_width;
-    float ht = module->dev->preview_pipe->backbuf_height;
+    float wd = darktable.develop->preview_pipe->backbuf_width;
+    float ht = darktable.develop->preview_pipe->backbuf_height;
     float pts[2] = {pzx*wd+gui->dx,pzy*ht+gui->dy};
-    dt_dev_distort_backtransform(module->dev,pts,1);
-    float dx = pts[0]/module->dev->preview_pipe->iwidth - point->corner[0];
-    float dy = pts[1]/module->dev->preview_pipe->iheight - point->corner[1];
+    dt_dev_distort_backtransform(darktable.develop,pts,1);
+    float dx = pts[0]/darktable.develop->preview_pipe->iwidth - point->corner[0];
+    float dy = pts[1]/darktable.develop->preview_pipe->iheight - point->corner[1];
     
     //we move all points
     GList *points = g_list_first(form->points);
@@ -706,33 +711,34 @@ int dt_curve_events_button_released(struct dt_iop_module_t *module,float pzx, fl
       points = g_list_next(points);
     }
     
-    dt_masks_write_form(form,module->dev);
+    dt_masks_write_form(form,darktable.develop);
 
     //we recreate the form points
-    dt_masks_gui_form_remove(module,form,gui,index);
-    dt_masks_gui_form_create(module,form,gui,index);
+    dt_masks_gui_form_remove(form,gui,index);
+    dt_masks_gui_form_create(form,gui,index);
     
     //we save the move
-    dt_dev_add_history_item(darktable.develop, module, TRUE);
+    if (module) dt_dev_add_history_item(darktable.develop, module, TRUE);
     
     return 1;
   }
   else if (gui->seg_dragging>=0)
   {
     gui->seg_dragging = -1;
-    dt_dev_add_history_item(darktable.develop, module, TRUE);
+    dt_masks_write_form(form,darktable.develop);
+    if (module) dt_dev_add_history_item(darktable.develop, module, TRUE);
     return 1;
   }
   else if (gui->point_dragging >= 0)
   {
     dt_masks_point_curve_t *point = (dt_masks_point_curve_t *)g_list_nth_data(form->points,gui->point_dragging);
     gui->point_dragging = -1;
-    float wd = module->dev->preview_pipe->backbuf_width;
-    float ht = module->dev->preview_pipe->backbuf_height;
+    float wd = darktable.develop->preview_pipe->backbuf_width;
+    float ht = darktable.develop->preview_pipe->backbuf_height;
     float pts[2] = {pzx*wd,pzy*ht};
-    dt_dev_distort_backtransform(module->dev,pts,1);
-    float dx = pts[0]/module->dev->preview_pipe->iwidth - point->corner[0];
-    float dy = pts[1]/module->dev->preview_pipe->iheight - point->corner[1];    
+    dt_dev_distort_backtransform(darktable.develop,pts,1);
+    float dx = pts[0]/darktable.develop->preview_pipe->iwidth - point->corner[0];
+    float dy = pts[1]/darktable.develop->preview_pipe->iheight - point->corner[1];    
     
     point->corner[0] += dx;
     point->corner[1] += dy;
@@ -743,14 +749,14 @@ int dt_curve_events_button_released(struct dt_iop_module_t *module,float pzx, fl
     
     _curve_init_ctrl_points(form);
     
-    dt_masks_write_form(form,module->dev);
+    dt_masks_write_form(form,darktable.develop);
 
     //we recreate the form points
-    dt_masks_gui_form_remove(module,form,gui,index);
-    dt_masks_gui_form_create(module,form,gui,index);
+    dt_masks_gui_form_remove(form,gui,index);
+    dt_masks_gui_form_create(form,gui,index);
     
     //we save the move
-    dt_dev_add_history_item(darktable.develop, module, TRUE);
+    if (module) dt_dev_add_history_item(darktable.develop, module, TRUE);
     
     return 1;
   }
@@ -758,39 +764,41 @@ int dt_curve_events_button_released(struct dt_iop_module_t *module,float pzx, fl
   {
     dt_masks_point_curve_t *point = (dt_masks_point_curve_t *)g_list_nth_data(form->points,gui->feather_dragging);
     gui->feather_dragging = -1;
-    float wd = module->dev->preview_pipe->backbuf_width;
-    float ht = module->dev->preview_pipe->backbuf_height;
+    float wd = darktable.develop->preview_pipe->backbuf_width;
+    float ht = darktable.develop->preview_pipe->backbuf_height;
     float pts[2] = {pzx*wd,pzy*ht};
-    dt_dev_distort_backtransform(module->dev,pts,1);   
+    dt_dev_distort_backtransform(darktable.develop,pts,1);   
     
     int p1x,p1y,p2x,p2y;
-    _curve_feather_to_ctrl(point->corner[0]*module->dev->preview_pipe->iwidth,point->corner[1]*module->dev->preview_pipe->iheight,pts[0],pts[1],
+    _curve_feather_to_ctrl(point->corner[0]*darktable.develop->preview_pipe->iwidth,point->corner[1]*darktable.develop->preview_pipe->iheight,pts[0],pts[1],
                             &p1x,&p1y,&p2x,&p2y,gpt->clockwise);
-    point->ctrl1[0] = (float)p1x/module->dev->preview_pipe->iwidth;
-    point->ctrl1[1] = (float)p1y/module->dev->preview_pipe->iheight;
-    point->ctrl2[0] = (float)p2x/module->dev->preview_pipe->iwidth;
-    point->ctrl2[1] = (float)p2y/module->dev->preview_pipe->iheight;
+    point->ctrl1[0] = (float)p1x/darktable.develop->preview_pipe->iwidth;
+    point->ctrl1[1] = (float)p1y/darktable.develop->preview_pipe->iheight;
+    point->ctrl2[0] = (float)p2x/darktable.develop->preview_pipe->iwidth;
+    point->ctrl2[1] = (float)p2y/darktable.develop->preview_pipe->iheight;
     
     point->state = DT_MASKS_POINT_STATE_USER;
     
     _curve_init_ctrl_points(form);
     
-    dt_masks_write_form(form,module->dev);
+    dt_masks_write_form(form,darktable.develop);
 
     //we recreate the form points
-    dt_masks_gui_form_remove(module,form,gui,index);
-    dt_masks_gui_form_create(module,form,gui,index);
+    dt_masks_gui_form_remove(form,gui,index);
+    dt_masks_gui_form_create(form,gui,index);
     
     //we save the move
-    dt_dev_add_history_item(darktable.develop, module, TRUE);
+    if (module) dt_dev_add_history_item(darktable.develop, module, TRUE);
     
     return 1;
   }
   else if (gui->point_border_dragging >= 0)
   {
     gui->point_border_dragging = -1;
+    
     //we save the move
-    dt_dev_add_history_item(darktable.develop, module, TRUE);
+    dt_masks_write_form(form,darktable.develop);
+    if (module) dt_dev_add_history_item(darktable.develop, module, TRUE);
     dt_control_queue_redraw_center();
     return 1;
   }
@@ -801,37 +809,39 @@ int dt_curve_events_button_released(struct dt_iop_module_t *module,float pzx, fl
     {
       //we remove the form
       dt_masks_free_form(form);
-      module->dev->form_visible = NULL;
-      dt_masks_init_formgui(module->dev);
-      int pos = 0;
-      for (int i=0; i<module->blend_params->forms_count; i++)
+      darktable.develop->form_visible = NULL;
+      dt_masks_init_formgui(darktable.develop);
+      if (module)
       {
-        if (module->blend_params->forms[i] == form->formid)
+        int pos = 0;
+        for (int i=0; i<module->blend_params->forms_count; i++)
         {
-          pos = i;
-          break;
+          if (module->blend_params->forms[i] == form->formid)
+          {
+            pos = i;
+            break;
+          }
         }
+        module->blend_params->forms_count--;
+        for (int i=pos; i<module->blend_params->forms_count; i++) module->blend_params->forms[i] = module->blend_params->forms[i+1];
+        dt_iop_gui_update_blending(module);
       }
-      module->blend_params->forms_count--;
-      for (int i=pos; i<module->blend_params->forms_count; i++) module->blend_params->forms[i] = module->blend_params->forms[i+1];
-      dt_iop_gui_update_blending(module);
-  
       dt_control_queue_redraw_center();
-      dt_dev_add_history_item(darktable.develop, module, TRUE);
+      if (module) dt_dev_add_history_item(darktable.develop, module, TRUE);
       return 1;
     }
     form->points = g_list_delete_link(form->points,g_list_nth(form->points,gui->point_selected));
     gui->point_selected = -1;
     _curve_init_ctrl_points(form);
     
-    dt_masks_write_form(form,module->dev);
+    dt_masks_write_form(form,darktable.develop);
 
     //we recreate the form points
-    dt_masks_gui_form_remove(module,form,gui,index);
-    dt_masks_gui_form_create(module,form,gui,index);
+    dt_masks_gui_form_remove(form,gui,index);
+    dt_masks_gui_form_create(form,gui,index);
     
     //we save the move
-    dt_dev_add_history_item(darktable.develop, module, TRUE);
+    if (module) dt_dev_add_history_item(darktable.develop, module, TRUE);
     
     return 1;
   }
@@ -843,14 +853,14 @@ int dt_curve_events_button_released(struct dt_iop_module_t *module,float pzx, fl
       point->state = DT_MASKS_POINT_STATE_NORMAL;
       _curve_init_ctrl_points(form);
       
-      dt_masks_write_form(form,module->dev);
+      dt_masks_write_form(form,darktable.develop);
   
       //we recreate the form points
-      dt_masks_gui_form_remove(module,form,gui,index);
-      dt_masks_gui_form_create(module,form,gui,index);
+      dt_masks_gui_form_remove(form,gui,index);
+      dt_masks_gui_form_create(form,gui,index);
       
       //we save the move
-      dt_dev_add_history_item(darktable.develop, module, TRUE);
+      if (module) dt_dev_add_history_item(darktable.develop, module, TRUE);
     }
     return 1;
   }
@@ -863,14 +873,14 @@ int dt_curve_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float 
   int32_t zoom, closeup;
   DT_CTL_GET_GLOBAL(zoom, dev_zoom);
   DT_CTL_GET_GLOBAL(closeup, dev_closeup);
-  float zoom_scale = dt_dev_get_zoom_scale(module->dev, zoom, closeup ? 2 : 1, 1);
-  float as = 0.005f/zoom_scale*module->dev->preview_pipe->backbuf_width;
+  float zoom_scale = dt_dev_get_zoom_scale(darktable.develop, zoom, closeup ? 2 : 1, 1);
+  float as = 0.005f/zoom_scale*darktable.develop->preview_pipe->backbuf_width;
   dt_masks_form_gui_points_t *gpt = (dt_masks_form_gui_points_t *) g_list_nth_data(gui->points,index);
   
   if (gui->point_dragging >=0)
   {
-    float wd = module->dev->preview_pipe->backbuf_width;
-    float ht = module->dev->preview_pipe->backbuf_height;
+    float wd = darktable.develop->preview_pipe->backbuf_width;
+    float ht = darktable.develop->preview_pipe->backbuf_height;
     float pts[2] = {pzx*wd,pzy*ht};
     if (gui->creation && g_list_length(form->points)>3)
     {
@@ -885,10 +895,10 @@ int dt_curve_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float 
       }
     }
     
-    dt_dev_distort_backtransform(module->dev,pts,1);
+    dt_dev_distort_backtransform(darktable.develop,pts,1);
     dt_masks_point_curve_t *bzpt = (dt_masks_point_curve_t *)g_list_nth_data(form->points,gui->point_dragging);
-    pzx = pts[0]/module->dev->preview_pipe->iwidth;
-    pzy = pts[1]/module->dev->preview_pipe->iheight;
+    pzx = pts[0]/darktable.develop->preview_pipe->iwidth;
+    pzy = pts[1]/darktable.develop->preview_pipe->iheight;
     bzpt->ctrl1[0] += pzx - bzpt->corner[0];
     bzpt->ctrl2[0] += pzx - bzpt->corner[0];
     bzpt->ctrl1[1] += pzy - bzpt->corner[1];
@@ -897,8 +907,8 @@ int dt_curve_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float 
     bzpt->corner[1] = pzy;
     _curve_init_ctrl_points(form);
     //we recreate the form points
-    dt_masks_gui_form_remove(module,form,gui,index);
-    dt_masks_gui_form_create(module,form,gui,index);
+    dt_masks_gui_form_remove(form,gui,index);
+    dt_masks_gui_form_create(form,gui,index);
     dt_control_queue_redraw_center();
     return 1;
   }
@@ -908,12 +918,12 @@ int dt_curve_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float 
     int pos2 = (gui->seg_dragging+1)%g_list_length(form->points);
     dt_masks_point_curve_t *point = (dt_masks_point_curve_t *)g_list_nth_data(form->points,gui->seg_dragging);
     dt_masks_point_curve_t *point2 = (dt_masks_point_curve_t *)g_list_nth_data(form->points,pos2);
-    float wd = module->dev->preview_pipe->backbuf_width;
-    float ht = module->dev->preview_pipe->backbuf_height;
+    float wd = darktable.develop->preview_pipe->backbuf_width;
+    float ht = darktable.develop->preview_pipe->backbuf_height;
     float pts[2] = {pzx*wd+gui->dx,pzy*ht+gui->dy};
-    dt_dev_distort_backtransform(module->dev,pts,1);
-    float dx = pts[0]/module->dev->preview_pipe->iwidth - point->corner[0];
-    float dy = pts[1]/module->dev->preview_pipe->iheight - point->corner[1];
+    dt_dev_distort_backtransform(darktable.develop,pts,1);
+    float dx = pts[0]/darktable.develop->preview_pipe->iwidth - point->corner[0];
+    float dy = pts[1]/darktable.develop->preview_pipe->iheight - point->corner[1];
     
     //we move all points
     point->corner[0] += dx;
@@ -931,43 +941,43 @@ int dt_curve_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float 
     
     _curve_init_ctrl_points(form);
     
-    dt_masks_write_form(form,module->dev);
+    dt_masks_write_form(form,darktable.develop);
 
     //we recreate the form points
-    dt_masks_gui_form_remove(module,form,gui,index);
-    dt_masks_gui_form_create(module,form,gui,index);
+    dt_masks_gui_form_remove(form,gui,index);
+    dt_masks_gui_form_create(form,gui,index);
     
     dt_control_queue_redraw_center();
     return 1;
   }
   else if (gui->feather_dragging >= 0)
   {
-    float wd = module->dev->preview_pipe->backbuf_width;
-    float ht = module->dev->preview_pipe->backbuf_height;
+    float wd = darktable.develop->preview_pipe->backbuf_width;
+    float ht = darktable.develop->preview_pipe->backbuf_height;
     float pts[2] = {pzx*wd,pzy*ht};
-    dt_dev_distort_backtransform(module->dev,pts,1);
+    dt_dev_distort_backtransform(darktable.develop,pts,1);
     dt_masks_point_curve_t *point = (dt_masks_point_curve_t *)g_list_nth_data(form->points,gui->feather_dragging);
     
     int p1x,p1y,p2x,p2y;
-    _curve_feather_to_ctrl(point->corner[0]*module->dev->preview_pipe->iwidth,point->corner[1]*module->dev->preview_pipe->iheight,pts[0],pts[1],
+    _curve_feather_to_ctrl(point->corner[0]*darktable.develop->preview_pipe->iwidth,point->corner[1]*darktable.develop->preview_pipe->iheight,pts[0],pts[1],
                             &p1x,&p1y,&p2x,&p2y,gpt->clockwise);
-    point->ctrl1[0] = (float)p1x/module->dev->preview_pipe->iwidth;
-    point->ctrl1[1] = (float)p1y/module->dev->preview_pipe->iheight;
-    point->ctrl2[0] = (float)p2x/module->dev->preview_pipe->iwidth;
-    point->ctrl2[1] = (float)p2y/module->dev->preview_pipe->iheight;
+    point->ctrl1[0] = (float)p1x/darktable.develop->preview_pipe->iwidth;
+    point->ctrl1[1] = (float)p1y/darktable.develop->preview_pipe->iheight;
+    point->ctrl2[0] = (float)p2x/darktable.develop->preview_pipe->iwidth;
+    point->ctrl2[1] = (float)p2y/darktable.develop->preview_pipe->iheight;
     point->state = DT_MASKS_POINT_STATE_USER;
     
     _curve_init_ctrl_points(form);
     //we recreate the form points
-    dt_masks_gui_form_remove(module,form,gui,index);
-    dt_masks_gui_form_create(module,form,gui,index);
+    dt_masks_gui_form_remove(form,gui,index);
+    dt_masks_gui_form_create(form,gui,index);
     dt_control_queue_redraw_center();
     return 1;
   }
   else if (gui->point_border_dragging >= 0)
   {
-    float wd = module->dev->preview_pipe->backbuf_width;
-    float ht = module->dev->preview_pipe->backbuf_height;
+    float wd = darktable.develop->preview_pipe->backbuf_width;
+    float ht = darktable.develop->preview_pipe->backbuf_height;
     
     int k = gui->point_border_dragging;
     
@@ -979,25 +989,25 @@ int dt_curve_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float 
     pts[0] = (a*pzy*ht+pzx*wd-b*a)/(a*a+1.0);
     pts[1] = a*pts[0]+b;
     
-    dt_dev_distort_backtransform(module->dev,pts,1);
+    dt_dev_distort_backtransform(darktable.develop,pts,1);
     
     dt_masks_point_curve_t *point = (dt_masks_point_curve_t *)g_list_nth_data(form->points,k);
-    float nx = point->corner[0]*module->dev->preview_pipe->iwidth;
-    float ny = point->corner[1]*module->dev->preview_pipe->iheight;
+    float nx = point->corner[0]*darktable.develop->preview_pipe->iwidth;
+    float ny = point->corner[1]*darktable.develop->preview_pipe->iheight;
     float nr = sqrtf((pts[0]-nx)*(pts[0]-nx) + (pts[1]-ny)*(pts[1]-ny));
     
-    point->border[0] = point->border[1] = nr/fminf(module->dev->preview_pipe->iwidth,module->dev->preview_pipe->iheight);
+    point->border[0] = point->border[1] = nr/fminf(darktable.develop->preview_pipe->iwidth,darktable.develop->preview_pipe->iheight);
     
     //we recreate the form points
-    dt_masks_gui_form_remove(module,form,gui,index);
-    dt_masks_gui_form_create(module,form,gui,index);
+    dt_masks_gui_form_remove(form,gui,index);
+    dt_masks_gui_form_create(form,gui,index);
     dt_control_queue_redraw_center();
     return 1;
   }
   else if (gui->form_dragging)
   {
-    gui->posx = pzx*module->dev->preview_pipe->backbuf_width;
-    gui->posy = pzy*module->dev->preview_pipe->backbuf_height;
+    gui->posx = pzx*darktable.develop->preview_pipe->backbuf_width;
+    gui->posy = pzy*darktable.develop->preview_pipe->backbuf_height;
     dt_control_queue_redraw_center();
     return 1;
   }
@@ -1011,7 +1021,7 @@ int dt_curve_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float 
   //are we near a point or feather ?
   int nb = g_list_length(form->points);
 
-  pzx *= module->dev->preview_pipe->backbuf_width, pzy *= module->dev->preview_pipe->backbuf_height;
+  pzx *= darktable.develop->preview_pipe->backbuf_width, pzy *= darktable.develop->preview_pipe->backbuf_height;
   gui->feather_selected = -1;
   gui->point_selected = -1;
   for (int k=0;k<nb;k++)
@@ -1263,7 +1273,7 @@ int dt_curve_get_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt
     _curve_points_recurs(p1,p2,0.0,1.0,p1[0],p1[1],p2[0],p2[1],&rx,&ry,points,&pos);
   }
   
-  if (!dt_dev_distort_transform_plus(module->dev,piece->pipe,0,module->priority,points,pos/2))
+  if (!dt_dev_distort_transform_plus(darktable.develop,piece->pipe,0,module->priority,points,pos/2))
   {
     free(points);
     return 0;
@@ -1312,7 +1322,7 @@ int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt
   //we get buffers for all points
   float *points, *border;
   int points_count,border_count;
-  if (!_curve_get_points_border(module->dev,form,module->priority,piece->pipe,&points,&points_count,&border,&border_count)) return 0;
+  if (!_curve_get_points_border(darktable.develop,form,module->priority,piece->pipe,&points,&points_count,&border,&border_count)) return 0;
   
   //now we want to find the area, so we search min/max points
   float xmin, xmax, ymin, ymax;

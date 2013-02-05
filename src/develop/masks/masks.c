@@ -25,7 +25,7 @@
 #include "develop/masks/circle.c"
 #include "develop/masks/curve.c"
 #include "develop/masks/group.c"
-void dt_masks_gui_form_create(dt_iop_module_t *module, dt_masks_form_t *form, dt_masks_form_gui_t *gui, int index)
+void dt_masks_gui_form_create(dt_masks_form_t *form, dt_masks_form_gui_t *gui, int index)
 {
   if (g_list_length(gui->points) == index)
   {
@@ -36,13 +36,13 @@ void dt_masks_gui_form_create(dt_iop_module_t *module, dt_masks_form_t *form, dt
   dt_masks_form_gui_points_t *gpt = (dt_masks_form_gui_points_t *) g_list_nth_data(gui->points,index);
   gui->pipe_hash = gui->formid = gpt->points_count = gpt->border_count = 0;
   
-  if (dt_masks_get_points_border(module->dev,form, &gpt->points, &gpt->points_count,&gpt->border, &gpt->border_count,0,0))
+  if (dt_masks_get_points_border(darktable.develop,form, &gpt->points, &gpt->points_count,&gpt->border, &gpt->border_count,0,0))
   {
-    gui->pipe_hash = module->dev->preview_pipe->backbuf_hash;
+    gui->pipe_hash = darktable.develop->preview_pipe->backbuf_hash;
     gui->formid = form->formid;
   }
 }
-void dt_masks_gui_form_remove(dt_iop_module_t *module, dt_masks_form_t *form, dt_masks_form_gui_t *gui, int index)
+void dt_masks_gui_form_remove(dt_masks_form_t *form, dt_masks_form_gui_t *gui, int index)
 {
   dt_masks_form_gui_points_t *gpt = (dt_masks_form_gui_points_t *) g_list_nth_data(gui->points,index);
   gui->pipe_hash = gui->formid = gpt->points_count = gpt->border_count = 0;
@@ -52,12 +52,12 @@ void dt_masks_gui_form_remove(dt_iop_module_t *module, dt_masks_form_t *form, dt
   gpt->border = NULL;
 }
 
-void dt_masks_gui_form_update_border(dt_iop_module_t *module, dt_masks_form_t *form, dt_masks_form_gui_t *gui, int index)
+void dt_masks_gui_form_update_border(dt_masks_form_t *form, dt_masks_form_gui_t *gui, int index)
 {
   float *border;
   int border_count;
   
-  if (dt_masks_get_border(module->dev,form, &border, &border_count,0,0))
+  if (dt_masks_get_border(darktable.develop,form, &border, &border_count,0,0))
   {
     dt_masks_form_gui_points_t *gpt = (dt_masks_form_gui_points_t *) g_list_nth_data(gui->points,index);
     if (gpt->border) free(gpt->border);
@@ -66,12 +66,12 @@ void dt_masks_gui_form_update_border(dt_iop_module_t *module, dt_masks_form_t *f
   }
 }
 
-void dt_masks_gui_form_test_create(dt_iop_module_t *module, dt_masks_form_t *form, dt_masks_form_gui_t *gui)
+void dt_masks_gui_form_test_create(dt_masks_form_t *form, dt_masks_form_gui_t *gui)
 {
   //we test if the image has changed
   if (gui->pipe_hash > 0)
   {
-    if (gui->pipe_hash != module->dev->preview_pipe->backbuf_hash)
+    if (gui->pipe_hash != darktable.develop->preview_pipe->backbuf_hash)
     {
       gui->pipe_hash = gui->formid = 0;
       g_list_free(gui->points);
@@ -88,35 +88,40 @@ void dt_masks_gui_form_test_create(dt_iop_module_t *module, dt_masks_form_t *for
       while(fpts)
       {
         dt_masks_point_group_t *fpt = (dt_masks_point_group_t *) fpts->data;
-        dt_masks_form_t *sel = dt_masks_get_from_id(module->dev,fpt->formid);
-        dt_masks_gui_form_create(module,sel,gui,pos);
+        dt_masks_form_t *sel = dt_masks_get_from_id(darktable.develop,fpt->formid);
+        dt_masks_gui_form_create(sel,gui,pos);
         fpts = g_list_next(fpts);
         pos++;
       }
     }
-    else dt_masks_gui_form_create(module,form,gui,0);
+    else dt_masks_gui_form_create(form,gui,0);
   }
 }
 
 void dt_masks_gui_form_save_creation(dt_iop_module_t *module, dt_masks_form_t *form, dt_masks_form_gui_t *gui)
 {
-  module->dev->forms = g_list_append(module->dev->forms,form);
+  darktable.develop->forms = g_list_append(darktable.develop->forms,form);
   gui->creation = FALSE;
   
-  //update params
-  int forms_count = module->blend_params->forms_count;
-  module->blend_params->forms[forms_count] = form->formid;
-  module->blend_params->forms_state[forms_count] = DT_MASKS_STATE_SHOW | DT_MASKS_STATE_USE;
-  if (form->type == DT_MASKS_CIRCLE) snprintf(form->name,128,"circle #%d",forms_count);
-  else if (form->type == DT_MASKS_CURVE) snprintf(form->name,128,"curve #%d",forms_count);
-  dt_masks_write_form(form,module->dev);
-  module->blend_params->forms_count++;
+  int nb = g_list_length(darktable.develop->forms);
   
-  //update gui
-  dt_iop_gui_update_blending(module);
+  if (form->type == DT_MASKS_CIRCLE) snprintf(form->name,128,"circle #%d",nb);
+  else if (form->type == DT_MASKS_CURVE) snprintf(form->name,128,"curve #%d",nb);
+  dt_masks_write_form(form,darktable.develop);  
     
+  if (module)
+  {
+    //update params
+    int forms_count = module->blend_params->forms_count;
+    module->blend_params->forms[forms_count] = form->formid;
+    module->blend_params->forms_state[forms_count] = DT_MASKS_STATE_SHOW | DT_MASKS_STATE_USE;
+    module->blend_params->forms_count++;
+    
+    //update gui
+    dt_iop_gui_update_blending(module);
+  }
   //show the form if needed
-  module->dev->form_gui->formid = form->formid;
+  darktable.develop->form_gui->formid = form->formid;
 }
 
 int dt_masks_get_points(dt_develop_t *dev, dt_masks_form_t *form, float **points, int *points_count, float dx, float dy)
@@ -428,12 +433,11 @@ void dt_masks_free_form(dt_masks_form_t *form)
 
 int dt_masks_events_mouse_moved (struct dt_iop_module_t *module, double x, double y, int which)
 {
-  if (!module) return 0;
-  dt_masks_form_t *form = module->dev->form_visible;
-  dt_masks_form_gui_t *gui = module->dev->form_gui;
+  dt_masks_form_t *form = darktable.develop->form_visible;
+  dt_masks_form_gui_t *gui = darktable.develop->form_gui;
   
   float pzx, pzy;
-  dt_dev_get_pointer_zoom_pos(module->dev, x, y, &pzx, &pzy);
+  dt_dev_get_pointer_zoom_pos(darktable.develop, x, y, &pzx, &pzy);
   pzx += 0.5f;
   pzy += 0.5f;
   
@@ -445,12 +449,10 @@ int dt_masks_events_mouse_moved (struct dt_iop_module_t *module, double x, doubl
 }
 int dt_masks_events_button_released (struct dt_iop_module_t *module, double x, double y, int which, uint32_t state)
 {
-  if (!module) return 0;
-  
-  dt_masks_form_t *form = module->dev->form_visible;
-  dt_masks_form_gui_t *gui = module->dev->form_gui;
+  dt_masks_form_t *form = darktable.develop->form_visible;
+  dt_masks_form_gui_t *gui = darktable.develop->form_gui;
   float pzx, pzy;
-  dt_dev_get_pointer_zoom_pos(module->dev, x, y, &pzx, &pzy);
+  dt_dev_get_pointer_zoom_pos(darktable.develop, x, y, &pzx, &pzy);
   pzx += 0.5f;
   pzy += 0.5f;
   
@@ -463,11 +465,10 @@ int dt_masks_events_button_released (struct dt_iop_module_t *module, double x, d
 
 int dt_masks_events_button_pressed (struct dt_iop_module_t *module, double x, double y, int which, int type, uint32_t state)
 {
-  if (!module) return 0;
-  dt_masks_form_t *form = module->dev->form_visible;
-  dt_masks_form_gui_t *gui = module->dev->form_gui;  
+  dt_masks_form_t *form = darktable.develop->form_visible;
+  dt_masks_form_gui_t *gui = darktable.develop->form_gui;  
   float pzx, pzy;
-  dt_dev_get_pointer_zoom_pos(module->dev, x, y, &pzx, &pzy);
+  dt_dev_get_pointer_zoom_pos(darktable.develop, x, y, &pzx, &pzy);
   pzx += 0.5f;
   pzy += 0.5f;
       
@@ -480,9 +481,8 @@ int dt_masks_events_button_pressed (struct dt_iop_module_t *module, double x, do
 
 int dt_masks_events_mouse_scrolled (struct dt_iop_module_t *module, double x, double y, int up, uint32_t state)
 {
-  if (!module) return 0;
-  dt_masks_form_t *form = module->dev->form_visible;
-  dt_masks_form_gui_t *gui = module->dev->form_gui;
+  dt_masks_form_t *form = darktable.develop->form_visible;
+  dt_masks_form_gui_t *gui = darktable.develop->form_gui;
   
   if (form->type == DT_MASKS_CIRCLE) return dt_circle_events_mouse_scrolled(module,0.0,0.0,up,state,form,gui,0);
   else if (form->type == DT_MASKS_CURVE) return dt_curve_events_mouse_scrolled(module,0.0,0.0,up,state,form,gui,0);
@@ -492,10 +492,9 @@ int dt_masks_events_mouse_scrolled (struct dt_iop_module_t *module, double x, do
 }
 void dt_masks_events_post_expose (struct dt_iop_module_t *module, cairo_t *cr, int32_t width, int32_t height, int32_t pointerx, int32_t pointery)
 {
-  if (!module) return;
-  dt_develop_t *dev = module->dev;
-  dt_masks_form_t *form = module->dev->form_visible;
-  dt_masks_form_gui_t *gui = module->dev->form_gui;
+  dt_develop_t *dev = darktable.develop;
+  dt_masks_form_t *form = dev->form_visible;
+  dt_masks_form_gui_t *gui = dev->form_gui;
   if (!gui) return;
   if (!form) return;
   //if it's a spot in creation, nothing to draw
@@ -524,7 +523,7 @@ void dt_masks_events_post_expose (struct dt_iop_module_t *module, cairo_t *cr, i
   cairo_set_line_cap(cr,CAIRO_LINE_CAP_ROUND);
 
   //we update the form if needed
-  dt_masks_gui_form_test_create(module,form,gui);
+  dt_masks_gui_form_test_create(form,gui);
     
   //draw form
   if (form->type == DT_MASKS_CIRCLE) dt_circle_events_post_expose(cr,zoom_scale,gui,0);
@@ -542,6 +541,7 @@ void dt_masks_init_formgui(dt_develop_t *dev)
   dev->form_gui->point_border_selected = dev->form_gui->seg_selected = dev->form_gui->point_selected = dev->form_gui->feather_selected = -1;
   dev->form_gui->point_border_dragging = dev->form_gui->seg_dragging = dev->form_gui->feather_dragging = dev->form_gui->point_dragging = -1;
   dev->form_gui->creation_closing_form = dev->form_gui->creation = FALSE;
+  dev->form_gui->creation_module = NULL;
   
   dev->form_gui->group_edited = -1;
   dev->form_gui->group_selected = -1;
@@ -628,6 +628,7 @@ static void _menu_add_circle(GtkButton *button, struct dt_iop_module_t *module)
   dt_masks_init_formgui(darktable.develop);
   darktable.develop->form_visible = spot;
   darktable.develop->form_gui->creation = TRUE;
+  darktable.develop->form_gui->creation_module = module;
   dt_control_queue_redraw_center();
 }
 static void _menu_add_curve(GtkButton *button, struct dt_iop_module_t *module)
@@ -639,6 +640,7 @@ static void _menu_add_curve(GtkButton *button, struct dt_iop_module_t *module)
   dt_masks_init_formgui(darktable.develop);
   darktable.develop->form_visible = form;
   darktable.develop->form_gui->creation = TRUE;
+  darktable.develop->form_gui->creation_module = module;
   dt_control_queue_redraw_center();
 }
 static void _menu_add_exist(GtkButton *button, dt_masks_form_t *form)

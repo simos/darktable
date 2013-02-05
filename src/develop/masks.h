@@ -135,6 +135,7 @@ typedef struct dt_masks_form_gui_t
 
   gboolean creation;
   gboolean creation_closing_form;
+  dt_iop_module_t *creation_module;
   
   //ids
   int formid;
@@ -176,10 +177,10 @@ int dt_masks_events_mouse_scrolled (struct dt_iop_module_t *module, double x, do
 void dt_masks_events_post_expose (struct dt_iop_module_t *module, cairo_t *cr, int32_t width, int32_t height, int32_t pointerx, int32_t pointery);
 
 /** functions used to manipulate gui datas */
-void dt_masks_gui_form_create (struct dt_iop_module_t *module, dt_masks_form_t *form, dt_masks_form_gui_t *gui,int index);
-void dt_masks_gui_form_remove (struct dt_iop_module_t *module, dt_masks_form_t *form, dt_masks_form_gui_t *gui, int index);
-void dt_masks_gui_form_update_border (struct dt_iop_module_t *module, dt_masks_form_t *form, dt_masks_form_gui_t *gui, int index);
-void dt_masks_gui_form_test_create (struct dt_iop_module_t *module, dt_masks_form_t *form, dt_masks_form_gui_t *gui);
+void dt_masks_gui_form_create (dt_masks_form_t *form, dt_masks_form_gui_t *gui,int index);
+void dt_masks_gui_form_remove (dt_masks_form_t *form, dt_masks_form_gui_t *gui, int index);
+void dt_masks_gui_form_update_border (dt_masks_form_t *form, dt_masks_form_gui_t *gui, int index);
+void dt_masks_gui_form_test_create (dt_masks_form_t *form, dt_masks_form_gui_t *gui);
 void dt_masks_gui_form_save_creation (struct dt_iop_module_t *module, dt_masks_form_t *form, dt_masks_form_gui_t *gui);
 
 void dt_masks_iop_edit_toggle_callback(GtkWidget *widget, struct dt_iop_module_t *module);

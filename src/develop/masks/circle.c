@@ -74,18 +74,18 @@ int dt_circle_events_mouse_scrolled(struct dt_iop_module_t *module, float pzx, f
     {
       if(up && circle->border > 0.002f) circle->border *= 0.9f;
       else  if(circle->border < 1.0f  ) circle->border *= 1.0f/0.9f;
-      dt_masks_write_form(form,module->dev);
-      dt_masks_gui_form_update_border(module,form,gui,index);
+      dt_masks_write_form(form,darktable.develop);
+      dt_masks_gui_form_update_border(form,gui,index);
     }
     else
     {
       if(up && circle->radius > 0.002f) circle->radius *= 0.9f;
       else  if(circle->radius < 1.0f  ) circle->radius *= 1.0f/0.9f;
-      dt_masks_write_form(form,module->dev);
-      dt_masks_gui_form_remove(module,form,gui,index);
-      dt_masks_gui_form_create(module,form,gui,index);
+      dt_masks_write_form(form,darktable.develop);
+      dt_masks_gui_form_remove(form,gui,index);
+      dt_masks_gui_form_create(form,gui,index);
     }
-    dt_dev_add_history_item(darktable.develop, module, TRUE);
+    if (module) dt_dev_add_history_item(darktable.develop, module, TRUE);
     return 1;
   }
   return 0;
@@ -101,42 +101,41 @@ int dt_circle_events_button_pressed(struct dt_iop_module_t *module,float pzx, fl
     dt_masks_form_gui_points_t *gpt = (dt_masks_form_gui_points_t *) g_list_nth_data(gui->points,index);
     //we start the form dragging
     gui->form_dragging = TRUE;
-    gui->posx = pzx*module->dev->preview_pipe->backbuf_width;
-    gui->posy = pzy*module->dev->preview_pipe->backbuf_height;
+    gui->posx = pzx*darktable.develop->preview_pipe->backbuf_width;
+    gui->posy = pzy*darktable.develop->preview_pipe->backbuf_height;
     gui->dx = gpt->points[0] - gui->posx;
     gui->dy = gpt->points[1] - gui->posy;
     return 1;
   }
   else if (gui->creation)
   {
+    dt_iop_module_t *crea_module = gui->creation_module;
     //we create the circle
     dt_masks_point_circle_t *circle = (dt_masks_point_circle_t *) (malloc(sizeof(dt_masks_point_circle_t)));
     
     //we change the center value
     
-    float wd = module->dev->preview_pipe->backbuf_width;
-    float ht = module->dev->preview_pipe->backbuf_height;
+    float wd = darktable.develop->preview_pipe->backbuf_width;
+    float ht = darktable.develop->preview_pipe->backbuf_height;
     float pts[2] = {pzx*wd,pzy*ht};
-    dt_dev_distort_backtransform(module->dev,pts,1);
-    circle->center[0] = pts[0]/module->dev->preview_pipe->iwidth;
-    circle->center[1] = pts[1]/module->dev->preview_pipe->iheight;
+    dt_dev_distort_backtransform(darktable.develop,pts,1);
+    circle->center[0] = pts[0]/darktable.develop->preview_pipe->iwidth;
+    circle->center[1] = pts[1]/darktable.develop->preview_pipe->iheight;
     circle->radius = 0.1f;
     circle->border = 0.05f;
     form->points = g_list_append(form->points,circle);
     
-    dt_masks_gui_form_save_creation(module,form,gui);
+    dt_masks_gui_form_save_creation(crea_module,form,gui);
     
-    //we recreate the form points
-    //dt_masks_gui_form_remove(module,form,gui,index);
-    //dt_masks_gui_form_create(module,form,gui,index);
-    
-    //we save the move
-    dt_dev_add_history_item(darktable.develop, module, TRUE);
-    
-    //and we switch in edit mode to show all the forms
-    dt_masks_set_edit_mode(module, TRUE);
-    dt_iop_gui_update_blending(module);
-    
+    if (crea_module)
+    {    
+      //we save the move
+      dt_dev_add_history_item(darktable.develop, crea_module, TRUE);
+      //and we switch in edit mode to show all the forms
+      dt_masks_set_edit_mode(crea_module, TRUE);
+      dt_iop_gui_update_blending(crea_module);
+      gui->creation_module = NULL;
+    }
     return 1;
   }
   return 0;
@@ -154,20 +153,20 @@ int dt_circle_events_button_released(struct dt_iop_module_t *module,float pzx, f
     gui->form_dragging = FALSE;
     
     //we change the center value
-    float wd = module->dev->preview_pipe->backbuf_width;
-    float ht = module->dev->preview_pipe->backbuf_height;
+    float wd = darktable.develop->preview_pipe->backbuf_width;
+    float ht = darktable.develop->preview_pipe->backbuf_height;
     float pts[2] = {pzx*wd+gui->dx,pzy*ht+gui->dy};
-    dt_dev_distort_backtransform(module->dev,pts,1);
-    circle->center[0] = pts[0]/module->dev->preview_pipe->iwidth;
-    circle->center[1] = pts[1]/module->dev->preview_pipe->iheight;
-    dt_masks_write_form(form,module->dev);
+    dt_dev_distort_backtransform(darktable.develop,pts,1);
+    circle->center[0] = pts[0]/darktable.develop->preview_pipe->iwidth;
+    circle->center[1] = pts[1]/darktable.develop->preview_pipe->iheight;
+    dt_masks_write_form(form,darktable.develop);
 
     //we recreate the form points
-    dt_masks_gui_form_remove(module,form,gui,index);
-    dt_masks_gui_form_create(module,form,gui,index);
+    dt_masks_gui_form_remove(form,gui,index);
+    dt_masks_gui_form_create(form,gui,index);
     
     //we save the move
-    dt_dev_add_history_item(darktable.develop, module, TRUE);
+    if (module) dt_dev_add_history_item(darktable.develop, module, TRUE);
     
     return 1;
   }
@@ -178,8 +177,8 @@ int dt_circle_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float
 {
   if (gui->form_dragging)
   {
-    gui->posx = pzx*module->dev->preview_pipe->backbuf_width;
-    gui->posy = pzy*module->dev->preview_pipe->backbuf_height;
+    gui->posx = pzx*darktable.develop->preview_pipe->backbuf_width;
+    gui->posy = pzy*darktable.develop->preview_pipe->backbuf_height;
     dt_control_queue_redraw_center();
     return 1;
   }
@@ -188,10 +187,10 @@ int dt_circle_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float
     int32_t zoom, closeup;
     DT_CTL_GET_GLOBAL(zoom, dev_zoom);
     DT_CTL_GET_GLOBAL(closeup, dev_closeup);
-    float zoom_scale = dt_dev_get_zoom_scale(module->dev, zoom, closeup ? 2 : 1, 1);
-    float as = 0.005f/zoom_scale*module->dev->preview_pipe->backbuf_width;
+    float zoom_scale = dt_dev_get_zoom_scale(darktable.develop, zoom, closeup ? 2 : 1, 1);
+    float as = 0.005f/zoom_scale*darktable.develop->preview_pipe->backbuf_width;
     int in,inb,near;
-    dt_circle_get_distance(pzx*module->dev->preview_pipe->backbuf_width,pzy*module->dev->preview_pipe->backbuf_height,as,gui,index,&in,&inb,&near);
+    dt_circle_get_distance(pzx*darktable.develop->preview_pipe->backbuf_width,pzy*darktable.develop->preview_pipe->backbuf_height,as,gui,index,&in,&inb,&near);
     if (inb)
     {
       gui->form_selected = TRUE;
@@ -339,7 +338,7 @@ int dt_circle_get_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, d
   }
   
   //and we transform them with all distorted modules
-  if (!dt_dev_distort_transform_plus(module->dev,piece->pipe,0,module->priority,points,l+1))
+  if (!dt_dev_distort_transform_plus(darktable.develop,piece->pipe,0,module->priority,points,l+1))
   {
     free(points);
     return 0;
@@ -385,7 +384,7 @@ int dt_circle_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, d
     }
     
   //we back transform all this points
-  if (!dt_dev_distort_backtransform_plus(module->dev,piece->pipe,0,module->priority,points,w*h)) return 0;
+  if (!dt_dev_distort_backtransform_plus(darktable.develop,piece->pipe,0,module->priority,points,w*h)) return 0;
   
   //we allocate the buffer
   *buffer = malloc(w*h*sizeof(float));

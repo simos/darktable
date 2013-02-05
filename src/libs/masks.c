@@ -60,6 +60,30 @@ int position()
   return 10;
 }
 
+static void _tree_add_circle(GtkButton *button, dt_iop_module_t *module)
+{
+  //we create the new form
+  dt_masks_form_t *spot = dt_masks_create(DT_MASKS_CIRCLE);
+  dt_masks_init_formgui(darktable.develop);
+  darktable.develop->form_visible = spot;
+  darktable.develop->form_gui->creation = TRUE;
+  darktable.develop->form_gui->creation_module = module;
+  darktable.develop->form_gui->group_selected = 0;
+  dt_control_queue_redraw_center();
+}
+
+static void _tree_add_curve(GtkButton *button, dt_iop_module_t *module)
+{
+  //we create the new form
+  dt_masks_form_t *spot = dt_masks_create(DT_MASKS_CURVE);
+  dt_masks_init_formgui(darktable.develop);
+  darktable.develop->form_visible = spot;
+  darktable.develop->form_gui->creation = TRUE;
+  darktable.develop->form_gui->creation_module = module;
+  darktable.develop->form_gui->group_selected = 0;
+  dt_control_queue_redraw_center();
+}
+
 static int _tree_button_pressed (GtkWidget *treeview, GdkEventButton *event, gpointer userdata)
 {
   /* single click with the right mouse button? */
@@ -68,19 +92,29 @@ static int _tree_button_pressed (GtkWidget *treeview, GdkEventButton *event, gpo
     //we first need to adjust selection
     GtkTreeSelection *selection;
     selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(treeview));
-
-    if (gtk_tree_selection_count_selected_rows(selection)  <= 1)
+    GtkTreeModel *model = gtk_tree_view_get_model(GTK_TREE_VIEW(treeview));
+    
+    GtkTreePath *path = NULL;
+    GtkTreeIter iter;
+    dt_iop_module_t *module = NULL;
+    int from_base = 0;
+    if (gtk_tree_view_get_path_at_pos(GTK_TREE_VIEW(treeview), (gint) event->x, (gint) event->y, &path, NULL, NULL, NULL))
     {
-       GtkTreePath *path;
-       if (gtk_tree_view_get_path_at_pos(GTK_TREE_VIEW(treeview),
-                                         (gint) event->x, 
-                                         (gint) event->y,
-                                         &path, NULL, NULL, NULL))
-       {
-         if (!(event->state & GDK_CONTROL_MASK)) gtk_tree_selection_unselect_all(selection);
-         gtk_tree_selection_select_path(selection, path);
-         gtk_tree_path_free(path);
-       }
+      //we retrive the iter and module from path
+      if (gtk_tree_model_get_iter (model,&iter,path))
+      {
+        GValue gv = {0,};
+        gtk_tree_model_get_value (model,&iter,1,&gv);
+        module = g_value_peek_pointer(&gv);
+      }
+      //if this is a primary node, then no selection change
+      if (gtk_tree_path_get_depth(path) > 1)
+      {
+        if (!(event->state & GDK_CONTROL_MASK)) gtk_tree_selection_unselect_all(selection);
+        gtk_tree_selection_select_path(selection, path);
+        gtk_tree_path_free(path);
+      }
+      else from_base = 1;
     }
     
     //and we display the context-menu
@@ -89,9 +123,10 @@ static int _tree_button_pressed (GtkWidget *treeview, GdkEventButton *event, gpo
     
     //we get all infos from selection
     int nb = gtk_tree_selection_count_selected_rows(selection);
+    if (nb == 0) return 0;
     int from_all = 0;
     int from_group = 0;
-    int from_base = 0;
+    
     GtkTreePath *it0 = (GtkTreePath *)g_list_nth_data(gtk_tree_selection_get_selected_rows(selection,NULL),0);
     int *indices = gtk_tree_path_get_indices (it0);
     int depth = gtk_tree_path_get_depth (it0);
@@ -102,11 +137,11 @@ static int _tree_button_pressed (GtkWidget *treeview, GdkEventButton *event, gpo
     if (from_base)
     {
       item = gtk_menu_item_new_with_label(_("add circle shape"));
-      //g_signal_connect(item, "activate",(GCallback) view_popup_menu_onDoSomething, treeview);
+      g_signal_connect(item, "activate",(GCallback) _tree_add_circle, module);
       gtk_menu_append(menu, item);
       
       item = gtk_menu_item_new_with_label(_("add curve shape"));
-      //g_signal_connect(item, "activate",(GCallback) view_popup_menu_onDoSomething, treeview);
+      g_signal_connect(item, "activate",(GCallback) _tree_add_curve, module);
       gtk_menu_append(menu, item);
       
       if (!from_all)
@@ -186,9 +221,10 @@ static int _tree_button_pressed (GtkWidget *treeview, GdkEventButton *event, gpo
       item = gtk_menu_item_new_with_label(_("group the forms"));
       //g_signal_connect(item, "activate",(GCallback) view_popup_menu_onDoSomething, treeview);
       gtk_menu_append(menu, item);
+      gtk_menu_append(menu, gtk_separator_menu_item_new());
     }
     
-    gtk_menu_append(menu, gtk_separator_menu_item_new());
+    
     
     if (from_group || !from_all)
     {
@@ -259,18 +295,19 @@ static void _lib_masks_recreate_list(dt_lib_module_t *self)
   
   GtkTreeStore *treestore;
   GtkTreeIter toplevel, child;
-  treestore = gtk_tree_store_new(1, G_TYPE_STRING);
+  //we store : text ; *module ; formid
+  treestore = gtk_tree_store_new(3, G_TYPE_STRING, G_TYPE_POINTER, G_TYPE_INT);
   
   //first, we display the "all shapes" entry
   gtk_tree_store_append(treestore, &toplevel, NULL);
-  gtk_tree_store_set(treestore, &toplevel,0, _("all created shapes"),-1);
+  gtk_tree_store_set(treestore, &toplevel,0, _("all created shapes"),1,NULL,2,0,-1);
 
   GList *forms = g_list_first(darktable.develop->forms);
   while (forms)
   {
     dt_masks_form_t *form = (dt_masks_form_t *)forms->data;
     gtk_tree_store_append(treestore, &child, &toplevel);
-    gtk_tree_store_set(treestore, &child, 0, form->name, -1);
+    gtk_tree_store_set(treestore, &child, 0, form->name,1,NULL,2,form->formid, -1);
     forms = g_list_next(forms);
   }
   
@@ -285,14 +322,14 @@ static void _lib_masks_recreate_list(dt_lib_module_t *self)
     {
       //we create the entry
       gtk_tree_store_append(treestore, &toplevel, NULL);
-      gtk_tree_store_set(treestore, &toplevel,0, module->name(),-1);
+      gtk_tree_store_set(treestore, &toplevel,0, module->name(),1,module,2,0,-1);
       //ad we populate it
       for (int i=0; i<module->blend_params->forms_count; i++)
       {
         dt_masks_form_t *form = dt_masks_get_from_id(module->dev,module->blend_params->forms[i]);
         if (!form) continue;
         gtk_tree_store_append(treestore, &child, &toplevel);
-        gtk_tree_store_set(treestore, &child, 0, form->name, -1);
+        gtk_tree_store_set(treestore, &child, 0, form->name,1,module,2,form->formid, -1);
       }
       if (module == darktable.develop->gui_module) act = pos;
     }
