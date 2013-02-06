@@ -135,6 +135,8 @@ typedef struct dt_develop_t
       struct dt_lib_module_t *module;
       /* switch module */
       void (*switch_module)(struct dt_lib_module_t *self);
+      /* selected forms change */
+      void (*selection_change)(struct dt_lib_module_t *self);
     }
     masks;
     
@@ -221,6 +223,7 @@ void dt_dev_average_delay_update(const dt_times_t *start, uint32_t *average_dela
  * masks plugin hooks
  */
 void dt_dev_masks_switch_module(dt_develop_t *dev);
+void dt_dev_masks_selection_change(dt_develop_t *dev);
  
 /*
  * multi instances

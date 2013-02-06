@@ -547,6 +547,14 @@ void dt_masks_init_formgui(dt_develop_t *dev)
   dev->form_gui->group_selected = -1;
 }
 
+void dt_masks_change_form_gui(dt_masks_form_t *newform)
+{
+  dt_masks_init_formgui(darktable.develop);
+  darktable.develop->form_visible = newform;
+  //and we say to masks manager that the selection has changed
+  dt_dev_masks_selection_change(darktable.develop);
+}
+
 void dt_masks_set_edit_mode(struct dt_iop_module_t *module,gboolean value)
 {
   dt_iop_gui_blend_data_t *bd = (dt_iop_gui_blend_data_t *)module->blend_data;
@@ -555,7 +563,7 @@ void dt_masks_set_edit_mode(struct dt_iop_module_t *module,gboolean value)
   if (value)
   {
     grp = dt_masks_create(DT_MASKS_GROUP);
-    
+    grp->formid = 0;
     for (int i=0; i<module->blend_params->forms_count; i++)
     {
       dt_masks_point_group_t *fpt = (dt_masks_point_group_t *) malloc(sizeof(dt_masks_point_group_t));
@@ -565,8 +573,7 @@ void dt_masks_set_edit_mode(struct dt_iop_module_t *module,gboolean value)
     }
   }
   gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(bd->masks_edit),value);
-  dt_masks_init_formgui(module->dev);
-  module->dev->form_visible = grp;
+  dt_masks_change_form_gui(grp);
   dt_control_queue_redraw_center();
 }
 
@@ -578,7 +585,7 @@ void dt_masks_iop_edit_toggle_callback(GtkWidget *widget, dt_iop_module_t *modul
   if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(widget)))
   {
     grp = dt_masks_create(DT_MASKS_GROUP);
-    
+    grp->formid = 0;
     for (int i=0; i<module->blend_params->forms_count; i++)
     {
       dt_masks_point_group_t *fpt = (dt_masks_point_group_t *) malloc(sizeof(dt_masks_point_group_t));
@@ -588,8 +595,7 @@ void dt_masks_iop_edit_toggle_callback(GtkWidget *widget, dt_iop_module_t *modul
     }
   }
   //reset the gui
-  dt_masks_init_formgui(module->dev);
-  module->dev->form_visible = grp;
+  dt_masks_change_form_gui(grp);
   dt_control_queue_redraw_center();
 }
 
@@ -625,8 +631,7 @@ static void _menu_add_circle(GtkButton *button, struct dt_iop_module_t *module)
   dt_iop_request_focus(module);
   //we create the new form
   dt_masks_form_t *spot = dt_masks_create(DT_MASKS_CIRCLE);
-  dt_masks_init_formgui(darktable.develop);
-  darktable.develop->form_visible = spot;
+  dt_masks_change_form_gui(spot);
   darktable.develop->form_gui->creation = TRUE;
   darktable.develop->form_gui->creation_module = module;
   dt_control_queue_redraw_center();
@@ -637,8 +642,7 @@ static void _menu_add_curve(GtkButton *button, struct dt_iop_module_t *module)
   dt_iop_request_focus(module);
   //we create the new form
   dt_masks_form_t *form = dt_masks_create(DT_MASKS_CURVE);
-  dt_masks_init_formgui(darktable.develop);
-  darktable.develop->form_visible = form;
+  dt_masks_change_form_gui(form);
   darktable.develop->form_gui->creation = TRUE;
   darktable.develop->form_gui->creation_module = module;
   dt_control_queue_redraw_center();

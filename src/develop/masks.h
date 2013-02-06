@@ -169,6 +169,7 @@ void dt_masks_free_form(dt_masks_form_t *form);
 
 /** function used to manipulate forms for masks */
 void dt_masks_init_formgui(dt_develop_t *dev);
+void dt_masks_change_form_gui(dt_masks_form_t *newform);
 
 int dt_masks_events_mouse_moved (struct dt_iop_module_t *module, double x, double y, int which);
 int dt_masks_events_button_released (struct dt_iop_module_t *module, double x, double y, int which, uint32_t state);
