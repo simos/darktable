@@ -554,9 +554,6 @@ int dt_curve_events_button_pressed(struct dt_iop_module_t *module,float pzx, flo
         gui->point_dragging = -1;
         _curve_init_ctrl_points(form);
 
-        //dt_masks_gui_form_remove(module,form,gui,index);
-        //dt_masks_gui_form_create(module,form,gui,index);
-      
         //we save the form and quit creation mode
         dt_masks_gui_form_save_creation(crea_module,form,gui);
         if (crea_module)

@@ -84,6 +84,46 @@ static void _tree_add_curve(GtkButton *button, dt_iop_module_t *module)
   dt_control_queue_redraw_center();
 }
 
+static void  _tree_selection_change (GtkTreeSelection *selection,GtkWidget *treeview)
+{
+  //if selection empty, we hide all
+  int nb = gtk_tree_selection_count_selected_rows(selection);
+  if (nb == 0)
+  {
+    dt_masks_init_formgui(darktable.develop);
+    darktable.develop->form_visible = NULL;    
+    dt_control_queue_redraw_center();
+    return;
+  }
+  
+  //else, we create a new from group with the selection and display it
+  GtkTreeModel *model = gtk_tree_view_get_model(GTK_TREE_VIEW(treeview));
+  dt_masks_form_t *grp = dt_masks_create(DT_MASKS_GROUP);
+  GList *items = g_list_first(gtk_tree_selection_get_selected_rows(selection,NULL));
+  while(items)
+  {
+    GtkTreePath *item = (GtkTreePath *)items->data;
+    GtkTreeIter iter;
+    if (gtk_tree_model_get_iter (model,&iter,item))
+    {
+      GValue gv = {0,};
+      gtk_tree_model_get_value (model,&iter,2,&gv);
+      int id = g_value_get_int(&gv);
+      if (id > 0)
+      {
+        dt_masks_point_group_t *fpt = (dt_masks_point_group_t *) malloc(sizeof(dt_masks_point_group_t));
+        fpt->formid = id;
+        fpt->state = DT_MASKS_STATE_USE;
+        grp->points = g_list_append(grp->points,fpt);
+      }
+    }
+    items = g_list_next(items); 
+  }
+  dt_masks_init_formgui(darktable.develop);
+  darktable.develop->form_visible = grp;    
+  dt_control_queue_redraw_center();   
+}
+
 static int _tree_button_pressed (GtkWidget *treeview, GdkEventButton *event, gpointer userdata)
 {
   /* single click with the right mouse button? */
@@ -364,7 +404,7 @@ static void _lib_masks_recreate_list(dt_lib_module_t *self)
   
   gtk_box_pack_start(GTK_BOX(self->widget), sw, TRUE, TRUE, 1);
 
-  //g_signal_connect(selection, "changed", G_CALLBACK(on_changed), statusbar);
+  g_signal_connect(selection, "changed", G_CALLBACK(_tree_selection_change), view);
   g_signal_connect(view, "button-press-event", (GCallback) _tree_button_pressed, NULL);
     
   /* show all widgets */
