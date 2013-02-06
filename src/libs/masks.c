@@ -31,6 +31,7 @@
 
 DT_MODULE(1)
 
+static void _lib_masks_recreate_list(dt_lib_module_t *self);
 
 typedef struct dt_lib_masks_t
 {
@@ -84,7 +85,96 @@ static void _tree_add_curve(GtkButton *button, dt_iop_module_t *module)
   dt_control_queue_redraw_center();
 }
 
-static void  _tree_selection_change (GtkTreeSelection *selection,dt_lib_masks_t *self)
+static void _tree_delete_shape(GtkButton *button, dt_lib_module_t *self)
+{
+  dt_lib_masks_t *lm = (dt_lib_masks_t *)self->data;
+  
+  //we first discard all visible shapes
+  dt_masks_init_formgui(darktable.develop);
+  darktable.develop->form_visible = NULL;
+  
+  //now we go throught all selected nodes
+  GtkTreeModel *model = gtk_tree_view_get_model(GTK_TREE_VIEW(lm->treeview));
+  GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(lm->treeview));
+  dt_iop_module_t *module = NULL;
+  lm->gui_reset = 1;
+  GList *items = g_list_first(gtk_tree_selection_get_selected_rows(selection,NULL));
+  while(items)
+  {
+    GtkTreePath *item = (GtkTreePath *)items->data;
+    GtkTreeIter iter;
+    if (gtk_tree_model_get_iter (model,&iter,item))
+    {
+      GValue gv = {0,};
+      gtk_tree_model_get_value (model,&iter,2,&gv);
+      int id = g_value_get_int(&gv);
+      GValue gv2 = {0,};
+      gtk_tree_model_get_value (model,&iter,1,&gv2);
+      if (G_VALUE_TYPE(&gv2) == G_TYPE_POINTER)
+      {
+        module = (dt_iop_module_t *)g_value_get_pointer(&gv2);
+      }
+      if (module)
+      {
+        int ok = 0;
+        for (int i=0; i<module->blend_params->forms_count; i++)
+        {
+          if (module->blend_params->forms[i] == id) ok = 1;
+          if (ok) module->blend_params->forms[i] = module->blend_params->forms[i+1];
+        }
+        if (ok)
+        {
+          module->blend_params->forms_count--;
+          dt_iop_gui_update_blending(module);
+          dt_dev_add_history_item(darktable.develop, module, TRUE);
+        }
+      }
+      else
+      {
+        //we drop the form from all modules
+        GList *iops = g_list_first(darktable.develop->iop);
+        while(iops)
+        {
+          dt_iop_module_t *m = (dt_iop_module_t *)iops->data;
+          if (m->flags() & IOP_FLAGS_SUPPORTS_BLENDING)
+          {
+            int ok = 0;
+            for (int i=0; i<m->blend_params->forms_count; i++)
+            {
+              if (m->blend_params->forms[i] == id) ok = 1;
+              if (ok) m->blend_params->forms[i] = m->blend_params->forms[i+1];
+            }
+            if (ok)
+            {
+              m->blend_params->forms_count--;
+              dt_iop_gui_update_blending(m);
+              dt_dev_add_history_item(darktable.develop, m, TRUE);
+            }
+          }
+          iops = g_list_next(iops);
+        }
+        //we drop the form from the general list
+        GList *forms = g_list_first(darktable.develop->forms);
+        while (forms)
+        {
+          dt_masks_form_t *form = (dt_masks_form_t *)forms->data;
+          if (form->formid == id)
+          {
+            darktable.develop->forms = g_list_remove(darktable.develop->forms,form);
+            dt_masks_write_forms(darktable.develop);
+            break;
+          }
+          forms = g_list_next(forms);
+        }
+      }
+    }
+    items = g_list_next(items);
+  }
+  lm->gui_reset = 0;
+  _lib_masks_recreate_list(self);
+}
+
+static void _tree_selection_change (GtkTreeSelection *selection,dt_lib_masks_t *self)
 {
   if (self->gui_reset) return;
   //if selection empty, we hide all
@@ -125,14 +215,15 @@ static void  _tree_selection_change (GtkTreeSelection *selection,dt_lib_masks_t 
   dt_control_queue_redraw_center();   
 }
 
-static int _tree_button_pressed (GtkWidget *treeview, GdkEventButton *event, gpointer userdata)
+static int _tree_button_pressed (GtkWidget *treeview, GdkEventButton *event, dt_lib_module_t *self)
 {
+  //dt_lib_masks_t *lm = (dt_lib_masks_t *)self->data;
+  
   /* single click with the right mouse button? */
   if (event->type == GDK_BUTTON_PRESS  &&  event->button == 3)
   {
     //we first need to adjust selection
-    GtkTreeSelection *selection;
-    selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(treeview));
+    GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(treeview));
     GtkTreeModel *model = gtk_tree_view_get_model(GTK_TREE_VIEW(treeview));
     
     GtkTreePath *path = NULL;
@@ -151,9 +242,13 @@ static int _tree_button_pressed (GtkWidget *treeview, GdkEventButton *event, gpo
       //if this is a primary node, then no selection change
       if (gtk_tree_path_get_depth(path) > 1)
       {
-        if (!(event->state & GDK_CONTROL_MASK)) gtk_tree_selection_unselect_all(selection);
-        gtk_tree_selection_select_path(selection, path);
-        gtk_tree_path_free(path);
+        //if we are already inside the selection, no change
+        if (!gtk_tree_selection_path_is_selected(selection,path))
+        {
+          if (!(event->state & GDK_CONTROL_MASK)) gtk_tree_selection_unselect_all(selection);
+          gtk_tree_selection_select_path(selection, path);
+          gtk_tree_path_free(path);
+        }
       }
       else from_base = 1;
     }
@@ -245,13 +340,13 @@ static int _tree_button_pressed (GtkWidget *treeview, GdkEventButton *event, gpo
     if (from_all)
     {
       item = gtk_menu_item_new_with_label(_("delete this shape"));
-      //g_signal_connect(item, "activate",(GCallback) view_popup_menu_onDoSomething, treeview);
+      g_signal_connect(item, "activate",(GCallback) _tree_delete_shape, self);
       gtk_menu_append(menu, item);
     }
     else
     {
       item = gtk_menu_item_new_with_label(_("remove from module"));
-      //g_signal_connect(item, "activate",(GCallback) view_popup_menu_onDoSomething, treeview);
+      g_signal_connect(item, "activate",(GCallback) _tree_delete_shape, self);
       gtk_menu_append(menu, item);
     }
     
@@ -264,8 +359,7 @@ static int _tree_button_pressed (GtkWidget *treeview, GdkEventButton *event, gpo
       gtk_menu_append(menu, item);
       gtk_menu_append(menu, gtk_separator_menu_item_new());
     }
-    
-    
+        
     
     if (from_group || !from_all)
     {
@@ -334,6 +428,7 @@ static void _lib_masks_recreate_list(dt_lib_module_t *self)
 
   /* first destroy all buttons in list */
   dt_lib_masks_t *lm = (dt_lib_masks_t *)self->data;
+  if (lm->gui_reset) return;
   
   gtk_container_foreach(GTK_CONTAINER(self->widget),(GtkCallback)gtk_widget_destroy,0);
   
@@ -411,7 +506,7 @@ static void _lib_masks_recreate_list(dt_lib_module_t *self)
   gtk_box_pack_start(GTK_BOX(self->widget), sw, TRUE, TRUE, 1);
 
   g_signal_connect(selection, "changed", G_CALLBACK(_tree_selection_change), lm);
-  g_signal_connect(lm->treeview, "button-press-event", (GCallback) _tree_button_pressed, NULL);
+  g_signal_connect(lm->treeview, "button-press-event", (GCallback) _tree_button_pressed, self);
     
   /* show all widgets */
   gtk_widget_show_all(sw);
