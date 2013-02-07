@@ -227,13 +227,6 @@ int dt_film_new(dt_film_t *film, const char *directory)
   return film->id;
 }
 
-void dt_film_image_import(dt_film_t *film,const char *filename, gboolean override_ignore_jpegs)
-{
-  // import an image into filmroll
-  if(dt_image_import(film->id, filename, override_ignore_jpegs))
-    dt_control_queue_redraw_center();
-}
-
 static int
 dt_film_import_blocking(const char *dirname, const int blocking)
 {
@@ -488,14 +481,16 @@ void dt_film_import1(dt_film_t *film)
     }
 
     /* import image */
-    if(dt_image_import(cfr->id, (const gchar *)image->data, FALSE))
-      dt_control_queue_redraw_center();
+    dt_image_import(cfr->id, (const gchar *)image->data, FALSE);
 
     fraction+=1.0/total;
     dt_control_backgroundjobs_progress(darktable.control, jid, fraction);
 
   }
   while( (image = g_list_next(image)) != NULL);
+
+  // only redraw at the end, to not spam the cpu with exposure events
+  dt_control_queue_redraw_center();
 
   dt_control_backgroundjobs_destroy(darktable.control, jid);
   //dt_control_signal_raise(darktable.signals , DT_SIGNAL_FILMROLLS_IMPORTED);
