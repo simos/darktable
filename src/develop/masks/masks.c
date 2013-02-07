@@ -191,6 +191,10 @@ int dt_masks_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt
   {
     return dt_curve_get_mask(module,piece,form,buffer,width,height,posx,posy);
   }
+  else if (form->type == DT_MASKS_GROUP)
+  {
+    return dt_group_get_mask(module,piece,form,buffer,width,height,posx,posy);
+  }
   return 0; 
 }
 

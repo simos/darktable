@@ -155,7 +155,66 @@ int dt_group_get_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt
 
 int dt_group_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, float **buffer, int *width, int *height, int *posx, int *posy)
 {
-  return 0;
+  //we allocate buffers and values
+  const int nb = g_list_length(form->points);
+  if (nb == 0) return 0;
+  float* bufs[nb];
+  int w[nb];
+  int h[nb];
+  int px[nb];
+  int py[nb];
+  int ok[nb];
+  
+  //and we get all masks
+  GList *fpts = g_list_first(form->points);
+  int pos = 0;
+  int nb_ok = 0;
+  while(fpts)
+  {
+    dt_masks_point_group_t *fpt = (dt_masks_point_group_t *) fpts->data;
+    dt_masks_form_t *sel = dt_masks_get_from_id(darktable.develop,fpt->formid);
+    if (sel)
+    {
+      ok[pos] = dt_masks_get_mask(module,piece,sel,&bufs[pos],&w[pos],&h[pos],&px[pos],&py[pos]);
+      if (ok[pos]) nb_ok++;
+    }
+    fpts = g_list_next(fpts);
+    pos++;
+  }
+  if (nb_ok == 0) return 0;
+  
+  //now we get the min, max, width, heigth of the final mask
+  int l,r,t,b;
+  l = t = INT_MAX;
+  r = b = INT_MIN;
+  for (int i=0; i<nb; i++)
+  {
+    l = MIN(l,px[i]);
+    t = MIN(t,py[i]);
+    r = MAX(r,px[i]+w[i]);
+    b = MAX(b,py[i]+h[i]);
+  }
+  *posx = l;
+  *posy = t;
+  *width = r-l;
+  *height = b-t;
+  
+  //we allocate the buffer
+  *buffer = malloc(sizeof(float)*(r-l)*(b-t));
+  
+  //and we copy each buffer inside, row by row
+  for (int i=0; i<nb; i++)
+  {
+    for (int y=0; y<h[i]; y++)
+    {
+      for (int x=0; x<w[i]; x++)
+      {
+        (*buffer)[(py[i]+y-t)*(r-l)+px[i]+x-l] = fmaxf((*buffer)[(py[i]+y-t)*(r-l)+px[i]+x-l],bufs[i][y*w[i]+x]);
+      }
+    }
+  }
+  
+  return 1;
 }
 
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
