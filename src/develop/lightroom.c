@@ -1008,7 +1008,7 @@ void dt_lightroom_import (int imgid, dt_develop_t *dev, gboolean iauto)
         if (ps.num_spots == MAX_SPOTS) break;
         riNode = riNode->next;
       }
-    }*/
+    }
     else if (dev != NULL && !xmlStrcmp(entryNode->name, (const xmlChar *) "ToneCurvePV2012"))
     {
       xmlNodePtr tcNode = entryNode;
