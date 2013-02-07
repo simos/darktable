@@ -570,10 +570,32 @@ void dt_masks_set_edit_mode(struct dt_iop_module_t *module,gboolean value)
     grp->formid = 0;
     for (int i=0; i<module->blend_params->forms_count; i++)
     {
-      dt_masks_point_group_t *fpt = (dt_masks_point_group_t *) malloc(sizeof(dt_masks_point_group_t));
-      fpt->formid = module->blend_params->forms[i];
-      fpt->state = module->blend_params->forms_state[i];
-      grp->points = g_list_append(grp->points,fpt);
+      int id = module->blend_params->forms[i];
+      //we get the corresponding form
+      dt_masks_form_t *form = dt_masks_get_from_id(darktable.develop,id);
+      if (form)
+      {
+        if (form->type == DT_MASKS_GROUP)
+        {
+          GList *sforms = g_list_first(form->points);
+          while(sforms)
+          {
+            dt_masks_point_group_t *fpt = (dt_masks_point_group_t *)sforms->data;
+            dt_masks_point_group_t *fpt2 = (dt_masks_point_group_t *) malloc(sizeof(dt_masks_point_group_t));
+            fpt2->formid = fpt->formid;
+            fpt2->state = module->blend_params->forms_state[i];
+            grp->points = g_list_append(grp->points,fpt2);
+            sforms = g_list_next(sforms);
+          }
+        }
+        else
+        {
+          dt_masks_point_group_t *fpt = (dt_masks_point_group_t *) malloc(sizeof(dt_masks_point_group_t));
+          fpt->formid = id;
+          fpt->state = module->blend_params->forms_state[i];
+          grp->points = g_list_append(grp->points,fpt);
+        }
+      }
     }
   }
   gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(bd->masks_edit),value);
@@ -592,10 +614,32 @@ void dt_masks_iop_edit_toggle_callback(GtkWidget *widget, dt_iop_module_t *modul
     grp->formid = 0;
     for (int i=0; i<module->blend_params->forms_count; i++)
     {
-      dt_masks_point_group_t *fpt = (dt_masks_point_group_t *) malloc(sizeof(dt_masks_point_group_t));
-      fpt->formid = module->blend_params->forms[i];
-      fpt->state = module->blend_params->forms_state[i];
-      grp->points = g_list_append(grp->points,fpt);
+      int id = module->blend_params->forms[i];
+      //we get the corresponding form
+      dt_masks_form_t *form = dt_masks_get_from_id(darktable.develop,id);
+      if (form)
+      {
+        if (form->type == DT_MASKS_GROUP)
+        {
+          GList *sforms = g_list_first(form->points);
+          while(sforms)
+          {
+            dt_masks_point_group_t *fpt = (dt_masks_point_group_t *)sforms->data;
+            dt_masks_point_group_t *fpt2 = (dt_masks_point_group_t *) malloc(sizeof(dt_masks_point_group_t));
+            fpt2->formid = fpt->formid;
+            fpt2->state = module->blend_params->forms_state[i];
+            grp->points = g_list_append(grp->points,fpt2);
+            sforms = g_list_next(sforms);
+          }
+        }
+        else
+        {
+          dt_masks_point_group_t *fpt = (dt_masks_point_group_t *) malloc(sizeof(dt_masks_point_group_t));
+          fpt->formid = id;
+          fpt->state = module->blend_params->forms_state[i];
+          grp->points = g_list_append(grp->points,fpt);
+        }
+      }
     }
   }
   //reset the gui
