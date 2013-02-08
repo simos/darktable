@@ -535,7 +535,7 @@ static void _lib_masks_recreate_list(dt_lib_module_t *self)
   while(iops)
   {
     dt_iop_module_t *module = (dt_iop_module_t *)iops->data;
-    if (module->flags() & IOP_FLAGS_SUPPORTS_BLENDING)
+    if ((module->flags() & IOP_FLAGS_SUPPORTS_BLENDING) && module->blend_params->forms_count > 0)
     {
       //we create the entry
       gtk_tree_store_append(treestore, &toplevel, NULL);
