@@ -174,12 +174,12 @@ static void _curve_points_recurs(float *p1, float *p2,
   //we calcul points if needed
   if (curve_min[0] == -99999)
   {
-    _curve_border_get_XY(p1[0],p1[1],p1[2],p1[3],p2[2],p2[3],p2[0],p2[1],tmin, p1[4]+(p2[4]-p1[4])*tmin,
+    _curve_border_get_XY(p1[0],p1[1],p1[2],p1[3],p2[2],p2[3],p2[0],p2[1],tmin, p1[4]+(p2[4]-p1[4])*tmin*tmin*(3.0-2.0*tmin),
                           curve_min,curve_min+1,border_min,border_min+1);
   }
   if (curve_max[0] == -99999)
   {
-    _curve_border_get_XY(p1[0],p1[1],p1[2],p1[3],p2[2],p2[3],p2[0],p2[1],tmax, p1[4]+(p2[4]-p1[4])*tmax,
+    _curve_border_get_XY(p1[0],p1[1],p1[2],p1[3],p2[2],p2[3],p2[0],p2[1],tmax, p1[4]+(p2[4]-p1[4])*tmax*tmax*(3.0-2.0*tmax),
                           curve_max,curve_max+1,border_max,border_max+1);
   }
   //are the point near ? (we just test y as it's the value we use for rendering
@@ -289,8 +289,8 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
     (*border)[posb++] = rb[0];
     (*border)[posb++] = rb[1];
     border_init[k*6+4] = -posb;
-    border_init[k*6] = (*border)[pos_border[k]];
-    border_init[k*6+1] = (*border)[pos_border[k]+1];
+    (*border)[k*6] = border_init[k*6] = (*border)[pos_border[k]];
+    (*border)[k*6+1] = border_init[k*6+1] = (*border)[pos_border[k]+1];
   }
   *points_count = pos/2;
   gettimeofday(&tv3,NULL);
@@ -587,6 +587,11 @@ int dt_curve_events_button_pressed(struct dt_iop_module_t *module,float pzx, flo
           dt_masks_set_edit_mode(crea_module, TRUE);
           dt_iop_gui_update_blending(crea_module);
           gui->creation_module = NULL;
+        }
+        else
+        {
+          dt_masks_gui_form_remove(form,gui,index);
+          dt_masks_gui_form_create(form,gui,index);
         }
         dt_control_queue_redraw_center();
       }
@@ -1239,19 +1244,19 @@ void dt_curve_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_form_gu
       }
       
       //the execute the drawing
-      if ((gui->group_selected == index) && (gui->border_selected)) cairo_set_line_width(cr, 2.0/zoom_scale);
+      if (gui->border_selected) cairo_set_line_width(cr, 2.0/zoom_scale);
       else                                     cairo_set_line_width(cr, 1.0/zoom_scale);
       cairo_set_source_rgba(cr, .3, .3, .3, .8);
       cairo_set_dash(cr, dashed, len, 0);
       cairo_stroke_preserve(cr);
-      if ((gui->group_selected == index) && (gui->border_selected)) cairo_set_line_width(cr, 2.0/zoom_scale);
+      if (gui->border_selected) cairo_set_line_width(cr, 2.0/zoom_scale);
       else                                     cairo_set_line_width(cr, 1.0/zoom_scale);
       cairo_set_source_rgba(cr, .8, .8, .8, .8);
       cairo_set_dash(cr, dashed, len, 4);
       cairo_stroke(cr);
       
       //draw the point
-      if ((gui->group_selected == index) && (gui->point_border_selected == k))
+      if (gui->point_border_selected == k)
       {
         anchor_size = 7.0f / zoom_scale;
       }
@@ -1266,7 +1271,7 @@ void dt_curve_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_form_gu
           anchor_size, anchor_size);
       cairo_fill_preserve(cr);
   
-      if ((gui->group_selected == index) && (gui->point_border_selected == k)) cairo_set_line_width(cr, 2.0/zoom_scale);
+      if (gui->point_border_selected == k) cairo_set_line_width(cr, 2.0/zoom_scale);
       else cairo_set_line_width(cr, 1.0/zoom_scale);
       cairo_set_source_rgba(cr, .3, .3, .3, .8);
       cairo_set_dash(cr, dashed, 0, 0);
