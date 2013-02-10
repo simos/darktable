@@ -684,7 +684,9 @@ int dt_curve_events_button_pressed(struct dt_iop_module_t *module,float pzx, flo
         bzpt->border[0] = bzpt->border[1] = 0.05;
         form->points = g_list_insert(form->points,bzpt,gui->seg_selected+1);
         _curve_init_ctrl_points(form);
-        gui->point_dragging  = gui->point_selected = gui->seg_selected+1;
+        dt_masks_gui_form_remove(form,gui,index);
+        dt_masks_gui_form_create(form,gui,index);
+        gui->point_edited = gui->point_dragging  = gui->point_selected = gui->seg_selected+1;
         gui->seg_selected = -1;
         dt_control_queue_redraw_center();
       }
@@ -1048,7 +1050,7 @@ int dt_curve_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float 
   int nb = g_list_length(form->points);
 
   pzx *= darktable.develop->preview_pipe->backbuf_width, pzy *= darktable.develop->preview_pipe->backbuf_height;
-  gui->feather_selected = -1;
+
   if ((gui->group_selected == index) && gui->point_edited >= 0)
   {
     int k = gui->point_edited;
@@ -1060,7 +1062,13 @@ int dt_curve_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float 
       dt_control_queue_redraw_center();
       return 1;
     }
-    else return 0;
+    //corner ??
+    if (pzx-gpt->points[k*6+2]>-as && pzx-gpt->points[k*6+2]<as && pzy-gpt->points[k*6+3]>-as && pzy-gpt->points[k*6+3]<as)
+    {
+      gui->point_selected = k;
+      dt_control_queue_redraw_center();
+      return 1;
+    }
   }
 
   for (int k=0;k<nb;k++)
