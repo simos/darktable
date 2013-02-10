@@ -546,6 +546,7 @@ void dt_masks_init_formgui(dt_develop_t *dev)
   dev->form_gui->point_border_dragging = dev->form_gui->seg_dragging = dev->form_gui->feather_dragging = dev->form_gui->point_dragging = -1;
   dev->form_gui->creation_closing_form = dev->form_gui->creation = FALSE;
   dev->form_gui->creation_module = NULL;
+  dev->form_gui->point_edited = -1;
   
   dev->form_gui->group_edited = -1;
   dev->form_gui->group_selected = -1;

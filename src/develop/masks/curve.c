@@ -222,8 +222,8 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
   float wd = pipe->iwidth, ht = pipe->iheight;
   
   //we allocate buffer (very large) => how to handle this ???
-  *points = malloc(60000*sizeof(float));
-  *border = malloc(60000*sizeof(float));
+  *points = malloc(600000*sizeof(float));
+  *border = malloc(600000*sizeof(float));
   
   gettimeofday(&tv3,NULL);
   printf("malloc %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
@@ -638,6 +638,7 @@ int dt_curve_events_button_pressed(struct dt_iop_module_t *module,float pzx, flo
     else if (gui->form_selected)
     {
       gui->form_dragging = TRUE;
+      gui->point_edited = -1;
       gui->posx = pzx*darktable.develop->preview_pipe->backbuf_width;
       gui->posy = pzy*darktable.develop->preview_pipe->backbuf_height;
       gui->dx = gpt->points[2] - gui->posx;
@@ -646,7 +647,7 @@ int dt_curve_events_button_pressed(struct dt_iop_module_t *module,float pzx, flo
     }
     else if (gui->point_selected >= 0)
     {
-      gui->point_dragging  = gui->point_selected;
+      gui->point_edited = gui->point_dragging  = gui->point_selected;
       dt_control_queue_redraw_center();
       return 1;
     }
@@ -658,12 +659,14 @@ int dt_curve_events_button_pressed(struct dt_iop_module_t *module,float pzx, flo
     }
     else if (gui->point_border_selected >= 0)
     {
+      gui->point_edited = -1;
       gui->point_border_dragging = gui->point_border_selected;
       dt_control_queue_redraw_center();
       return 1;
     }
     else if (gui->seg_selected >= 0)
     {
+      gui->point_edited = -1;
       if ((state&GDK_CONTROL_MASK) == GDK_CONTROL_MASK)
       {
         //we add a new point to the curve
@@ -696,7 +699,8 @@ int dt_curve_events_button_pressed(struct dt_iop_module_t *module,float pzx, flo
       }
       return 1;
     }
-  }
+    gui->point_edited = -1;
+  }  
   return 0;
 }
 
@@ -1045,10 +1049,9 @@ int dt_curve_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float 
 
   pzx *= darktable.develop->preview_pipe->backbuf_width, pzy *= darktable.develop->preview_pipe->backbuf_height;
   gui->feather_selected = -1;
-  gui->point_selected = -1;
-  for (int k=0;k<nb;k++)
+  if ((gui->group_selected == index) && gui->point_edited >= 0)
   {
-    //feather ???
+    int k = gui->point_edited;
     int ffx,ffy;
     _curve_ctrl2_to_feather(gpt->points[k*6+2],gpt->points[k*6+3],gpt->points[k*6+4],gpt->points[k*6+5],&ffx,&ffy,gpt->clockwise);
     if (pzx-ffx>-as && pzx-ffx<as && pzy-ffy>-as && pzy-ffy<as)
@@ -1057,7 +1060,11 @@ int dt_curve_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float 
       dt_control_queue_redraw_center();
       return 1;
     }
-    
+    else return 0;
+  }
+
+  for (int k=0;k<nb;k++)
+  {
     //corner ??
     if (pzx-gpt->points[k*6+2]>-as && pzx-gpt->points[k*6+2]<as && pzy-gpt->points[k*6+3]>-as && pzy-gpt->points[k*6+3]<as)
     {
@@ -1166,8 +1173,9 @@ void dt_curve_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_form_gu
   }
   
   //draw feathers
-  for(int k = 0; k < nb; k++)
+  if ((gui->group_selected == index) && gui->point_edited >= 0)
   {
+    int k = gui->point_edited;
     //uncomment this part if you want to see "real" control points
     /*cairo_move_to(cr, gui->points[k*6+2]+dx,gui->points[k*6+3]+dy);
     cairo_line_to(cr, gui->points[k*6]+dx,gui->points[k*6+1]+dy);

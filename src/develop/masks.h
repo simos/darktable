@@ -119,6 +119,7 @@ typedef struct dt_masks_form_gui_t
   gboolean form_selected;
   gboolean border_selected;
   int point_selected;
+  int point_edited;
   int feather_selected;
   int seg_selected;
   int point_border_selected;

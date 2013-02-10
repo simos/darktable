@@ -99,6 +99,8 @@ int dt_group_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float 
     if (sel->type == DT_MASKS_CIRCLE) rep = dt_circle_events_mouse_moved(module,pzx,pzy,which,sel,gui,gui->group_edited);
     else if (sel->type == DT_MASKS_CURVE) rep = dt_curve_events_mouse_moved(module,pzx,pzy,which,sel,gui,gui->group_edited);
     if (rep) return 1;
+    //if a point is in state editing, then we don't want that another form can be selected
+    if (gui->point_edited >= 0) return 0;
   }
   
   //now we check if we are near a form
@@ -106,7 +108,7 @@ int dt_group_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float 
   int pos = 0;
   gui->form_selected = gui->border_selected = FALSE;
   gui->feather_selected  = -1;
-  gui->point_selected = -1;
+  gui->point_edited = gui->point_selected = -1;
   gui->seg_selected = -1;
   gui->point_border_selected = -1;
   gui->group_edited = gui->group_selected = -1;
