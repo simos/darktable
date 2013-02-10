@@ -183,11 +183,11 @@ static void _curve_points_recurs(float *p1, float *p2,
                           curve_max,curve_max+1,border_max,border_max+1);
   }
   //are the point near ? (we just test y as it's the value we use for rendering
-  if ((tmax-tmin < 0.000001) || (curve_min[0]-curve_max[0]<=1 && curve_min[0]-curve_max[0]>=-1 &&
-      curve_min[1]-curve_max[1]<=1 && curve_min[1]-curve_max[1]>=-1 &&
+  if ((tmax-tmin < 0.000001) || ((int)curve_min[0]-(int)curve_max[0]<2 && (int)curve_min[0]-(int)curve_max[0]>-2 &&
+      (int)curve_min[1]-(int)curve_max[1]<2 && (int)curve_min[1]-(int)curve_max[1]>-2 &&
       (!withborder || (
-      border_min[0]-border_max[0]<=1 && border_min[0]-border_max[0]>=-1 &&
-      border_min[1]-border_max[1]<=1 && border_min[1]-border_max[1]>=-1))))
+      (int)border_min[0]-(int)border_max[0]<2 && (int)border_min[0]-(int)border_max[0]>-2 &&
+      (int)border_min[1]-(int)border_max[1]<2 && (int)border_min[1]-(int)border_max[1]>-2))))
   {
     curve[*pos_curve] = curve_max[0];
     curve[*pos_curve+1] = curve_max[1];
@@ -213,12 +213,21 @@ static void _curve_points_recurs(float *p1, float *p2,
 static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, int prio_max, dt_dev_pixelpipe_t *pipe, 
                                       float **points, int *points_count, float **border, int *border_count)
 {
+  struct timeval tv1,tv2,tv3;
+  //struct timezone tz;
+  //long diff;
+  gettimeofday(&tv1,NULL);
+  gettimeofday(&tv2,NULL);
+  
   float wd = pipe->iwidth, ht = pipe->iheight;
   
   //we allocate buffer (very large) => how to handle this ???
   *points = malloc(60000*sizeof(float));
   *border = malloc(60000*sizeof(float));
   
+  gettimeofday(&tv3,NULL);
+  printf("malloc %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
+  tv2 = tv3;
   //we store all points
   int nb = g_list_length(form->points);
   for(int k = 0; k < nb; k++)
@@ -249,6 +258,9 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
   float *border_init = malloc(sizeof(float)*6*nb);
   int cw = _curve_is_clockwise(form);
   if (cw == 0) cw = -1;
+  gettimeofday(&tv3,NULL);
+  printf("corners %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
+  tv2 = tv3;
   //we render all segments
   for(int k = 0; k < nb; k++)
   {
@@ -281,7 +293,9 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
     border_init[k*6+1] = (*border)[pos_border[k]+1];
   }
   *points_count = pos/2;
-  
+  gettimeofday(&tv3,NULL);
+  printf("points %ld %d\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec), *points_count);
+  tv2 = tv3;
   //now we have do do some adujstements for the border (self-intersecting and gap due to sharp corner)
   for(int k = 0; k < nb; k++)
   {
@@ -355,7 +369,9 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
       }
     }
   }
-  
+  gettimeofday(&tv3,NULL);
+  printf("self-intersect %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
+  tv2 = tv3;
   *border_count = posb/2;
   free(pos_curve);
   free(pos_border);  
@@ -363,12 +379,18 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
   //and we transform them with all distorted modules
   if (dt_dev_distort_transform_plus(dev,pipe,0,prio_max,*points,*points_count) && dt_dev_distort_transform_plus(dev,pipe,0,prio_max,*border,*border_count))
   {
+    gettimeofday(&tv3,NULL);
+  printf("transform %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
+  tv2 = tv3;
     //memcpy(*border,border_init,sizeof(float)*6*nb);
     //we don't want to copy the falloff points
     for(int k = 0; k < nb; k++)
     {
       for (int i=2; i<6; i++) (*border)[k*6+i] = border_init[k*6+i]; 
     }
+    gettimeofday(&tv3,NULL);
+  printf("cpy corners %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
+  tv2 = tv3;
     free(border_init);
     return 1;
   }
@@ -380,17 +402,19 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
   free(*border);
   *border = NULL;
   *border_count = 0;
-  return 0; 
+  return 0;  
 }
 
 void dt_curve_get_distance(float x, int y, float as, dt_masks_form_gui_t *gui, int index, int corner_count, int *inside, int *inside_border, int *near)
 {
+  if (!gui) return;
   //we first check if it's inside borders
   int nb = 0;
   int last = -9999;
   *inside_border = 0;
   *near = -1;
   dt_masks_form_gui_points_t *gpt = (dt_masks_form_gui_points_t *) g_list_nth_data(gui->points,index);
+  if (!gpt) return;
   
   for (int i=corner_count*3; i<gpt->border_count; i++)
   {
@@ -564,6 +588,7 @@ int dt_curve_events_button_pressed(struct dt_iop_module_t *module,float pzx, flo
           dt_iop_gui_update_blending(crea_module);
           gui->creation_module = NULL;
         }
+        dt_control_queue_redraw_center();
       }
     }
   }
