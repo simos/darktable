@@ -288,28 +288,28 @@ static int _tree_button_pressed (GtkWidget *treeview, GdkEventButton *event, dt_
     GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(treeview));
     GtkTreeModel *model = gtk_tree_view_get_model(GTK_TREE_VIEW(treeview));
     
-    GtkTreePath *path = NULL;
+    GtkTreePath *mouse_path = NULL;
     GtkTreeIter iter;
     dt_iop_module_t *module = NULL;
     int from_base = 0;
-    if (gtk_tree_view_get_path_at_pos(GTK_TREE_VIEW(treeview), (gint) event->x, (gint) event->y, &path, NULL, NULL, NULL))
+    if (gtk_tree_view_get_path_at_pos(GTK_TREE_VIEW(treeview), (gint) event->x, (gint) event->y, &mouse_path, NULL, NULL, NULL))
     {
       //we retrive the iter and module from path
-      if (gtk_tree_model_get_iter (model,&iter,path))
+      if (gtk_tree_model_get_iter (model,&iter,mouse_path))
       {
         GValue gv = {0,};
         gtk_tree_model_get_value (model,&iter,1,&gv);
         module = g_value_peek_pointer(&gv);
       }
       //if this is a primary node, then no selection change
-      if (gtk_tree_path_get_depth(path) > 1)
+      if (gtk_tree_path_get_depth(mouse_path) > 1)
       {
         //if we are already inside the selection, no change
-        if (!gtk_tree_selection_path_is_selected(selection,path))
+        if (!gtk_tree_selection_path_is_selected(selection,mouse_path))
         {
           if (!(event->state & GDK_CONTROL_MASK)) gtk_tree_selection_unselect_all(selection);
-          gtk_tree_selection_select_path(selection, path);
-          gtk_tree_path_free(path);
+          gtk_tree_selection_select_path(selection, mouse_path);
+          gtk_tree_path_free(mouse_path);
         }
       }
       else from_base = 1;
@@ -321,11 +321,13 @@ static int _tree_button_pressed (GtkWidget *treeview, GdkEventButton *event, dt_
     
     //we get all infos from selection
     int nb = gtk_tree_selection_count_selected_rows(selection);
-    if (nb == 0) return 0;
+    //if (nb == 0) return 0;
     int from_all = 0;
     int from_group = 0;
     
-    GtkTreePath *it0 = (GtkTreePath *)g_list_nth_data(gtk_tree_selection_get_selected_rows(selection,NULL),0);
+    GtkTreePath *it0;
+    if (from_base) it0 = mouse_path;
+    else it0 = (GtkTreePath *)g_list_nth_data(gtk_tree_selection_get_selected_rows(selection,NULL),0);
     int *indices = gtk_tree_path_get_indices (it0);
     int depth = gtk_tree_path_get_depth (it0);
     if (depth > 2) from_group = 1;

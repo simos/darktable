@@ -53,6 +53,8 @@ static void _curve_border_get_XY(float p0x, float p0y, float p1x, float p1y, flo
   float l = 1.0/sqrtf(dx*dx+dy*dy);
   *xb = (*xc) + rad*dy*l;
   *yb = (*yc) - rad*dx*l;
+  if (*xb<0) *xb = 0;
+  if (*yb<0) *yb = 0;
 }
 
 //feather calculating (must be in "real" coordinate, to be sure everything is orthonormal)
@@ -220,7 +222,7 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
   gettimeofday(&tv2,NULL);
   
   float wd = pipe->iwidth, ht = pipe->iheight;
-  
+  printf("sizes : %f %f\n",wd,ht);
   //we allocate buffer (very large) => how to handle this ???
   *points = malloc(600000*sizeof(float));
   *border = malloc(600000*sizeof(float));
@@ -270,10 +272,6 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
     float p1[5] = {point1->corner[0]*wd, point1->corner[1]*ht, point1->ctrl2[0]*wd, point1->ctrl2[1]*ht, cw*point1->border[1]*MIN(wd,ht)};
     float p2[5] = {point2->corner[0]*wd, point2->corner[1]*ht, point2->ctrl1[0]*wd, point2->ctrl1[1]*ht, cw*point2->border[0]*MIN(wd,ht)};
     
-    //we store the first point
-    //(*points)[pos++] = p1[0];
-    //(*points)[pos++] = p1[1];
-    
     //and we determine all points by recursion (to be sure the distance between 2 points is <=1)
     float rc[2],rb[2];
     float bmin[2] = {-99999,-99999};
@@ -306,66 +304,84 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
     ymin = MIN((*border)[i*2+1],ymin);
     ymax = MAX((*border)[i*2+1],ymax);
   }
+  printf("min max %d %d %d %d\n",xmin,xmax,ymin,ymax);
+  if (xmin<0 || ymin<0 || xmax<0 || ymax<0)
+  {
+    xmin=xmax=ymin=ymax=0;
+    memset((*border)+nb*6,0,(600000-nb*6)*sizeof(float));
+    *border_count = nb*6;
+    printf("coucou\n");
+  }
+  
   const int hb = ymax-ymin+1;
   const int wb = xmax-xmin+1;
   const int ss = hb*wb;
-  int *binter = malloc(sizeof(int)*ss);
-  memset(binter,0,ss);
   int *intersections = malloc(sizeof(int)*nb*8);
   int inter_count = 0;
-  int lastx = (*border)[nb*6+(*border_count-1)*2];
-  int lasty = (*border)[nb*6+(*border_count-1)*2+1];
-  for (int i=nb*3; i < *border_count; i++)
+  if (0)
   {
-    int xx = (*border)[i*2];
-    int yy = (*border)[i*2+1];
-    int v = binter[(yy-ymin)*wb+(xx-xmin)];
-    if (v > 0)
+    printf("buff size %d %d\n",wb,hb);
+    int *binter = malloc(sizeof(int)*ss);
+    memset(binter,0,ss);
+    int lastx = (*border)[nb*6+(*border_count-1)*2];
+    int lasty = (*border)[nb*6+(*border_count-1)*2+1];
+    for (int i=nb*3; i < *border_count; i++)
     {
-      if ((xx == lastx && yy == lasty) || v == i-1)
+      if (inter_count >= nb*4) break;
+      int xx = (*border)[i*2];
+      int yy = (*border)[i*2+1];
+      int v = binter[(yy-ymin)*wb+(xx-xmin)];
+      if (v > 0)
       {
-        binter[(yy-ymin)*wb+(xx-xmin)] = i;
-        if (xx>xmin) binter[(yy-ymin)*wb+(xx-xmin-1)] = i;
-        if (yy>ymin) binter[(yy-ymin-1)*wb+(xx-xmin)] = i;
-      }
-      else
-      {
-        if (inter_count > 0)
+        if ((xx == lastx && yy == lasty) || v == i-1)
         {
-          if (intersections[inter_count*2-2] >= v && intersections[inter_count*2-1] <= i)
+          binter[(yy-ymin)*wb+(xx-xmin)] = i;
+          if (xx>xmin) binter[(yy-ymin)*wb+(xx-xmin-1)] = i;
+          if (yy>ymin) binter[(yy-ymin-1)*wb+(xx-xmin)] = i;
+        }
+        else
+        {
+          if (inter_count > 0)
           {
-            intersections[inter_count*2-2] = v;
-            intersections[inter_count*2-1] = i;
+            if (intersections[inter_count*2-2] >= v && intersections[inter_count*2-1] <= i)
+            {
+              intersections[inter_count*2-2] = v;
+              intersections[inter_count*2-1] = i;
+              printf("inser1 %d %d   %d %d\n",v,i,xx,yy);
+            }
+            else
+            {
+              intersections[inter_count*2] = v;
+              intersections[inter_count*2+1] = i;
+              printf("inser2 %d %d   %d %d\n",v,i,xx,yy);
+              inter_count++;
+            }
           }
           else
           {
             intersections[inter_count*2] = v;
             intersections[inter_count*2+1] = i;
+            printf("inser3 %d %d   %d %d\n",v,i,xx,yy);
             inter_count++;
           }
         }
-        else
-        {
-          intersections[inter_count*2] = v;
-          intersections[inter_count*2+1] = i;
-          inter_count++;
-        }
       }
+      else
+      {
+        binter[(yy-ymin)*wb+(xx-xmin)] = i;
+        if (xx>xmin) binter[(yy-ymin)*wb+(xx-xmin-1)] = i;
+        if (yy>ymin) binter[(yy-ymin-1)*wb+(xx-xmin)] = i;
+      }
+      lastx = xx;
+      lasty = yy;
+      
     }
-    else
-    {
-      binter[(yy-ymin)*wb+(xx-xmin)] = i;
-      if (xx>xmin) binter[(yy-ymin)*wb+(xx-xmin-1)] = i;
-      if (yy>ymin) binter[(yy-ymin-1)*wb+(xx-xmin)] = i;
-    }
-    lastx = xx;
-    lasty = yy;
+    
+    gettimeofday(&tv3,NULL);
+    printf("self-intersect3 %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
+    tv2 = tv3;
+    free(binter);
   }
-  
-  gettimeofday(&tv3,NULL);
-  printf("self-intersect3 %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
-  tv2 = tv3;
-  free(binter);
   //and we transform them with all distorted modules
   if (dt_dev_distort_transform_plus(dev,pipe,0,prio_max,*points,*points_count) && dt_dev_distort_transform_plus(dev,pipe,0,prio_max,*border,*border_count))
   {
