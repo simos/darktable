@@ -253,8 +253,6 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
   
   int pos = 6*nb;
   int posb = 6*nb;
-  int *pos_curve = malloc(sizeof(int)*nb);
-  int *pos_border = malloc(sizeof(int)*nb);
   float *border_init = malloc(sizeof(float)*6*nb);
   int cw = _curve_is_clockwise(form);
   if (cw == 0) cw = -1;
@@ -264,8 +262,7 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
   //we render all segments
   for(int k = 0; k < nb; k++)
   {
-    pos_curve[k] = pos;
-    pos_border[k] = posb;
+    int pb = posb;
     border_init[k*6+2] = -posb;
     int k2 = (k+1)%nb;
     dt_masks_point_curve_t *point1 = (dt_masks_point_curve_t *)g_list_nth_data(form->points,k);
@@ -289,93 +286,86 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
     (*border)[posb++] = rb[0];
     (*border)[posb++] = rb[1];
     border_init[k*6+4] = -posb;
-    (*border)[k*6] = border_init[k*6] = (*border)[pos_border[k]];
-    (*border)[k*6+1] = border_init[k*6+1] = (*border)[pos_border[k]+1];
+    (*border)[k*6] = border_init[k*6] = (*border)[pb];
+    (*border)[k*6+1] = border_init[k*6+1] = (*border)[pb+1];
   }
   *points_count = pos/2;
+  *border_count = posb/2;
   gettimeofday(&tv3,NULL);
   printf("points %ld %d\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec), *points_count);
   tv2 = tv3;
-  //now we have do do some adujstements for the border (self-intersecting and gap due to sharp corner)
-  for(int k = 0; k < nb; k++)
+
+  //we don't want the border to self-intersect
+  int xmin, xmax, ymin, ymax;
+  xmin = ymin = INT_MAX;
+  xmax = ymax = INT_MIN;
+  for (int i=nb*3; i < *border_count; i++)
   {
-    //is the corner convex ?
-    float p1x,p1y,p2x,p2y;
-    if (k == 0)
+    xmin = MIN((*border)[i*2],xmin);
+    xmax = MAX((*border)[i*2],xmax);
+    ymin = MIN((*border)[i*2+1],ymin);
+    ymax = MAX((*border)[i*2+1],ymax);
+  }
+  const int hb = ymax-ymin+1;
+  const int wb = xmax-xmin+1;
+  const int ss = hb*wb;
+  int *binter = malloc(sizeof(int)*ss);
+  memset(binter,0,ss);
+  int *intersections = malloc(sizeof(int)*nb*8);
+  int inter_count = 0;
+  int lastx = (*border)[nb*6+(*border_count-1)*2];
+  int lasty = (*border)[nb*6+(*border_count-1)*2+1];
+  for (int i=nb*3; i < *border_count; i++)
+  {
+    int xx = (*border)[i*2];
+    int yy = (*border)[i*2+1];
+    int v = binter[(yy-ymin)*wb+(xx-xmin)];
+    if (v > 0)
     {
-      p1x = (*points)[pos-6];
-      p1y = (*points)[pos-5];
-    }
-    else
-    {
-      p1x = (*points)[pos_curve[k]-6];
-      p1y = (*points)[pos_curve[k]-5];
-    }
-    p2x = (*points)[pos_curve[k]+6];
-    p2y = (*points)[pos_curve[k]+7];
-    float pdv = ((*points)[k*6+2]-p1x)*(p2y-(*points)[k*6+3]) - ((*points)[k*6+3]-p1y)*(p2x-(*points)[k*6+2]);
-    if (cw*pdv > 0)
-    {
-      //we have to be sure there is no gap
-    }
-    else
-    {
-      //we have to get ride of self intersection
-      //we want to find the intersection
-      int pos0,pos1,pos2,pos3 ;
-      if (k==0)
+      if ((xx == lastx && yy == lasty) || v == i-1)
       {
-        pos0 = pos_border[nb-1];
-        pos1 = pos;
-        pos2 = pos_border[0];
-        pos3 = pos_border[1];
-      }
-      else if (k == nb-1)
-      {
-        pos0 = pos_border[k-1];
-        pos1 = pos2 = pos_border[k];
-        pos3 = pos;
+        binter[(yy-ymin)*wb+(xx-xmin)] = i;
+        if (xx>xmin) binter[(yy-ymin)*wb+(xx-xmin-1)] = i;
+        if (yy>ymin) binter[(yy-ymin-1)*wb+(xx-xmin)] = i;
       }
       else
       {
-        pos0 = pos_border[k-1];
-        pos1 = pos2 = pos_border[k];
-        pos3 = pos_border[k+1];
-      }
-      int inter0 = 0, inter1 = 0;
-      for (int i=pos0 ; i<pos1 ; i+=2)
-      {
-        for (int j=pos3-2 ; j>pos2 ; j-=2)
+        if (inter_count > 0)
         {
-          if ((*border)[i]-(*border)[j]<=1 && (*border)[i]-(*border)[j]>=-1 &&
-              (*border)[i+1]-(*border)[j+1]<=1 && (*border)[i+1]-(*border)[j+1]>=-1)
+          if (intersections[inter_count*2-2] >= v && intersections[inter_count*2-1] <= i)
           {
-            inter1 = j;
-            break;
+            intersections[inter_count*2-2] = v;
+            intersections[inter_count*2-1] = i;
+          }
+          else
+          {
+            intersections[inter_count*2] = v;
+            intersections[inter_count*2+1] = i;
+            inter_count++;
           }
         }
-        if (inter1 > 0)
+        else
         {
-          inter0 = i;
-          break;
+          intersections[inter_count*2] = v;
+          intersections[inter_count*2+1] = i;
+          inter_count++;
         }
       }
-
-      if (inter0 > 0 && inter1 > 0)
-      {
-        border_init[k*6+2] = -inter1;
-        if (k==0) border_init[(nb-1)*6+4] = -inter0;
-        else border_init[(k-1)*6+4] = -inter0;
-      }
     }
+    else
+    {
+      binter[(yy-ymin)*wb+(xx-xmin)] = i;
+      if (xx>xmin) binter[(yy-ymin)*wb+(xx-xmin-1)] = i;
+      if (yy>ymin) binter[(yy-ymin-1)*wb+(xx-xmin)] = i;
+    }
+    lastx = xx;
+    lasty = yy;
   }
-  gettimeofday(&tv3,NULL);
-  printf("self-intersect %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
-  tv2 = tv3;
-  *border_count = posb/2;
-  free(pos_curve);
-  free(pos_border);  
   
+  gettimeofday(&tv3,NULL);
+  printf("self-intersect3 %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
+  tv2 = tv3;
+  free(binter);
   //and we transform them with all distorted modules
   if (dt_dev_distort_transform_plus(dev,pipe,0,prio_max,*points,*points_count) && dt_dev_distort_transform_plus(dev,pipe,0,prio_max,*border,*border_count))
   {
@@ -387,6 +377,15 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
     for(int k = 0; k < nb; k++)
     {
       for (int i=2; i<6; i++) (*border)[k*6+i] = border_init[k*6+i]; 
+    }
+    //now we want to write the skipping zones
+    for (int i=0; i<inter_count; i++)
+    {
+      int v = intersections[i*2];
+      int w = intersections[i*2+1];
+      printf("truc %d %d\n",v,w);
+      (*border)[v*2] = -999999;
+      (*border)[v*2+1] = w;
     }
     gettimeofday(&tv3,NULL);
   printf("cpy corners %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
@@ -1221,40 +1220,30 @@ void dt_curve_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_form_gu
   if ((gui->group_selected == index) && gpt->border_count > nb*3+6)
   { 
     cairo_move_to(cr,gpt->border[0]+dx,gpt->border[1]+dy);
+    for (int i=nb*3; i<gpt->border_count; i++)
+    {
+      if (gpt->border[i*2] == -999999)
+      {
+        i = gpt->border[i*2+1]-1;
+        continue;
+      }
+      cairo_line_to(cr,gpt->border[i*2]+dx,gpt->border[i*2+1]+dy);
+    }
+        //the execute the drawing
+    if (gui->border_selected) cairo_set_line_width(cr, 2.0/zoom_scale);
+    else                                     cairo_set_line_width(cr, 1.0/zoom_scale);
+    cairo_set_source_rgba(cr, .3, .3, .3, .8);
+    cairo_set_dash(cr, dashed, len, 0);
+    cairo_stroke_preserve(cr);
+    if (gui->border_selected) cairo_set_line_width(cr, 2.0/zoom_scale);
+    else                                     cairo_set_line_width(cr, 1.0/zoom_scale);
+    cairo_set_source_rgba(cr, .8, .8, .8, .8);
+    cairo_set_dash(cr, dashed, len, 4);
+    cairo_stroke(cr);
+      
     //we draw the curve segment by segment
     for (int k=0; k<nb; k++)
-    {
-      
-      int pos1 = -gpt->border[k*6+2];
-      int pos2 = -gpt->border[k*6+4];
-      
-      if (pos1<0)
-      {
-        //we have to draw the initial gap
-      }
-      //we draw the segment
-      cairo_move_to(cr,gpt->border[pos1]+dx,gpt->border[pos1+1]+dy);
-      for (int i=pos1; i<pos2; i+=2)
-      {
-        cairo_line_to(cr,gpt->border[i]+dx,gpt->border[i+1]+dy);
-      }      
-      if (pos2<0)
-      {
-        //we have to draw the end gap
-      }
-      
-      //the execute the drawing
-      if (gui->border_selected) cairo_set_line_width(cr, 2.0/zoom_scale);
-      else                                     cairo_set_line_width(cr, 1.0/zoom_scale);
-      cairo_set_source_rgba(cr, .3, .3, .3, .8);
-      cairo_set_dash(cr, dashed, len, 0);
-      cairo_stroke_preserve(cr);
-      if (gui->border_selected) cairo_set_line_width(cr, 2.0/zoom_scale);
-      else                                     cairo_set_line_width(cr, 1.0/zoom_scale);
-      cairo_set_source_rgba(cr, .8, .8, .8, .8);
-      cairo_set_dash(cr, dashed, len, 4);
-      cairo_stroke(cr);
-      
+    {      
       //draw the point
       if (gui->point_border_selected == k)
       {
@@ -1357,16 +1346,26 @@ static void _curve_falloff(float **buffer, int *p0, int *p1, int posx, int posy,
     //op = op*op*(3.0f - 2.0f*op);
     (*buffer)[y*bw+x] = op;
     if (x > 0) (*buffer)[y*bw+x-1] = op; //this one is to avoid gap due to int rounding
+    if (y > 0) (*buffer)[(y+1)*bw+x] = op;
   }
 }
 
 int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, float **buffer, int *width, int *height, int *posx, int *posy)
 {
+    struct timeval tv1,tv2,tv3;
+  //struct timezone tz;
+  //long diff;
+  gettimeofday(&tv1,NULL);
+  gettimeofday(&tv2,NULL);
+  
   //we get buffers for all points
   float *points, *border;
   int points_count,border_count;
-  if (!_curve_get_points_border(darktable.develop,form,module->priority,piece->pipe,&points,&points_count,&border,&border_count)) return 0;
+  if (!_curve_get_points_border(module->dev,form,module->priority,piece->pipe,&points,&points_count,&border,&border_count)) return 0;
   
+  gettimeofday(&tv3,NULL);
+  printf("--total points %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
+  tv2 = tv3;
   //now we want to find the area, so we search min/max points
   float xmin, xmax, ymin, ymax;
   xmin = ymin = FLT_MAX;
@@ -1374,20 +1373,36 @@ int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt
   int nb_corner = g_list_length(form->points);
   for (int i=nb_corner*3; i < border_count; i++)
   {
-    xmin = fminf(border[i*2],xmin);
-    xmax = fmaxf(border[i*2],xmax);
-    ymin = fminf(border[i*2+1],ymin);
-    ymax = fmaxf(border[i*2+1],ymax);
+    int xx = border[i*2];
+    int yy = border[i*2+1];
+    if (xx == -999999)
+    {
+      i = yy-1;
+      continue;
+    }
+    xmin = fminf(xx,xmin);
+    xmax = fmaxf(xx,xmax);
+    ymin = fminf(yy,ymin);
+    ymax = fmaxf(yy,ymax);
   }
-  *height = ymax-ymin+1;
-  *width = xmax-xmin+1;
+  const int hb = *height = ymax-ymin+1;
+  const int wb = *width = xmax-xmin+1;
   *posx = xmin;
   *posy = ymin;
+  gettimeofday(&tv3,NULL);
+  printf("--min-max %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
+  tv2 = tv3;
   
+   //we allocate the buffer
+  *buffer = malloc((*width)*(*height)*sizeof(float));
+  gettimeofday(&tv3,NULL);
+  printf("--alloc buff %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
+  tv2 = tv3; 
+  
+  //----------------------------------
   //we create a new buffer for all the points, sorted by row values
-  GList* pts = {NULL};
   int nbp = border_count;
-  int lastx, lasty,lasty2;
+  int lastx,lasty,lasty2,nx;
   if (nbp>2)
   {
     lastx = (int) points[(nbp-1)*2];
@@ -1398,50 +1413,37 @@ int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt
     {
       int xx = (int) points[i*2];
       int yy = (int) points[i*2+1];
-      int *p = malloc(2*sizeof(int));
-      p[0] = xx, p[1] = yy;
       
-      if (lasty != INT_MIN)
+      //we don't store the point if it has the same y value as the last one
+      if (yy == lasty) continue;
+      
+      //we want to be sure that there is no y jump
+      if (yy-lasty > 1 || yy-lasty < -1)
       {
-        //we don't store the point if it has the same y value as the last one
-        if (yy == lasty) continue;
-        
-        //we want to be sure that there is no y jump
-        if (yy-lasty > 1 || yy-lasty < -1)
+        if (yy<lasty)
         {
-          if (yy<lasty)
+          for (int j=yy+1; j<lasty; j++)
           {
-            for (int j=yy+1; j<lasty; j++)
-            {
-              int *pp = malloc(2*sizeof(int));
-              pp[0] = (j-yy)*(lastx-xx)/(float)(lasty-yy)+xx, pp[1] = j;
-              pts = g_list_append(pts,pp);
-            }
-          }
-          else
-          {
-            for (int j=lasty+1; j<yy; j++)
-            {
-              int *pp = malloc(2*sizeof(int));
-              pp[0] = (j-lasty)*(xx-lastx)/(float)(yy-lasty)+lastx, pp[1] = j;
-              pts = g_list_append(pts,pp);
-            }
+            int nx = (j-yy)*(lastx-xx)/(float)(lasty-yy)+xx;
+            (*buffer)[(j-(*posy))*(*width)+nx-(*posx)] = 1.0f;
           }
         }
-        
-        if (lasty2 != INT_MIN)
+        else
         {
-          //if we change the direction of the curve (in y), then we add a extra point
-          if ((lasty-lasty2)*(lasty-yy)>0)
+          for (int j=lasty+1; j<yy; j++)
           {
-            int *pp = malloc(2*sizeof(int));
-            pp[0] = lastx, pp[1] = lasty;
-            pts = g_list_append(pts,pp);
+            nx = (j-lasty)*(xx-lastx)/(float)(yy-lasty)+lastx;
+            (*buffer)[(j-(*posy))*(*width)+nx-(*posx)] = 1.0f;
           }
         }
       }
+      //if we change the direction of the curve (in y), then we add a extra point
+      if ((lasty-lasty2)*(lasty-yy)>0)
+      {
+        (*buffer)[(lasty-(*posy))*(*width)+lastx+1-(*posx)] = 1.0f;
+      }
       //we add the point
-      pts = g_list_append(pts,p);
+      (*buffer)[(yy-(*posy))*(*width)+xx-(*posx)] = 1.0f;
       //printf("tabl %d %d\n",p[0],p[1]);
       //we change last values
       lasty2 = lasty;
@@ -1449,78 +1451,45 @@ int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt
       lastx = xx;
     }
   }
-  //and we sort all the datas
-  pts = g_list_sort(pts,_curve_sort_points);
-  
-  //we allocate the buffer
-  *buffer = malloc((*width)*(*height)*sizeof(float));
-  
-  //we populate the buffer row by row
-  GList *ppts = g_list_first(pts);
-  while(ppts)
+  gettimeofday(&tv3,NULL);
+  printf("--fill buff %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
+  tv2 = tv3;
+
+  for (int yy=0; yy<hb; yy++)
   {
-    //we get the first point
-    int *p1,*p2;
-    p1 = (int *)ppts->data;
-    //we get the second point
-    ppts = g_list_next(ppts);
-    if (!ppts) break;
-    p2 = (int *)ppts->data;
-    
-    //are the points on the same line ?
-    if (p1[1] != p2[1]) 
+    int state = 0;
+    for (int xx=0; xx<wb; xx++)
     {
-      continue;
+      float v = (*buffer)[yy*wb+xx];
+      if (v == 1.0f) state = !state;
+      if (state) (*buffer)[yy*wb+xx] = 1.0f;
     }
-    
-    //we set all the points between p1 and p2 to 1.0f
-    for (int i=p1[0]; i<p2[0]; i++)
-    {
-      (*buffer)[(*width)*(p1[1]-(*posy)) + i-(*posx)] = 1.0f;
-    }
-    ppts = g_list_next(ppts);
   }
+  gettimeofday(&tv3,NULL);
+  printf("--fill plain %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
+  tv2 = tv3;
+  //-----------------------------------------
   
   //now we fill the falloff
-  int pos = nb_corner*6;
   int p0[2], p1[2];
   int last0[2] = {-100,-100}, last1[2] = {-100,-100};
-  for (int k=0; k<nb_corner; k++)
+  nbp = 0;
+  int next = 0;
+  for (int i=nb_corner*3; i<border_count; i++)
   {
-    int pos1 = -border[k*6+2];
-    int pos2 = -border[k*6+4];
-    //from pos to pos1
-    p1[0] = border[pos1], p1[1] = border[pos1+1];
-    for (int i=pos; i<pos1; i+=2)
+    p0[0] = points[i*2], p0[1] = points[i*2+1];
+    if (next > 0) p1[0] = border[next*2], p1[1] = border[next*2+1];
+    else p1[0] = border[i*2], p1[1] = border[i*2+1];
+    
+    //now we check p1 value to know if we have to skip a part
+    if (next == i) next = 0;
+    if (p1[0] == -999999)
     {
-      p0[0] = points[i], p0[1] = points[i+1];
-      if (last0[0] != p0[0] || last0[1] != p0[1] || last1[0] != p1[0] || last1[1] != p1[1])
-      {
-        _curve_falloff(buffer,p0,p1,*posx,*posy,*width);
-        last0[0] = p0[0], last0[1] = p0[1];
-        last1[0] = p1[0], last1[1] = p1[1];
-      }
+      next = p1[1];
+      p1[0] = border[next*2], p1[1] = border[next*2+1];
     }
-    pos = pos1;
-    //from pos1 to pos2
-    for (int i=pos1; i<pos2; i+=2)
-    {
-      p0[0] = points[i], p0[1] = points[i+1];
-      p1[0] = border[i], p1[1] = border[i+1];
-      if (last0[0] != p0[0] || last0[1] != p0[1] || last1[0] != p1[0] || last1[1] != p1[1])
-      {
-        _curve_falloff(buffer,p0,p1,*posx,*posy,*width);
-        last0[0] = p0[0], last0[1] = p0[1];
-        last1[0] = p1[0], last1[1] = p1[1];
-      }
-    }
-    pos = pos2;
-  }
-  //now if pos != border_count
-  p1[0] = border[pos], p1[1] = border[pos+1];
-  for (int i=pos; i<border_count*2; i+=2)
-  {
-    p0[0] = points[i], p0[1] = points[i+1];
+    
+    //and we draw the falloff
     if (last0[0] != p0[0] || last0[1] != p0[1] || last1[0] != p1[0] || last1[1] != p1[1])
     {
       _curve_falloff(buffer,p0,p1,*posx,*posy,*width);
@@ -1529,6 +1498,11 @@ int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt
     }
   }
   
+  gettimeofday(&tv3,NULL);
+  printf("--falloff %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
+  tv2 = tv3;
+  gettimeofday(&tv3,NULL);
+  printf("----total masks %ld\n",(tv3.tv_sec-tv1.tv_sec) * 1000000L + (tv3.tv_usec-tv1.tv_usec));
   free(points);
   free(border);
   return 1;
