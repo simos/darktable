@@ -304,13 +304,11 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
     ymin = MIN((*border)[i*2+1],ymin);
     ymax = MAX((*border)[i*2+1],ymax);
   }
-  printf("min max %d %d %d %d\n",xmin,xmax,ymin,ymax);
   if (xmin<0 || ymin<0 || xmax<0 || ymax<0)
   {
     xmin=xmax=ymin=ymax=0;
     memset((*border)+nb*6,0,(600000-nb*6)*sizeof(float));
     *border_count = nb*6;
-    printf("coucou\n");
   }
   
   const int hb = ymax-ymin+1;
@@ -318,11 +316,10 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
   const int ss = hb*wb;
   int *intersections = malloc(sizeof(int)*nb*8);
   int inter_count = 0;
-  if (0)
+  if (ss>3)
   {
-    printf("buff size %d %d\n",wb,hb);
     int *binter = malloc(sizeof(int)*ss);
-    memset(binter,0,ss);
+    memset(binter,0,sizeof(int)*ss);
     int lastx = (*border)[nb*6+(*border_count-1)*2];
     int lasty = (*border)[nb*6+(*border_count-1)*2+1];
     for (int i=nb*3; i < *border_count; i++)
@@ -347,13 +344,11 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
             {
               intersections[inter_count*2-2] = v;
               intersections[inter_count*2-1] = i;
-              printf("inser1 %d %d   %d %d\n",v,i,xx,yy);
             }
             else
             {
               intersections[inter_count*2] = v;
               intersections[inter_count*2+1] = i;
-              printf("inser2 %d %d   %d %d\n",v,i,xx,yy);
               inter_count++;
             }
           }
@@ -361,7 +356,6 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
           {
             intersections[inter_count*2] = v;
             intersections[inter_count*2+1] = i;
-            printf("inser3 %d %d   %d %d\n",v,i,xx,yy);
             inter_count++;
           }
         }
@@ -399,7 +393,6 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
     {
       int v = intersections[i*2];
       int w = intersections[i*2+1];
-      printf("truc %d %d\n",v,w);
       (*border)[v*2] = -999999;
       (*border)[v*2+1] = w;
     }
