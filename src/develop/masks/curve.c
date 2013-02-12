@@ -560,7 +560,9 @@ int dt_curve_events_mouse_scrolled(struct dt_iop_module_t *module, float pzx, fl
 int dt_curve_events_button_pressed(struct dt_iop_module_t *module,float pzx, float pzy, int which, int type, uint32_t state,
                                           dt_masks_form_t *form, dt_masks_form_gui_t *gui, int index)
 {
+  if (!gui) return 0;
   dt_masks_form_gui_points_t *gpt = (dt_masks_form_gui_points_t *) g_list_nth_data(gui->points,index);
+  if (!gpt) return 0;
   if (which == 3 || (gui->creation && gui->creation_closing_form))
   {
     if (gui->creation)
@@ -723,7 +725,9 @@ int dt_curve_events_button_released(struct dt_iop_module_t *module,float pzx, fl
                                           dt_masks_form_t *form, dt_masks_form_gui_t *gui, int index)
 {
   if (gui->creation) return 1;
+  if (!gui) return 0;
   dt_masks_form_gui_points_t *gpt = (dt_masks_form_gui_points_t *) g_list_nth_data(gui->points,index);
+  if (!gpt) return 0;
   if (gui->form_dragging)
   {
     //we end the form dragging
@@ -916,7 +920,9 @@ int dt_curve_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float 
   DT_CTL_GET_GLOBAL(closeup, dev_closeup);
   float zoom_scale = dt_dev_get_zoom_scale(darktable.develop, zoom, closeup ? 2 : 1, 1);
   float as = 0.005f/zoom_scale*darktable.develop->preview_pipe->backbuf_width;
+  if (!gui) return 0;
   dt_masks_form_gui_points_t *gpt = (dt_masks_form_gui_points_t *) g_list_nth_data(gui->points,index);
+  if (!gpt) return 0;
   
   if (gui->point_dragging >=0)
   {
@@ -1131,7 +1137,9 @@ void dt_curve_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_form_gu
   dashed[1] /= zoom_scale;
   int len  = sizeof(dashed) / sizeof(dashed[0]);
   float dx=0, dy=0;
+  if (!gui) return;
   dt_masks_form_gui_points_t *gpt = (dt_masks_form_gui_points_t *) g_list_nth_data(gui->points,index);
+  if (!gpt) return;
   if ((gui->group_selected == index) && gui->form_dragging)
   {
     dx = gui->posx + gui->dx - gpt->points[2];

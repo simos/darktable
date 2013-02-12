@@ -24,10 +24,12 @@
 
 void dt_circle_get_distance(float x, int y, float as, dt_masks_form_gui_t *gui, int index, int *inside, int *inside_border, int *near)
 {
+  if (!gui) return;
   //we first check if it's inside borders
   int nb = 0;
   int last = -9999;
   dt_masks_form_gui_points_t *gpt = (dt_masks_form_gui_points_t *) g_list_nth_data(gui->points,index);
+  if (!gpt) return;
   
   for (int i=0; i<gpt->border_count; i++)
   {
@@ -95,10 +97,11 @@ int dt_circle_events_button_pressed(struct dt_iop_module_t *module,float pzx, fl
                                           dt_masks_form_t *form, dt_masks_form_gui_t *gui, int index)
 {
   if (which != 1) return 0;
-
+  if (!gui) return 0;
   if (gui->form_selected && !gui->creation)
   {
     dt_masks_form_gui_points_t *gpt = (dt_masks_form_gui_points_t *) g_list_nth_data(gui->points,index);
+    if (!gpt) return 0;
     //we start the form dragging
     gui->form_dragging = TRUE;
     gui->posx = pzx*darktable.develop->preview_pipe->backbuf_width;
@@ -221,6 +224,7 @@ void dt_circle_events_post_expose(cairo_t *cr,float zoom_scale,dt_masks_form_gui
   dashed[1] /= zoom_scale;
   int len  = sizeof(dashed) / sizeof(dashed[0]);
   dt_masks_form_gui_points_t *gpt = (dt_masks_form_gui_points_t *) g_list_nth_data(gui->points,index);
+  if (!gpt) return;
   float dx=0, dy=0; 
   if ((gui->group_selected == index) && gui->form_dragging)
   {
