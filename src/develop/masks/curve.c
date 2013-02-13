@@ -53,8 +53,6 @@ static void _curve_border_get_XY(float p0x, float p0y, float p1x, float p1y, flo
   float l = 1.0/sqrtf(dx*dx+dy*dy);
   *xb = (*xc) + rad*dy*l;
   *yb = (*yc) - rad*dx*l;
-  if (*xb<0) *xb = 0;
-  if (*yb<0) *yb = 0;
 }
 
 //feather calculating (must be in "real" coordinate, to be sure everything is orthonormal)
@@ -297,9 +295,14 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
   int xmin, xmax, ymin, ymax;
   xmin = ymin = INT_MAX;
   xmax = ymax = INT_MIN;
+  int posmin = -1;
   for (int i=nb*3; i < *border_count; i++)
   {
-    xmin = MIN((*border)[i*2],xmin);
+    if (xmin > (*border)[i*2])
+    {
+      xmin = (*border)[i*2];
+      posmin = i;
+    }
     xmax = MAX((*border)[i*2],xmax);
     ymin = MIN((*border)[i*2+1],ymin);
     ymax = MAX((*border)[i*2+1],ymax);
@@ -309,8 +312,8 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
     xmin=xmax=ymin=ymax=0;
     memset((*border)+nb*6,0,(600000-nb*6)*sizeof(float));
     *border_count = nb*6;
+    //printf("coucou\n");
   }
-  
   const int hb = ymax-ymin+1;
   const int wb = xmax-xmin+1;
   const int ss = hb*wb;
@@ -322,55 +325,279 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
     memset(binter,0,sizeof(int)*ss);
     int lastx = (*border)[nb*6+(*border_count-1)*2];
     int lasty = (*border)[nb*6+(*border_count-1)*2+1];
-    for (int i=nb*3; i < *border_count; i++)
+    int extra[1000];
+    int extra_count = 0;
+    //printf("posmin %d\n",posmin);
+    for (int i=posmin; i < *border_count; i++)
     {
       if (inter_count >= nb*4) break;
-      int xx = (*border)[i*2];
-      int yy = (*border)[i*2+1];
-      int v = binter[(yy-ymin)*wb+(xx-xmin)];
-      if (v > 0)
+      extra[0] = (*border)[i*2];
+      extra[1] = (*border)[i*2+1];
+      extra_count = 1;
+      //now we want to be sure everything is continuous
+      if (extra[0]-lastx>1 && i != posmin)
       {
-        if ((xx == lastx && yy == lasty) || v == i-1)
+       // printf ("a %d  %d %d\n",i,extra[0],lastx);
+        for (int j=extra[0]-1; j>lastx; j--)
         {
-          binter[(yy-ymin)*wb+(xx-xmin)] = i;
-          if (xx>xmin) binter[(yy-ymin)*wb+(xx-xmin-1)] = i;
-          if (yy>ymin) binter[(yy-ymin-1)*wb+(xx-xmin)] = i;
-        }
-        else
-        {
-          if (inter_count > 0)
+          
+          int yyy = (j-lastx)*(extra[1]-lasty)/(float)(extra[0]-lastx)+lasty;
+          //printf ("b %d  %d %d  %d\n",i,j, yyy,lasty);
+          int lasty2 = extra[(extra_count-1)*2+1];
+          if (lasty2-yyy>1)
           {
-            if (intersections[inter_count*2-2] >= v && intersections[inter_count*2-1] <= i)
+            for (int jj=lasty2+1; jj<yyy; jj++)
             {
-              intersections[inter_count*2-2] = v;
-              intersections[inter_count*2-1] = i;
+              //printf ("d %d  %d %d\n",i,j, jj);
+              extra[extra_count*2] = j;
+              extra[extra_count*2+1] = jj;
+              extra_count++;
+            }
+          }
+          else if (lasty2-yyy<-1)
+          {
+            for (int jj=lasty2-1; jj>yyy; jj--)
+            {
+             // printf ("e %d  %d %d\n",i,j, jj);
+              extra[extra_count*2] = j;
+              extra[extra_count*2+1] = jj;
+              extra_count++;
+            }
+          }
+          extra[extra_count*2] = j;
+          extra[extra_count*2+1] = yyy;
+          extra_count++;
+        }
+      }
+      else if (extra[0]-lastx<-1 && i != posmin)
+      {
+        //printf ("k %d  %d %d\n",i,extra[0],lastx);
+        for (int j=extra[0]+1; j<lastx; j++)
+        {
+          int yyy = (j-lastx)*(extra[1]-lasty)/(float)(extra[0]-lastx)+lasty;
+         // printf ("l %d  %d %d  %d\n",i,j, yyy,lasty);
+          int lasty2 = extra[(extra_count-1)*2+1];
+          if (lasty2-yyy>1)
+          {
+            for (int jj=lasty2+1; jj<yyy; jj++)
+            {
+              //printf ("m %d  %d %d\n",i,j, jj);
+              extra[extra_count*2] = j;
+              extra[extra_count*2+1] = jj;
+              extra_count++;
+            }
+          }
+          else if (lasty2-yyy<-1)
+          {
+            for (int jj=lasty2-1; jj>yyy; jj--)
+            {
+              //printf ("n %d  %d %d\n",i,j, jj);
+              extra[extra_count*2] = j;
+              extra[extra_count*2+1] = jj;
+              extra_count++;
+            }
+          }
+          extra[extra_count*2] = j;
+          extra[extra_count*2+1] = yyy;
+          extra_count++;
+        }
+      }
+      
+      //we now search intersections for all the point in extra
+      //printf("nbextra %d  %d\n",i,extra_count);
+      for (int j=extra_count-1; j>=0; j--)
+      {
+        int xx = extra[j*2];
+        int yy = extra[j*2+1];
+        //if (xx>380 && xx<410 && yy>215 && yy<245) printf("point : %d %d\n",xx,yy);
+       // printf("point %d   %d %d\n",i,xx,yy);
+        int v = binter[(yy-ymin)*wb+(xx-xmin)];
+        int w = 0;
+        if (xx>xmin) w = binter[(yy-ymin)*wb+(xx-xmin-1)];
+        if (w<i-1) v = MAX(v,w);
+        w=0;
+        if (yy>ymin) w = binter[(yy-ymin-1)*wb+(xx-xmin)];
+        if (w<i-1) v = MAX(v,w);
+        if (v > 0)
+        {
+          if ((xx == lastx && yy == lasty) || v == i-1)
+          {
+            binter[(yy-ymin)*wb+(xx-xmin)] = i;
+            //if (xx>xmin) binter[(yy-ymin)*wb+(xx-xmin-1)] = i;
+            //if (yy>ymin) binter[(yy-ymin-1)*wb+(xx-xmin)] = i;
+          }
+          else
+          {
+            if (inter_count > 0)
+            {
+              if (intersections[inter_count*2-2] >= v && intersections[inter_count*2-1] <= i)
+              {
+                intersections[inter_count*2-2] = v;
+                intersections[inter_count*2-1] = i;
+                //printf("inter1 %d %d   %d %d\n",v,i,xx,yy);
+              }
+              else
+              {
+                intersections[inter_count*2] = v;
+                intersections[inter_count*2+1] = i;
+                inter_count++;
+                //printf("inter0 %d %d   %d %d\n",v,i,xx,yy);
+              }
             }
             else
             {
               intersections[inter_count*2] = v;
               intersections[inter_count*2+1] = i;
               inter_count++;
+              //printf("inter0 %d %d   %d %d\n",v,i,xx,yy);
             }
+          }
+        }
+        else
+        {
+          binter[(yy-ymin)*wb+(xx-xmin)] = i;
+          //if (xx>xmin) binter[(yy-ymin)*wb+(xx-xmin-1)] = i;
+          //if (yy>ymin) binter[(yy-ymin-1)*wb+(xx-xmin)] = i;
+        }
+        lastx = xx;
+        lasty = yy;
+      }
+    }
+    for (int i=nb*3; i < posmin; i++)
+    {
+      if (inter_count >= nb*4) break;
+      extra[0] = (*border)[i*2];
+      extra[1] = (*border)[i*2+1];
+      extra_count = 1;
+      //now we want to be sure everything is continuous
+      if (extra[0]-lastx>1 && i != posmin)
+      {
+       // printf ("aa %d  %d %d\n",i,extra[0],lastx);
+        for (int j=extra[0]-1; j>lastx; j--)
+        {
+          int yyy = (j-lastx)*(extra[1]-lasty)/(float)(extra[0]-lastx)+lasty;
+         // printf ("bb %d  %d %d  %d\n",i,j, yyy,lasty);
+          int lasty2 = extra[(extra_count-1)*2+1];
+          if (lasty2-yyy>1)
+          {
+            for (int jj=lasty2+1; jj<yyy; jj++)
+            {
+             // printf ("dd %d  %d %d\n",i,j, jj);
+              extra[extra_count*2] = j;
+              extra[extra_count*2+1] = jj;
+              extra_count++;
+            }
+          }
+          else if (lasty2-yyy<-1)
+          {
+            for (int jj=lasty2-1; jj>yyy; jj--)
+            {
+             // printf ("ee %d  %d %d\n",i,j, jj);
+              extra[extra_count*2] = j;
+              extra[extra_count*2+1] = jj;
+              extra_count++;
+            }
+          }
+          extra[extra_count*2] = j;
+          extra[extra_count*2+1] = yyy;
+          extra_count++;
+        }
+      }
+      else if (extra[0]-lastx<-1 && i != posmin)
+      {
+       // printf ("kk %d  %d %d\n",i,extra[0],lastx);
+        for (int j=extra[0]+1; j<lastx; j++)
+        {
+          int yyy = (j-lastx)*(extra[1]-lasty)/(float)(extra[0]-lastx)+lasty;
+          //printf ("ll %d  %d %d  %d\n",i,j, yyy,lasty);
+          int lasty2 = extra[(extra_count-1)*2+1];
+          if (lasty2-yyy>1)
+          {
+            for (int jj=lasty2+1; jj<yyy; jj++)
+            {
+             // printf ("m %d  %d %d\n",i,j, jj);
+              extra[extra_count*2] = j;
+              extra[extra_count*2+1] = jj;
+              extra_count++;
+            }
+          }
+          else if (lasty2-yyy<-1)
+          {
+            for (int jj=lasty2-1; jj>yyy; jj--)
+            {
+             // printf ("n %d  %d %d\n",i,j, jj);
+              extra[extra_count*2] = j;
+              extra[extra_count*2+1] = jj;
+              extra_count++;
+            }
+          }
+          extra[extra_count*2] = j;
+          extra[extra_count*2+1] = yyy;
+          extra_count++;
+        }
+      }
+      
+      //we now search intersections for all the point in extra
+      //if (extra_count>1) printf("nbextra %d  %d\n",i,extra_count);
+      //we now search intersections for all the point in extra
+      for (int j=extra_count-1; j>=0; j--)
+      {
+        int xx = extra[j*2];
+        int yy = extra[j*2+1];
+        //if (xx>380 && xx<410 && yy>215 && yy<245) printf("point : %d %d\n",xx,yy);
+        //if (j>0) printf("point %d   %d %d\n",i,xx,yy);
+        int v = binter[(yy-ymin)*wb+(xx-xmin)];
+        int w = 0;
+        if (xx>xmin) w = binter[(yy-ymin)*wb+(xx-xmin-1)];
+        if (w<i-1) v = MAX(v,w);
+        w=0;
+        if (yy>ymin) w = binter[(yy-ymin-1)*wb+(xx-xmin)];
+        if (w<i-1) v = MAX(v,w);
+        if (v > 0)
+        {
+          if ((xx == lastx && yy == lasty) || v == i-1)
+          {
+            binter[(yy-ymin)*wb+(xx-xmin)] = i;
+            //if (xx>xmin) binter[(yy-ymin)*wb+(xx-xmin-1)] = i;
+            //if (yy>ymin) binter[(yy-ymin-1)*wb+(xx-xmin)] = i;
           }
           else
           {
-            intersections[inter_count*2] = v;
-            intersections[inter_count*2+1] = i;
-            inter_count++;
+            if (inter_count > 0)
+            {
+              if (intersections[inter_count*2-2] >= v && intersections[inter_count*2-1] <= i)
+              {
+                intersections[inter_count*2-2] = v;
+                intersections[inter_count*2-1] = i;
+                //printf("inter1 %d %d   %d %d\n",v,i,xx,yy);
+              }
+              else
+              {
+                intersections[inter_count*2] = v;
+                intersections[inter_count*2+1] = i;
+                inter_count++;
+                //printf("inter0 %d %d   %d %d\n",v,i,xx,yy);
+              }
+            }
+            else
+            {
+              intersections[inter_count*2] = v;
+              intersections[inter_count*2+1] = i;
+              inter_count++;
+              //printf("inter0 %d %d   %d %d\n",v,i,xx,yy);
+            }
           }
         }
+        else
+        {
+          binter[(yy-ymin)*wb+(xx-xmin)] = i;
+          //if (xx>xmin) binter[(yy-ymin)*wb+(xx-xmin-1)] = i;
+          //if (yy>ymin) binter[(yy-ymin-1)*wb+(xx-xmin)] = i;
+        }
+        lastx = xx;
+        lasty = yy;
       }
-      else
-      {
-        binter[(yy-ymin)*wb+(xx-xmin)] = i;
-        if (xx>xmin) binter[(yy-ymin)*wb+(xx-xmin-1)] = i;
-        if (yy>ymin) binter[(yy-ymin-1)*wb+(xx-xmin)] = i;
-      }
-      lastx = xx;
-      lasty = yy;
-      
     }
-    
     gettimeofday(&tv3,NULL);
     printf("self-intersect3 %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
     tv2 = tv3;
@@ -393,8 +620,19 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
     {
       int v = intersections[i*2];
       int w = intersections[i*2+1];
-      (*border)[v*2] = -999999;
-      (*border)[v*2+1] = w;
+      if (v<=w)
+      {
+        (*border)[v*2] = -999999;
+        (*border)[v*2+1] = w;
+      }
+      else
+      {
+        if ((*border)[nb*3] == -999999) (*border)[nb*3+1] = MAX((*border)[nb*3+1],w);
+        else (*border)[nb*3+1] = w;
+        (*border)[nb*3] = -999999;
+        (*border)[v*2] = -999999;
+        (*border)[v*2+1] = -999999;
+      }
     }
     gettimeofday(&tv3,NULL);
   printf("cpy corners %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
@@ -1241,6 +1479,7 @@ void dt_curve_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_form_gu
     {
       if (gpt->border[i*2] == -999999)
       {
+        if (gpt->border[i*2+1] == -999999) break;
         i = gpt->border[i*2+1]-1;
         continue;
       }
