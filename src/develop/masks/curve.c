@@ -1633,6 +1633,7 @@ int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt
     int yy = border[i*2+1];
     if (xx == -999999)
     {
+      if (yy == -999999) break; //that means we have to skip the end of the border curve
       i = yy-1;
       continue;
     }
@@ -1741,6 +1742,7 @@ int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt
     if (next == i) next = 0;
     if (p1[0] == -999999)
     {
+      if (p1[1] == -999999) next = i-1;
       next = p1[1];
       p1[0] = border[next*2], p1[1] = border[next*2+1];
     }
