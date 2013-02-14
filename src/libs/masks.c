@@ -166,7 +166,7 @@ static void _tree_delete_shape(GtkButton *button, dt_lib_module_t *self)
         if (ok)
         {
           module->blend_params->forms_count--;
-          dt_iop_gui_update_blending(module);
+          dt_masks_iop_update(module);
           dt_dev_add_history_item(darktable.develop, module, TRUE);
         }
       }
@@ -188,7 +188,7 @@ static void _tree_delete_shape(GtkButton *button, dt_lib_module_t *self)
             if (ok)
             {
               m->blend_params->forms_count--;
-              dt_iop_gui_update_blending(m);
+              dt_masks_iop_update(m);
               dt_dev_add_history_item(darktable.develop, m, TRUE);
             }
           }

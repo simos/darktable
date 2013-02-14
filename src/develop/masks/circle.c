@@ -136,7 +136,7 @@ int dt_circle_events_button_pressed(struct dt_iop_module_t *module,float pzx, fl
       dt_dev_add_history_item(darktable.develop, crea_module, TRUE);
       //and we switch in edit mode to show all the forms
       dt_masks_set_edit_mode(crea_module, TRUE);
-      dt_iop_gui_update_blending(crea_module);
+      dt_masks_iop_update(crea_module);
       gui->creation_module = NULL;
     }
     return 1;

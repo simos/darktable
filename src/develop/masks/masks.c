@@ -118,7 +118,7 @@ void dt_masks_gui_form_save_creation(dt_iop_module_t *module, dt_masks_form_t *f
     module->blend_params->forms_count++;
     
     //update gui
-    dt_iop_gui_update_blending(module);
+    dt_masks_iop_update(module);
   }
   //show the form if needed
   darktable.develop->form_gui->formid = form->formid;
@@ -606,6 +606,7 @@ void dt_masks_set_edit_mode(struct dt_iop_module_t *module,gboolean value)
 
 void dt_masks_iop_edit_toggle_callback(GtkWidget *widget, dt_iop_module_t *module)
 {
+  if (module->blend_params->forms_count==0) return;
   //we create a "group" form with all form in use in the iop
   dt_masks_form_t *grp = NULL;
   
@@ -710,7 +711,7 @@ static void _menu_add_exist(GtkButton *button, dt_masks_form_t *form)
   //and we ensure that we are in edit mode
   dt_masks_set_edit_mode(iop,TRUE);
   dt_dev_add_history_item(darktable.develop, iop, TRUE);
-  dt_iop_gui_update_blending(iop);
+  dt_masks_iop_update(iop);
 }
 
 void dt_masks_iop_dropdown_callback(GtkWidget *widget, struct dt_iop_module_t *module)
@@ -799,6 +800,23 @@ void dt_masks_iop_dropdown_callback(GtkWidget *widget, struct dt_iop_module_t *m
 
   //we show the menu
   gtk_menu_popup (GTK_MENU (menu0), NULL, NULL, _menu_position, module, 0, gtk_get_current_event_time());
+}
+
+void dt_masks_iop_update(struct dt_iop_module_t *module)
+{
+  dt_iop_gui_blend_data_t *bd = (dt_iop_gui_blend_data_t*)module->blend_data;
+
+  if (!(module->flags() & IOP_FLAGS_SUPPORTS_BLENDING) || !bd || !bd->blend_inited) return;
+  
+  /* update masks state */
+  if (module->blend_params->forms_count>0)
+  {
+    char txt[512];
+    snprintf(txt,512,"%d shapes used",module->blend_params->forms_count);
+    gtk_label_set_text(GTK_LABEL(bd->masks_state),txt);
+  }
+  else gtk_label_set_text(GTK_LABEL(bd->masks_state),_("no masks used"));
+  //gtk_widget_set_sensitive(bd->masks_edit,(module->blend_params->forms_count>0));
 }
 
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh

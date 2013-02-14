@@ -954,7 +954,7 @@ void dt_iop_gui_update_blending(dt_iop_module_t *module)
     gtk_label_set_text(GTK_LABEL(bd->masks_state),txt);
   }
   else gtk_label_set_text(GTK_LABEL(bd->masks_state),_("no masks used"));
-  gtk_widget_set_sensitive(bd->masks_edit,(module->blend_params->forms_count>0));
+  //gtk_widget_set_sensitive(bd->masks_edit,(module->blend_params->forms_count>0));
   
   /* now show hide controls as required */
   if(bd->modes[dt_bauhaus_combobox_get(bd->blend_modes_combo)].mode == DEVELOP_BLEND_DISABLED)
@@ -1085,7 +1085,7 @@ void dt_iop_gui_init_blending(GtkWidget *iopw, dt_iop_module_t *module)
                       G_CALLBACK (_blendop_mode_callback), bd);
 
     gtk_box_pack_start(GTK_BOX(iopw), GTK_WIDGET(bd->masks_hbox), TRUE, TRUE,0);
-    gtk_box_pack_start(GTK_BOX(iopw), bd->blend_modes_combo, TRUE, TRUE,0);
+    gtk_box_pack_start(GTK_BOX(iopw), bd->blend_modes_combo, TRUE, TRUE,0);    
     gtk_box_pack_start(GTK_BOX(iopw), bd->opacity_slider, TRUE, TRUE,0);
 
     if(bd->blendif_support)
