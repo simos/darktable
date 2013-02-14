@@ -1694,44 +1694,54 @@ void dt_develop_blend_process (struct dt_iop_module_t *self, struct dt_dev_pixel
     dt_control_log("could not allocate buffer for blending");
     return;
   }
-  memset(mask,0,roi_out->width*roi_out->height*sizeof(float));
+  
   
   //NOTE : add openmp pragma...
   
   /* apply masks if there's some */
-  for (int i=0; i<self->blend_params->forms_count; i++)
+  if (self->blend_params->forms_count>0)
   {
-    if (!(self->blend_params->forms_state[i] & DT_MASKS_STATE_USE)) continue;
-    
-    dt_masks_form_t *form = dt_masks_get_from_id(self->dev,self->blend_params->forms[i]);
-    if (!form) continue;
-    
-    //we get the mask
-    float *fm = NULL;
-    int fx,fy,fw,fh;
-    if (!dt_masks_get_mask(self,piece,form,&fm,&fw,&fh,&fx,&fy)) continue;
-    //we don't want row which are outisde the roi_out
-    int fxx = fx*roi_in->scale+1;
-    int fww = fw*roi_in->scale-1;
-    int fyy = fy*roi_in->scale+1;
-    int fhh = fh*roi_in->scale-1;
-    if (fxx>roi_out->width+roi_out->x) continue;
-    if (fxx<roi_out->x) fww += fxx-roi_out->x, fxx=roi_out->x;
-    if (fww+fxx>=roi_out->width+roi_out->x) fww = roi_out->width+roi_out->x-fxx-1;
-    //we apply the mask row by row
-    for (int yy=fyy; yy<fyy+fhh; yy++)
+    memset(mask,0,roi_out->width*roi_out->height*sizeof(float));
+    for (int i=0; i<self->blend_params->forms_count; i++)
     {
-      if (yy<roi_out->y || yy>=roi_out->height+roi_out->y) continue;
-      for (int xx=fxx; xx<fxx+fww; xx++)
+      if (!(self->blend_params->forms_state[i] & DT_MASKS_STATE_USE)) continue;
+      
+      dt_masks_form_t *form = dt_masks_get_from_id(self->dev,self->blend_params->forms[i]);
+      if (!form) continue;
+      
+      //we get the mask
+      float *fm = NULL;
+      int fx,fy,fw,fh;
+      if (!dt_masks_get_mask(self,piece,form,&fm,&fw,&fh,&fx,&fy)) continue;
+      //we don't want row which are outisde the roi_out
+      int fxx = fx*roi_in->scale+1;
+      int fww = fw*roi_in->scale-1;
+      int fyy = fy*roi_in->scale+1;
+      int fhh = fh*roi_in->scale-1;
+      if (fxx>roi_out->width+roi_out->x) continue;
+      if (fxx<roi_out->x) fww += fxx-roi_out->x, fxx=roi_out->x;
+      if (fww+fxx>=roi_out->width+roi_out->x) fww = roi_out->width+roi_out->x-fxx-1;
+      //we apply the mask row by row
+      for (int yy=fyy; yy<fyy+fhh; yy++)
       {
-        int a = (yy/roi_in->scale-fy);
-        int b = (xx/roi_in->scale);
-        mask[(yy-roi_out->y)*roi_out->width+xx-roi_out->x] = fmaxf(mask[(yy-roi_out->y)*roi_out->width+xx-roi_out->x],fm[a*fw+b-fx]);
+        if (yy<roi_out->y || yy>=roi_out->height+roi_out->y) continue;
+        for (int xx=fxx; xx<fxx+fww; xx++)
+        {
+          int a = (yy/roi_in->scale-fy);
+          int b = (xx/roi_in->scale);
+          mask[(yy-roi_out->y)*roi_out->width+xx-roi_out->x] = fmaxf(mask[(yy-roi_out->y)*roi_out->width+xx-roi_out->x],fm[a*fw+b-fx]);
+        }
       }
+      
+      //we free the mask
+      free(fm);
     }
-    
-    //we free the mask
-    if (fm) free(fm);
+  }
+  else
+  {
+    //we fill the buffer with 1.0f
+    const int buffsize = roi_out->width*roi_out->height;
+    for (int i=0; i<buffsize; i++) mask[i] = 1.0f;
   }
   
   if (!(mode & DEVELOP_BLEND_MASK_FLAG))
@@ -1917,43 +1927,51 @@ dt_develop_blend_process_cl (struct dt_iop_module_t *self, struct dt_dev_pixelpi
     dt_control_log("could not allocate buffer for blending");
     goto error;
   }
-  memset(mask,0,roi_out->width*roi_out->height*sizeof(float));
-  
-  /* apply masks if there's some */
-  for (int i=0; i<self->blend_params->forms_count; i++)
+  if (self->blend_params->forms_count>0)
   {
-    if (!(self->blend_params->forms_state[i] & DT_MASKS_STATE_USE)) continue;
-    
-    dt_masks_form_t *form = dt_masks_get_from_id(self->dev,self->blend_params->forms[i]);
-    if (!form) continue;
-    
-    //we get the mask
-    float *fm = NULL;
-    int fx,fy,fw,fh;
-    if (!dt_masks_get_mask(self,piece,form,&fm,&fw,&fh,&fx,&fy)) continue;
-    //we don't want row which are outisde the roi_out
-    int fxx = fx*roi_in->scale+1;
-    int fww = fw*roi_in->scale-1;
-    int fyy = fy*roi_in->scale+1;
-    int fhh = fh*roi_in->scale-1;
-    if (fxx>roi_out->width+roi_out->x) continue;
-    if (fxx<roi_out->x) fww += fxx-roi_out->x, fxx=roi_out->x;
-    if (fww+fxx>=roi_out->width+roi_out->x) fww = roi_out->width+roi_out->x-fxx-1;
-    //we apply the mask row by row
-    for (int yy=fyy; yy<fyy+fhh; yy++)
+    memset(mask,0,roi_out->width*roi_out->height*sizeof(float));
+    for (int i=0; i<self->blend_params->forms_count; i++)
     {
-      if (yy<roi_out->y || yy>=roi_out->height+roi_out->y) continue;
-      for (int xx=fxx; xx<fxx+fww; xx++)
+      if (!(self->blend_params->forms_state[i] & DT_MASKS_STATE_USE)) continue;
+      
+      dt_masks_form_t *form = dt_masks_get_from_id(self->dev,self->blend_params->forms[i]);
+      if (!form) continue;
+      
+      //we get the mask
+      float *fm = NULL;
+      int fx,fy,fw,fh;
+      if (!dt_masks_get_mask(self,piece,form,&fm,&fw,&fh,&fx,&fy)) continue;
+      //we don't want row which are outisde the roi_out
+      int fxx = fx*roi_in->scale+1;
+      int fww = fw*roi_in->scale-1;
+      int fyy = fy*roi_in->scale+1;
+      int fhh = fh*roi_in->scale-1;
+      if (fxx>roi_out->width+roi_out->x) continue;
+      if (fxx<roi_out->x) fww += fxx-roi_out->x, fxx=roi_out->x;
+      if (fww+fxx>=roi_out->width+roi_out->x) fww = roi_out->width+roi_out->x-fxx-1;
+      //we apply the mask row by row
+      for (int yy=fyy; yy<fyy+fhh; yy++)
       {
-        int a = (yy/roi_in->scale-fy);
-        int b = (xx/roi_in->scale);
-        mask[(yy-roi_out->y)*roi_out->width+xx-roi_out->x] = fmaxf(mask[(yy-roi_out->y)*roi_out->width+xx-roi_out->x],fm[a*fw+b-fx]);
+        if (yy<roi_out->y || yy>=roi_out->height+roi_out->y) continue;
+        for (int xx=fxx; xx<fxx+fww; xx++)
+        {
+          int a = (yy/roi_in->scale-fy);
+          int b = (xx/roi_in->scale);
+          mask[(yy-roi_out->y)*roi_out->width+xx-roi_out->x] = fmaxf(mask[(yy-roi_out->y)*roi_out->width+xx-roi_out->x],fm[a*fw+b-fx]);
+        }
       }
+      
+      //we free the mask
+      free(fm);
     }
-    
-    //we free the mask
-    if (fm) free(fm);
   }
+  else
+  {
+    //we fill the buffer with 1.0f
+    const int buffsize = roi_out->width*roi_out->height;
+    for (int i=0; i<buffsize; i++) mask[i] = 1.0f;
+  }
+  
   dev_mask_form = dt_opencl_copy_host_to_device(devid, mask, width, height, sizeof(float));
   if (dev_mask_form == NULL) goto error;
   
