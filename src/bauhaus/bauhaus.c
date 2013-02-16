@@ -29,7 +29,7 @@
 // #define DT_BAUHAUS_OLD
 
 // new type dt_bauhaus_widget_t, gtk functions start with dt_bh (so they don't collide with ours), we inherit from drawing area
-G_DEFINE_TYPE (DtBauhausWidget, dt_bh, GTK_TYPE_DRAWING_AREA);
+G_DEFINE_TYPE (DtBauhausWidget, dt_bh, GTK_TYPE_DRAWING_AREA)
 
 // fwd declare
 static void dt_bauhaus_hide_popup();
@@ -1397,7 +1397,8 @@ dt_bauhaus_popup_expose(GtkWidget *widget, GdkEventExpose *event, gpointer user_
     // make extra large, but without dependency on popup window height
     // (that might differ for comboboxes for example). only fall back
     // to height dependency if the popup is really small.
-    cairo_set_font_size (cr, MIN(3*get_line_height(), .2*height));
+    const int line_height = get_line_height();
+    cairo_set_font_size (cr, MIN(3*line_height, .2*height));
     cairo_text_extents (cr, darktable.bauhaus->keys, &ext);
     cairo_move_to (cr, wd-4-ht-ext.width, height*0.5);
     cairo_show_text(cr, darktable.bauhaus->keys); // FIXME: pango

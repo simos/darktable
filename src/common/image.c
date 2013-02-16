@@ -74,7 +74,8 @@ const char *
 dt_image_film_roll_name(const char *path)
 {
   const char *folder = path + strlen(path);
-  int numparts = CLAMPS(dt_conf_get_int("show_folder_levels"), 1, 5);
+  int numparts = dt_conf_get_int("show_folder_levels");
+  numparts = CLAMPS(numparts, 1, 5);
   int count = 0;
   if (numparts < 1)
     numparts = 1;
@@ -377,10 +378,22 @@ int dt_image_altered(const uint32_t imgid)
   int altered = 0;
   sqlite3_stmt *stmt;
   DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db),
-                              "select num from history where imgid = ?1", -1, &stmt, NULL);
+                              "select operation from history where imgid = ?1", -1, &stmt, NULL);
   DT_DEBUG_SQLITE3_BIND_INT(stmt, 1, imgid);
-  if(sqlite3_step(stmt) == SQLITE_ROW)
+  while(sqlite3_step(stmt) == SQLITE_ROW)
+  {
+    const char *op = (const char *)sqlite3_column_text(stmt, 0);
+    // FIXME: this is clearly a terrible way to determine which modules
+    // are okay to still load the thumbnail and which aren't.
+    // (that's currently the only use of this function)
+    if(!strcmp(op, "basecurve")) continue;
+    if(!strcmp(op, "sharpen")) continue;
+    if(!strcmp(op, "dither")) continue;
+    if(!strcmp(op, "tonecurve")) continue;
+    if(!strcmp(op, "highlights")) continue;
     altered = 1;
+    break;
+  }
   sqlite3_finalize(stmt);
   if(altered) return 1;
 
@@ -586,7 +599,7 @@ uint32_t dt_image_import(const int32_t film_id, const char *filename, gboolean o
 
   if (!glob(pattern, 0, NULL, globbuf))
   {
-    for (int i=0; i < globbuf->gl_pathc; i++)
+    for (size_t i=0; i < globbuf->gl_pathc; i++)
     {
       int newid = -1;
       newid = dt_image_duplicate(id);
@@ -918,7 +931,7 @@ void dt_image_synch_all_xmp(const gchar *pathname)
 
     if (!glob(pattern, 0, NULL, globbuf))
     {
-      for (int i=0; i < globbuf->gl_pathc; i++)
+      for (size_t i=0; i < globbuf->gl_pathc; i++)
       {
         (void)g_unlink(globbuf->gl_pathv[i]);
       }

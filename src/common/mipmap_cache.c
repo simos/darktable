@@ -17,6 +17,7 @@
 */
 
 #include "common/darktable.h"
+#include "common/exif.h"
 #include "common/image_cache.h"
 #include "common/imageio.h"
 #include "common/imageio_module.h"
@@ -195,7 +196,8 @@ _write_buffer(const uint32_t key, const void *data, void *user_data)
     // skip to next 8-byte alignment, for sse buffers.
     buf.buf    = (uint8_t *)(dsc+1);
 
-    const int32_t length = dt_imageio_jpeg_compress(buf.buf, d->blob, buf.width, buf.height, MIN(100, MAX(10, dt_conf_get_int("database_cache_quality"))));
+    const int cache_quality = dt_conf_get_int("database_cache_quality");
+    const int32_t length = dt_imageio_jpeg_compress(buf.buf, d->blob, buf.width, buf.height, MIN(100, MAX(10, cache_quality)));
     written = fwrite(&length, sizeof(int32_t), 1, d->f);
     if(written != 1) return 1;
     written = fwrite(d->blob, sizeof(uint8_t), length, d->f);
@@ -1189,12 +1191,20 @@ _init_8(
   const int incompatible = !strncmp(cimg->exif_maker, "Phase One", 9);
   dt_image_cache_read_release(darktable.image_cache, cimg);
 
-  // try to load the embedded thumbnail first
-  if(!altered && !dt_conf_get_bool("never_use_embedded_thumb") && !incompatible)
+
+  // first try exif thumbnail, that's smaller and thus faster to load:
+  if(!altered && !dt_conf_get_bool("never_use_embedded_thumb") &&
+      wd < 200 && !dt_exif_thumbnail(filename, buf, wd, ht, orientation, width, height))
   {
+    res = 0;
+  }
+  else if(!altered && !dt_conf_get_bool("never_use_embedded_thumb") && !incompatible)
+  {
+    // try to load the embedded thumbnail in raw
     int ret;
     memset(filename, 0, DT_MAX_PATH_LEN);
     dt_image_full_path(imgid, filename, DT_MAX_PATH_LEN);
+
     const char *c = filename + strlen(filename);
     while(*c != '.' && c > filename) c--;
     if(!strcasecmp(c, ".jpg"))

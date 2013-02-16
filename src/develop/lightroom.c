@@ -18,6 +18,7 @@
 */
 
 #include "common/darktable.h"
+#include "common/colorspaces.h"
 #include "common/tags.h"
 #include "common/curve_tools.h"
 #include "common/ratings.h"
@@ -193,6 +194,26 @@ typedef struct dt_iop_bilat_params_t
   float detail;
 }
 dt_iop_bilat_params_t;
+
+
+#define LRDT_COLORIN_VERSION 1
+#define DT_IOP_COLOR_ICC_LEN 100
+
+typedef enum dt_iop_color_intent_t
+{
+  DT_INTENT_PERCEPTUAL             = INTENT_PERCEPTUAL,            // 0
+  DT_INTENT_RELATIVE_COLORIMETRIC  = INTENT_RELATIVE_COLORIMETRIC, // 1
+  DT_INTENT_SATURATION             = INTENT_SATURATION,            // 2
+  DT_INTENT_ABSOLUTE_COLORIMETRIC  = INTENT_ABSOLUTE_COLORIMETRIC  // 3
+}
+dt_iop_color_intent_t;
+
+typedef struct dt_iop_colorin_params_t
+{
+  char iccprofile[DT_IOP_COLOR_ICC_LEN];
+  dt_iop_color_intent_t intent;
+}
+dt_iop_colorin_params_t;
 
 //
 // end of iop structs
@@ -557,9 +578,9 @@ void dt_lightroom_import (int imgid, dt_develop_t *dev, gboolean iauto)
     else if (!xmlStrcmp(attribute->name, (const xmlChar *) "CropAngle"))
       pc.angle = -atof((char *)value);
     else if (!xmlStrcmp(attribute->name, (const xmlChar *) "ImageWidth"))
-      iwidth = -atoi((char *)value);
+      iwidth = atoi((char *)value);
     else if (!xmlStrcmp(attribute->name, (const xmlChar *) "ImageLength"))
-      iheight = -atoi((char *)value);
+      iheight = atoi((char *)value);
     else if (!xmlStrcmp(attribute->name, (const xmlChar *) "Orientation"))
     {
       orientation = atoi((char *)value);
@@ -1039,6 +1060,18 @@ void dt_lightroom_import (int imgid, dt_develop_t *dev, gboolean iauto)
 
   //  Integrates into the history all the imported iop
 
+  if (dev != NULL)
+  {
+    // set colorin to cmatrix which is the default from Adobe (so closer to what Lightroom does)
+    dt_iop_colorin_params_t pci = (dt_iop_colorin_params_t)
+    {
+      "cmatrix", DT_INTENT_PERCEPTUAL
+    };
+
+    dt_add_hist (imgid, "colorin", (dt_iop_params_t *)&pci, sizeof(dt_iop_colorin_params_t), imported, LRDT_COLORIN_VERSION, &n_import);
+    refresh_needed=TRUE;
+  }
+
   if (dev != NULL && (has_crop || has_flip))
   {
     pc.k_sym = 0;
@@ -1067,7 +1100,6 @@ void dt_lightroom_import (int imgid, dt_develop_t *dev, gboolean iauto)
 
         x = pc.cw - 0.5;
         y = 0.5 - pc.ch;
-
         pc.cw = 0.5 + x * cos(rangle) - y * sin(rangle);
         pc.ch = 0.5 - (x * sin(rangle) + y * cos(rangle));
       }

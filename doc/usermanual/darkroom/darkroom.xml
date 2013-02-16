@@ -1,4 +1,4 @@
-<chapter>
+<chapter id="darkroom chapter">
 <chapterinfo>
 <keywordset>
   <keyword>darkroom</keyword>
@@ -25,8 +25,8 @@
 	</para>
 	<para>For those interested in how it works, modules are applied on images following a bottom-to-top order.
 	That means, that if you activated the view of all modules (by selecting no groups), the first module to be applied
-	will be "import a RAW" at the bottom of the right panel, whereas the last one will be "splittoning" at the 
-	top of the right panel.
+	will frequently be <link linkend="whitebalance"><emphasis>whitebalance</emphasis></link> quite at the bottom of the right panel, whereas the last 
+        one will be <link linkend="dithering"><emphasis>dithering</emphasis></link> at the top of the right panel.
 	That order can not be changed by user, so modules are always applied following the same order.
 	</para>
 
@@ -36,7 +36,7 @@
 	<para>You can export directly from the darkroom by using <emphasis>ctrl-e</emphasis> shortcut. Export parameters are those currently selected in lighttable.</para>
 
 </sect1>
-<sect1 status="draft"><title>Filmstrip</title>
+<sect1 status="draft" id="filmstrip"><title>Filmstrip</title>
 	<para>The filmstrip is used to quickly switch between images to develop in darkroom view, the images viewed are the same
 		as the ones in the lighttable view.
 	</para>
