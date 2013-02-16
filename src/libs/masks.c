@@ -314,6 +314,7 @@ static int _tree_button_pressed (GtkWidget *treeview, GdkEventButton *event, dt_
       }
       else from_base = 1;
     }
+    else return 0;
     
     //and we display the context-menu
     GtkWidget *menu, *item;

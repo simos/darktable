@@ -50,6 +50,7 @@ static void _curve_border_get_XY(float p0x, float p0y, float p1x, float p1y, flo
   float dy = -p0y*a + p1y*b + p2y*c + p3y*d;
 
   //so we can have the resulting point
+  if (dx==0 && dy==0) printf("ohhhh\n");
   float l = 1.0/sqrtf(dx*dx+dy*dy);
   *xb = (*xc) + rad*dy*l;
   *yb = (*yc) - rad*dx*l;
@@ -298,6 +299,11 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
   int posmin = -1;
   for (int i=nb*3; i < *border_count; i++)
   {
+    if (isnanf((*border)[i*2]) || isnanf((*border)[i*2+1]))
+    {
+      (*border)[i*2] = (*border)[i*2-2];
+      (*border)[i*2+1] = (*border)[i*2-1];
+    }
     if (xmin > (*border)[i*2])
     {
       xmin = (*border)[i*2];
@@ -308,11 +314,18 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
     ymax = MAX((*border)[i*2+1],ymax);
   }
   if (xmin<0 || ymin<0 || xmax<0 || ymax<0)
+  {    
+    for (int i=nb*3; i < *border_count; i++)
   {
+    if (isnanf((*border)[i*2])) printf("oups ");
+    printf("%f %f   ",(*border)[i*2],(*border)[i*2+1]);
+  }
+  printf("\n");
     xmin=xmax=ymin=ymax=0;
     memset((*border)+nb*6,0,(600000-nb*6)*sizeof(float));
     *border_count = nb*6;
     //printf("coucou\n");
+
   }
   const int hb = ymax-ymin+1;
   const int wb = xmax-xmin+1;
