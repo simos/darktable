@@ -50,7 +50,12 @@ static void _curve_border_get_XY(float p0x, float p0y, float p1x, float p1y, flo
   float dy = -p0y*a + p1y*b + p2y*c + p3y*d;
 
   //so we can have the resulting point
-  if (dx==0 && dy==0) printf("ohhhh\n");
+  if (dx==0 && dy==0)
+  {
+    *xb = -9999999;
+    *yb = -9999999;
+    return;
+  }
   float l = 1.0/sqrtf(dx*dx+dy*dy);
   *xb = (*xc) + rad*dy*l;
   *yb = (*yc) - rad*dx*l;
@@ -299,33 +304,21 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
   int posmin = -1;
   for (int i=nb*3; i < *border_count; i++)
   {
-    if (isnanf((*border)[i*2]) || isnanf((*border)[i*2+1]))
+    //if (isnanf((*border)[i*2]) || isnanf((*border)[i*2+1]))
+    if ((*border)[i*2]<-999999 || (*border)[i*2+1]<-999999)
     {
       (*border)[i*2] = (*border)[i*2-2];
       (*border)[i*2+1] = (*border)[i*2-1];
     }
-    if (xmin > (*border)[i*2])
+    xmin = MIN((*border)[i*2],xmin);
+    if (xmax < (*border)[i*2])
     {
-      xmin = (*border)[i*2];
+      xmax = (*border)[i*2];
       posmin = i;
     }
-    xmax = MAX((*border)[i*2],xmax);
+    //xmax = MAX((*border)[i*2],xmax);
     ymin = MIN((*border)[i*2+1],ymin);
     ymax = MAX((*border)[i*2+1],ymax);
-  }
-  if (xmin<0 || ymin<0 || xmax<0 || ymax<0)
-  {    
-    for (int i=nb*3; i < *border_count; i++)
-  {
-    if (isnanf((*border)[i*2])) printf("oups ");
-    printf("%f %f   ",(*border)[i*2],(*border)[i*2+1]);
-  }
-  printf("\n");
-    xmin=xmax=ymin=ymax=0;
-    memset((*border)+nb*6,0,(600000-nb*6)*sizeof(float));
-    *border_count = nb*6;
-    //printf("coucou\n");
-
   }
   const int hb = ymax-ymin+1;
   const int wb = xmax-xmin+1;
@@ -633,6 +626,7 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
     {
       int v = intersections[i*2];
       int w = intersections[i*2+1];
+      printf("inter %d %d\n",v,w);
       if (v<=w)
       {
         (*border)[v*2] = -999999;
@@ -640,9 +634,9 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
       }
       else
       {
-        if ((*border)[nb*3] == -999999) (*border)[nb*3+1] = MAX((*border)[nb*3+1],w);
-        else (*border)[nb*3+1] = w;
-        (*border)[nb*3] = -999999;
+        if ((*border)[nb*6] == -999999) (*border)[nb*6+1] = MAX((*border)[nb*6+1],w);
+        else (*border)[nb*6+1] = w;
+        (*border)[nb*6] = -999999;
         (*border)[v*2] = -999999;
         (*border)[v*2+1] = -999999;
       }
@@ -651,6 +645,19 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
   printf("cpy corners %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
   tv2 = tv3;
     free(border_init);
+    /*for (int i=nb*3; i < *border_count; i++)
+  {
+    int xx = (*border)[i*2];
+    int yy = (*border)[i*2+1];
+    if (xx == -999999)
+    {
+      if (yy == -999999) break; //that means we have to skip the end of the border curve
+      i = yy-1;
+      continue;
+    }
+    printf("%d %d    ",xx,yy);
+  }
+  printf("\n");*/
     return 1;
   }
   
@@ -818,7 +825,8 @@ int dt_curve_events_button_pressed(struct dt_iop_module_t *module,float pzx, flo
   {
     if (gui->creation)
     {
-      if (g_list_length(form->points) < 3)
+      //we don't want a form with less than 3 points
+      if (g_list_length(form->points) < 4)
       {
         //we remove the form
         dt_masks_free_form(form);
@@ -1612,7 +1620,6 @@ static void _curve_falloff(float **buffer, int *p0, int *p1, int posx, int posy,
     int x = (int)((float)i*lx/(float)l) + p0[0] - posx;
     int y = (int)((float)i*ly/(float)l) + p0[1] - posy;
     float op = 1.0-(float)i/(float)l;
-    //op = op*op*(3.0f - 2.0f*op);
     (*buffer)[y*bw+x] = op;
     if (x > 0) (*buffer)[y*bw+x-1] = op; //this one is to avoid gap due to int rounding
     if (y > 0) (*buffer)[(y+1)*bw+x] = op;
@@ -1621,9 +1628,7 @@ static void _curve_falloff(float **buffer, int *p0, int *p1, int posx, int posy,
 
 int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, float **buffer, int *width, int *height, int *posx, int *posy)
 {
-    struct timeval tv1,tv2,tv3;
-  //struct timezone tz;
-  //long diff;
+  struct timeval tv1,tv2,tv3;
   gettimeofday(&tv1,NULL);
   gettimeofday(&tv2,NULL);
   
@@ -1642,8 +1647,8 @@ int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt
   int nb_corner = g_list_length(form->points);
   for (int i=nb_corner*3; i < border_count; i++)
   {
-    int xx = border[i*2];
-    int yy = border[i*2+1];
+    float xx = border[i*2];
+    float yy = border[i*2+1];
     if (xx == -999999)
     {
       if (yy == -999999) break; //that means we have to skip the end of the border curve
@@ -1714,7 +1719,6 @@ int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt
       }
       //we add the point
       (*buffer)[(yy-(*posy))*(*width)+xx-(*posx)] = 1.0f;
-      //printf("tabl %d %d\n",p[0],p[1]);
       //we change last values
       lasty2 = lasty;
       lasty = yy;
@@ -1756,7 +1760,7 @@ int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt
     if (p1[0] == -999999)
     {
       if (p1[1] == -999999) next = i-1;
-      next = p1[1];
+      else next = p1[1];
       p1[0] = border[next*2], p1[1] = border[next*2+1];
     }
     
