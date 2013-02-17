@@ -351,6 +351,7 @@ static int _tree_button_pressed (GtkWidget *treeview, GdkEventButton *event, dt_
         gtk_menu_append(menu, item);
         //existing forms
         GtkWidget *menu0 = gtk_menu_new();
+        gtk_menu_item_set_submenu(GTK_MENU_ITEM(item), menu0);
         GList *forms = g_list_first(darktable.develop->forms);
         while (forms)
         {
@@ -397,7 +398,7 @@ static int _tree_button_pressed (GtkWidget *treeview, GdkEventButton *event, dt_
           }
           forms = g_list_next(forms);
         }
-        gtk_menu_item_set_submenu(GTK_MENU_ITEM(item), menu0);
+        
       }
       
       gtk_menu_append(menu, gtk_separator_menu_item_new());

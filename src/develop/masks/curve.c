@@ -1301,8 +1301,9 @@ int dt_curve_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float 
     float nx = point->corner[0]*darktable.develop->preview_pipe->iwidth;
     float ny = point->corner[1]*darktable.develop->preview_pipe->iheight;
     float nr = sqrtf((pts[0]-nx)*(pts[0]-nx) + (pts[1]-ny)*(pts[1]-ny));
-    
-    point->border[0] = point->border[1] = nr/fminf(darktable.develop->preview_pipe->iwidth,darktable.develop->preview_pipe->iheight);
+    float bdr = nr/fminf(darktable.develop->preview_pipe->iwidth,darktable.develop->preview_pipe->iheight);
+
+    point->border[0] = point->border[1] = bdr;
     
     //we recreate the form points
     dt_masks_gui_form_remove(form,gui,index);
