@@ -1647,6 +1647,7 @@ int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt
   int nb_corner = g_list_length(form->points);
   for (int i=nb_corner*3; i < border_count; i++)
   {
+    //we look at the borders
     float xx = border[i*2];
     float yy = border[i*2+1];
     if (xx == -999999)
@@ -1660,6 +1661,20 @@ int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt
     ymin = fminf(yy,ymin);
     ymax = fmaxf(yy,ymax);
   }
+  //------------
+  //this part is temporaray need to avoid crash in case of strange curve (self-intersect, loop, etc...)
+  //probably need to be handled differently for performances
+  for (int i=nb_corner*3; i < points_count; i++)
+  {
+    //we look at the curve too
+    float xx = points[i*2];
+    float yy = points[i*2+1];
+    xmin = fminf(xx,xmin);
+    xmax = fmaxf(xx,xmax);
+    ymin = fminf(yy,ymin);
+    ymax = fmaxf(yy,ymax);
+  }
+  //-------------
   const int hb = *height = ymax-ymin+1;
   const int wb = *width = xmax-xmin+1;
   *posx = xmin;
