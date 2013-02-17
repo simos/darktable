@@ -922,6 +922,7 @@ int dt_curve_events_button_pressed(struct dt_iop_module_t *module,float pzx, flo
     else if (gui->point_selected >= 0)
     {
       gui->point_edited = gui->point_dragging  = gui->point_selected;
+      gpt->clockwise = _curve_is_clockwise(form);
       dt_control_queue_redraw_center();
       return 1;
     }
@@ -1029,6 +1030,7 @@ int dt_curve_events_button_released(struct dt_iop_module_t *module,float pzx, fl
   else if (gui->seg_dragging>=0)
   {
     gui->seg_dragging = -1;
+    gpt->clockwise = _curve_is_clockwise(form);
     dt_masks_write_form(form,darktable.develop);
     if (module) dt_dev_add_history_item(darktable.develop, module, TRUE);
     return 1;
@@ -1058,7 +1060,7 @@ int dt_curve_events_button_released(struct dt_iop_module_t *module,float pzx, fl
     //we recreate the form points
     dt_masks_gui_form_remove(form,gui,index);
     dt_masks_gui_form_create(form,gui,index);
-    
+    gpt->clockwise = _curve_is_clockwise(form);
     //we save the move
     if (module) dt_dev_add_history_item(darktable.develop, module, TRUE);
     
@@ -1090,7 +1092,7 @@ int dt_curve_events_button_released(struct dt_iop_module_t *module,float pzx, fl
     //we recreate the form points
     dt_masks_gui_form_remove(form,gui,index);
     dt_masks_gui_form_create(form,gui,index);
-    
+    gpt->clockwise = _curve_is_clockwise(form);
     //we save the move
     if (module) dt_dev_add_history_item(darktable.develop, module, TRUE);
     
@@ -1143,7 +1145,7 @@ int dt_curve_events_button_released(struct dt_iop_module_t *module,float pzx, fl
     //we recreate the form points
     dt_masks_gui_form_remove(form,gui,index);
     dt_masks_gui_form_create(form,gui,index);
-    
+    gpt->clockwise = _curve_is_clockwise(form);
     //we save the move
     if (module) dt_dev_add_history_item(darktable.develop, module, TRUE);
     
@@ -1162,7 +1164,7 @@ int dt_curve_events_button_released(struct dt_iop_module_t *module,float pzx, fl
       //we recreate the form points
       dt_masks_gui_form_remove(form,gui,index);
       dt_masks_gui_form_create(form,gui,index);
-      
+      gpt->clockwise = _curve_is_clockwise(form);
       //we save the move
       if (module) dt_dev_add_history_item(darktable.develop, module, TRUE);
     }
