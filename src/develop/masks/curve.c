@@ -1613,7 +1613,7 @@ static void _curve_falloff(float **buffer, int *p0, int *p1, int posx, int posy,
     float op = 1.0-(float)i/(float)l;
     (*buffer)[y*bw+x] = op;
     if (x > 0) (*buffer)[y*bw+x-1] = op; //this one is to avoid gap due to int rounding
-    if (y > 0) (*buffer)[(y+1)*bw+x] = op;
+    if (y > 0) (*buffer)[(y-1)*bw+x] = op;
   }
 }
 
@@ -1696,7 +1696,6 @@ int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt
     {
       int xx = (int) points[i*2];
       int yy = (int) points[i*2+1];
-      
       //we don't store the point if it has the same y value as the last one
       if (yy == lasty) continue;
       
