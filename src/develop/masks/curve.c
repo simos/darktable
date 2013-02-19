@@ -1577,11 +1577,13 @@ int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt
   struct timeval tv1,tv2,tv3;
   gettimeofday(&tv1,NULL);
   gettimeofday(&tv2,NULL);
+  printf("----start mask creation %s\n",form->name);
   
   //we get buffers for all points
   float *points, *border;
   int points_count,border_count;
   if (!_curve_get_points_border(module->dev,form,module->priority,piece->pipe,&points,&points_count,&border,&border_count)) return 0;
+
   
   gettimeofday(&tv3,NULL);
   printf("--total points %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
@@ -1621,10 +1623,10 @@ int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt
     ymax = fmaxf(yy,ymax);
   }
   //-------------
-  const int hb = *height = ymax-ymin+1;
-  const int wb = *width = xmax-xmin+1;
-  *posx = xmin;
-  *posy = ymin;
+  const int hb = *height = ymax-ymin+2;
+  const int wb = *width = xmax-xmin+2;
+  *posx = xmin-1;
+  *posy = ymin-1;
   gettimeofday(&tv3,NULL);
   printf("--min-max %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
   tv2 = tv3;
@@ -1704,7 +1706,7 @@ int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt
   printf("--fill plain %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
   tv2 = tv3;
   //-----------------------------------------
-  
+
   //now we fill the falloff
   int p0[2], p1[2];
   int last0[2] = {-100,-100}, last1[2] = {-100,-100};
@@ -1738,7 +1740,7 @@ int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt
   printf("--falloff %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
   tv2 = tv3;
   gettimeofday(&tv3,NULL);
-  printf("----total masks %ld\n",(tv3.tv_sec-tv1.tv_sec) * 1000000L + (tv3.tv_usec-tv1.tv_usec));
+  printf("----total masks %s %ld\n",form->name,(tv3.tv_sec-tv1.tv_sec) * 1000000L + (tv3.tv_usec-tv1.tv_usec));
   free(points);
   free(border);
   return 1;
