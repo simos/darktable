@@ -615,25 +615,55 @@ void dt_curve_get_distance(float x, int y, float as, dt_masks_form_gui_t *gui, i
   //we first check if it's inside borders
   int nb = 0;
   int last = -9999;
+  int last2 = -9999;
+  int lastw = -9999;
+  int xx,yy;
   *inside_border = 0;
   *near = -1;
   dt_masks_form_gui_points_t *gpt = (dt_masks_form_gui_points_t *) g_list_nth_data(gui->points,index);
   if (!gpt) return;
-  
+
   for (int i=corner_count*3; i<gpt->border_count; i++)
   {
-    int yy = (int) gpt->border[i*2+1];
-    if (yy != last && yy == y)
+    xx = (int) gpt->border[i*2];
+    yy = (int) gpt->border[i*2+1];
+    if (xx == -999999)
     {
-      if (gpt->border[i*2] > x) nb++;
+      if (yy==-999999) break;
+      i = yy-1;
+      continue;
     }
+    //we check if we are at a point were the curve change of direction
+    if (last2>0 && lastw>0 && lastw == last && yy != last)
+    {
+      if ((lastw-yy)*(lastw-last2)>0) nb++;
+    }
+    if (yy != last && (yy==y || (yy<last && y<last && y>yy) || (yy>last && last>0 && y>last && y<yy)))
+    {
+      if (xx > x)
+      {
+        nb++;
+        lastw = yy;
+      }
+    }
+    if (yy!=lastw) lastw = -999;
+    if (yy!=last) last2 = last;
     last = yy;
   }
+  xx = (int) gpt->border[corner_count*6];
+  yy = (int) gpt->border[corner_count*6+1];
+  if (xx == -999999)
+  {
+    xx = (int) gpt->border[(yy-1)*2];
+    yy = (int) gpt->border[(yy-1)*2+1];
+  }
+  if ((yy-last>1 || yy-last<-1) && ((yy<last && y<last && y>yy) || (yy>last && last>0 && y>last && y<yy)) && xx>x) nb++;
   *inside_border = (nb & 1); 
   
   //and we check if it's inside form
   int seg = 1;
   nb=0;
+  last = last2 = lastw = -9999;
   for (int i=corner_count*3; i<gpt->points_count; i++)
   {
     if (gpt->points[i*2+1] == gpt->points[seg*6+3] && gpt->points[i*2] == gpt->points[seg*6+2])
@@ -645,15 +675,30 @@ void dt_curve_get_distance(float x, int y, float as, dt_masks_form_gui_t *gui, i
       if (seg == 0) *near = corner_count-1;
       else *near = seg-1;
     }
-    int yy = (int) gpt->points[i*2+1];
-    if (yy != last && yy == y)
+    xx = (int) gpt->points[i*2];
+    yy = (int) gpt->points[i*2+1];
+    //we check if we are at a point were the curve change of direction
+    if (last2>0 && lastw>0 && lastw == last && yy != last)
     {
-      if (gpt->points[i*2] > x) nb++;
+      if ((lastw-yy)*(lastw-last2)>0) nb++;
     }
+    if (yy != last && (yy==y || (yy<last && y<last && y>yy) || (yy>last && last>0 && y>last && y<yy)))
+    {
+      if (xx > x)
+      {
+        nb++;
+        lastw = yy;
+      }
+    }
+    if (yy!=last) last2 = last;
+    if (yy!=lastw) lastw = -999;
     last = yy;
   }
+  xx = (int) gpt->points[corner_count*6];
+  yy = (int) gpt->points[corner_count*6+1];
+  if ((yy-last>1 || yy-last<-1) && ((yy<last && y<last && y>yy) || (yy>last && last>0 && y>last && y<yy)) && xx>x) nb++;
+  
   *inside = (nb & 1);
-  if (*inside_border) *inside = 1;
 }
 
 int dt_curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, float **points, int *points_count, float **border, int *border_count)
@@ -1315,14 +1360,14 @@ int dt_curve_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float 
   gui->seg_selected = near;
   if (near<0)
   {
-    if (inb)
+    if (in)
+    {
+      gui->form_selected = TRUE;
+    }
+    else if (inb)
     {
       gui->form_selected = TRUE;
       gui->border_selected = TRUE;
-    }
-    else if (in)
-    {
-      gui->form_selected = TRUE;
     }
   }
   dt_control_queue_redraw_center();
@@ -1452,7 +1497,7 @@ void dt_curve_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_form_gu
       }
       else cairo_line_to(cr,gpt->border[i*2]+dx,gpt->border[i*2+1]+dy);
     }
-        //the execute the drawing
+    //we execute the drawing
     if (gui->border_selected) cairo_set_line_width(cr, 2.0/zoom_scale);
     else                                     cairo_set_line_width(cr, 1.0/zoom_scale);
     cairo_set_source_rgba(cr, .3, .3, .3, .8);
