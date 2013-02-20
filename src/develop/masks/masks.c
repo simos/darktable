@@ -608,7 +608,11 @@ void dt_masks_set_edit_mode(struct dt_iop_module_t *module,gboolean value)
 
 void dt_masks_iop_edit_toggle_callback(GtkWidget *widget, dt_iop_module_t *module)
 {
-  if (module->blend_params->forms_count==0) return;
+  if (module->blend_params->forms_count==0)
+  {
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(widget),FALSE);
+    return;
+  }
   //we create a "group" form with all form in use in the iop
   dt_masks_form_t *grp = NULL;
   
@@ -672,10 +676,11 @@ static void _menu_no_masks(GtkButton *button, struct dt_iop_module_t *module)
   //and we update the iop
   dt_iop_gui_blend_data_t *bd = (dt_iop_gui_blend_data_t *)module->blend_data;
   dt_masks_set_edit_mode(module,FALSE);
-  gtk_widget_set_sensitive(bd->masks_edit,FALSE);
+  //gtk_widget_set_sensitive(bd->masks_edit,FALSE);
   gtk_label_set_text(GTK_LABEL(bd->masks_state),_("no masks used"));
   
   dt_dev_add_history_item(darktable.develop, module, TRUE);
+  dt_dev_masks_list_change(darktable.develop);
 }
 static void _menu_add_circle(GtkButton *button, struct dt_iop_module_t *module)
 {
@@ -714,6 +719,7 @@ static void _menu_add_exist(GtkButton *button, dt_masks_form_t *form)
   dt_masks_set_edit_mode(iop,TRUE);
   dt_dev_add_history_item(darktable.develop, iop, TRUE);
   dt_masks_iop_update(iop);
+  dt_dev_masks_list_change(darktable.develop);
 }
 
 void dt_masks_iop_dropdown_callback(GtkWidget *widget, struct dt_iop_module_t *module)
