@@ -85,6 +85,24 @@ static void _tree_add_curve(GtkButton *button, dt_iop_module_t *module)
   dt_control_queue_redraw_center();
 }
 
+static void _tree_add_exist(GtkButton *button, dt_iop_module_t *module)
+{
+  //we get the new formid
+  int id = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(button),"formid"));
+  
+  //add the form to the current module
+  int forms_count = module->blend_params->forms_count;
+  module->blend_params->forms[forms_count] = id;
+  module->blend_params->forms_state[forms_count] = DT_MASKS_STATE_SHOW | DT_MASKS_STATE_USE;
+  module->blend_params->forms_count++;
+  
+  //and we ensure that we are in edit mode
+  dt_masks_set_edit_mode(module,TRUE);
+  dt_dev_add_history_item(darktable.develop, module, TRUE);
+  dt_masks_iop_update(module);
+  dt_dev_masks_list_change(darktable.develop);
+}
+
 static void _tree_group(GtkButton *button, dt_lib_module_t *self)
 {
   dt_lib_masks_t *lm = (dt_lib_masks_t *)self->data;
@@ -392,8 +410,8 @@ static int _tree_button_pressed (GtkWidget *treeview, GdkEventButton *event, dt_
             
             //we add the menu entry
             item = gtk_menu_item_new_with_label(str);
-            //g_object_set_data(G_OBJECT(item), "formid", GUINT_TO_POINTER(form->formid));
-            //g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (_menu_add_exist), form);
+            g_object_set_data(G_OBJECT(item), "formid", GUINT_TO_POINTER(form->formid));
+            g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (_tree_add_exist), module);
             gtk_menu_append(menu0, item);
           }
           forms = g_list_next(forms);
