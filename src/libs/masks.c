@@ -600,6 +600,9 @@ static void _lib_masks_recreate_list(dt_lib_module_t *self)
   
   gtk_box_pack_start(GTK_BOX(self->widget), sw, TRUE, TRUE, 1);
 
+  //set selection
+  dt_dev_masks_selection_change(darktable.develop);
+  
   g_signal_connect(selection, "changed", G_CALLBACK(_tree_selection_change), lm);
   g_signal_connect(lm->treeview, "button-press-event", (GCallback) _tree_button_pressed, self);
     
@@ -608,8 +611,8 @@ static void _lib_masks_recreate_list(dt_lib_module_t *self)
 }
 static void _lib_history_change_callback(gpointer instance, gpointer user_data)
 {
-  dt_lib_module_t *self = (dt_lib_module_t *)user_data;
-  _lib_masks_recreate_list(self);
+  //dt_lib_module_t *self = (dt_lib_module_t *)user_data;
+  //_lib_masks_recreate_list(self);
 }
 
 static int _lib_masks_selection_change_foreach (GtkTreeModel *model, GtkTreePath *path, GtkTreeIter *iter, gpointer data)
@@ -697,7 +700,7 @@ void gui_init(dt_lib_module_t *self)
 
   // set proxy functions
   darktable.develop->proxy.masks.module = self;
-  darktable.develop->proxy.masks.switch_module = _lib_masks_recreate_list;
+  darktable.develop->proxy.masks.list_change = _lib_masks_recreate_list;
   darktable.develop->proxy.masks.selection_change = _lib_masks_selection_change;
 }
 

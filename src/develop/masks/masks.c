@@ -122,6 +122,7 @@ void dt_masks_gui_form_save_creation(dt_iop_module_t *module, dt_masks_form_t *f
   }
   //show the form if needed
   darktable.develop->form_gui->formid = form->formid;
+  dt_dev_masks_list_change(darktable.develop);
 }
 
 int dt_masks_get_points(dt_develop_t *dev, dt_masks_form_t *form, float **points, int *points_count, float dx, float dy)
@@ -292,7 +293,8 @@ void dt_masks_read_forms(dt_develop_t *dev)
     dev->forms = g_list_append(dev->forms,form);
   }
   
-  sqlite3_finalize (stmt);  
+  sqlite3_finalize (stmt); 
+  dt_dev_masks_list_change(dev); 
 }
 
 void dt_masks_write_form(dt_masks_form_t *form, dt_develop_t *dev)
@@ -424,7 +426,7 @@ void dt_masks_write_forms(dt_develop_t *dev)
       free(ptbuf);
     }
     forms = g_list_next(forms);
-  }  
+  }
 }
 
 void dt_masks_free_form(dt_masks_form_t *form)

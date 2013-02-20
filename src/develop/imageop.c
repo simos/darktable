@@ -1754,7 +1754,7 @@ void dt_iop_request_focus(dt_iop_module_t *module)
   }
   
   //update masks manager
-  dt_dev_masks_switch_module(darktable.develop);
+  //dt_dev_masks_switch_module(darktable.develop);
   
   dt_control_change_cursor(GDK_LEFT_PTR);
 }
