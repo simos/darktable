@@ -1544,9 +1544,10 @@ void dt_iop_commit_params(dt_iop_module_t *module, dt_iop_params_t *params, dt_d
       if (!form) continue;
       length += sizeof(int)+sizeof(dt_masks_type_t);
       int nb = g_list_length(form->points);
-      if (form->type == DT_MASKS_CIRCLE) length += nb*sizeof(dt_masks_point_circle_t);
-      else if (form->type == DT_MASKS_CURVE) length += nb*sizeof(dt_masks_point_curve_t);
+      if (form->type & DT_MASKS_CIRCLE) length += nb*sizeof(dt_masks_point_circle_t);
+      else if (form->type & DT_MASKS_CURVE) length += nb*sizeof(dt_masks_point_curve_t);
     }
+    length += 2*sizeof(float);
     
     char *str = malloc(length);
     memcpy(str, module->params, module->params_size);
@@ -1573,12 +1574,14 @@ void dt_iop_commit_params(dt_iop_module_t *module, dt_iop_params_t *params, dt_d
       while (points)
       {
         int pts = 0;
-        if (form->type == DT_MASKS_CIRCLE) pts = sizeof(dt_masks_point_circle_t);
-        else if (form->type == DT_MASKS_CURVE) pts = sizeof(dt_masks_point_curve_t);
+        if (form->type & DT_MASKS_CIRCLE) pts = sizeof(dt_masks_point_circle_t);
+        else if (form->type & DT_MASKS_CURVE) pts = sizeof(dt_masks_point_curve_t);
         memcpy(str+pos, points->data, pts);
         pos += pts;
         points = g_list_next(points);
-      }      
+      }
+      memcpy(str+pos, form->source, 2*sizeof(float));
+      pos+=2;      
     }
     
     // assume process_cl is ready, commit_params can overwrite this.

@@ -34,7 +34,8 @@ typedef enum dt_masks_type_t
   DT_MASKS_NONE = 0, // keep first
   DT_MASKS_CIRCLE = 1,
   DT_MASKS_CURVE = 2,
-  DT_MASKS_GROUP = 3
+  DT_MASKS_GROUP = 4,
+  DT_MASKS_CLONE = 8
 
 }
 dt_masks_type_t;
@@ -86,9 +87,11 @@ dt_masks_point_group_t;
 /** structure used to define a form */
 typedef struct dt_masks_form_t
 {
-  GList *points;
+  GList *points; //list of point structures
   dt_masks_type_t type;
   
+  //position of the source (used only for clone)
+  float source[2];
   //name of the form
   char name[128];
   //id used to store the form
@@ -104,6 +107,8 @@ typedef struct dt_masks_form_gui_points_t
   int points_count;
   float *border;
   int border_count;
+  float *source;
+  int source_count;
   gboolean clockwise;
 }
 dt_masks_form_gui_points_t;
@@ -118,6 +123,7 @@ typedef struct dt_masks_form_gui_t
   float posx, posy, dx, dy;
   gboolean form_selected;
   gboolean border_selected;
+  gboolean source_selected;
   int point_selected;
   int point_edited;
   int feather_selected;
@@ -125,6 +131,7 @@ typedef struct dt_masks_form_gui_t
   int point_border_selected;
   
   gboolean form_dragging;
+  gboolean source_dragging;
   int point_dragging;
   int feather_dragging;
   int seg_dragging;
@@ -149,10 +156,11 @@ dt_masks_point_circle_t *dt_masks_get_circle(dt_masks_form_t *form);
 /** get points in real space with respect of distortion dx and dy are used to eventually move the center of the circle */
 int dt_masks_get_points(dt_develop_t *dev, dt_masks_form_t *form, float **points, int *points_count, float dx, float dy);
 int dt_masks_get_border(dt_develop_t *dev, dt_masks_form_t *form, float **border, int *border_count, float dx, float dy);
-int dt_masks_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, float **points, int *points_count, float **border, int *border_count, float dx, float dy);
+int dt_masks_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, float **points, int *points_count, float **border, int *border_count, int source);
 
 /** get the rectangle which include the form and his border */
 int dt_masks_get_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, int *width, int *height, int *posx, int *posy);
+int dt_masks_get_source_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, int *width, int *height, int *posx, int *posy);
 /** get the transparency mask of the form and his border */
 int dt_masks_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, float **buffer, int *width, int *height, int *posx, int *posy);
 

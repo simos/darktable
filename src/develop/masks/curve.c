@@ -286,7 +286,7 @@ static int _curve_fill_gaps(int lastx, int lasty, int x, int y, int *points, int
 }
 
 static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, int prio_max, dt_dev_pixelpipe_t *pipe, 
-                                      float **points, int *points_count, float **border, int *border_count)
+                                      float **points, int *points_count, float **border, int *border_count, int source)
 {
   struct timeval tv1,tv2,tv3;
   //struct timezone tz;
@@ -304,16 +304,24 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
   printf("malloc %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
   tv2 = tv3;
   //we store all points
+  float dx,dy;
+  dx=dy=0.0f;
   int nb = g_list_length(form->points);
+  if (source && nb>0)
+  {
+    dt_masks_point_curve_t *pt = (dt_masks_point_curve_t *)g_list_nth_data(form->points,0);
+    dx = (pt->corner[0]-form->source[0])*wd;
+    dy = (pt->corner[1]-form->source[1])*wd;
+  }
   for(int k = 0; k < nb; k++)
   {
     dt_masks_point_curve_t *pt = (dt_masks_point_curve_t *)g_list_nth_data(form->points,k);
-    (*points)[k*6] = pt->ctrl1[0]*wd;
-    (*points)[k*6+1] = pt->ctrl1[1]*ht;
-    (*points)[k*6+2] = pt->corner[0]*wd;
-    (*points)[k*6+3] = pt->corner[1]*ht;
-    (*points)[k*6+4] = pt->ctrl2[0]*wd;
-    (*points)[k*6+5] = pt->ctrl2[1]*ht;
+    (*points)[k*6] = pt->ctrl1[0]*wd-dx;
+    (*points)[k*6+1] = pt->ctrl1[1]*ht-dy;
+    (*points)[k*6+2] = pt->corner[0]*wd-dx;
+    (*points)[k*6+3] = pt->corner[1]*ht-dy;
+    (*points)[k*6+4] = pt->ctrl2[0]*wd-dx;
+    (*points)[k*6+5] = pt->ctrl2[1]*ht-dy;
   }
   //for the border, we store value too
   for(int k = 0; k < nb; k++)
@@ -342,8 +350,8 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
     int k2 = (k+1)%nb;
     dt_masks_point_curve_t *point1 = (dt_masks_point_curve_t *)g_list_nth_data(form->points,k);
     dt_masks_point_curve_t *point2 = (dt_masks_point_curve_t *)g_list_nth_data(form->points,k2);
-    float p1[5] = {point1->corner[0]*wd, point1->corner[1]*ht, point1->ctrl2[0]*wd, point1->ctrl2[1]*ht, cw*point1->border[1]*MIN(wd,ht)};
-    float p2[5] = {point2->corner[0]*wd, point2->corner[1]*ht, point2->ctrl1[0]*wd, point2->ctrl1[1]*ht, cw*point2->border[0]*MIN(wd,ht)};
+    float p1[5] = {point1->corner[0]*wd-dx, point1->corner[1]*ht-dy, point1->ctrl2[0]*wd-dx, point1->ctrl2[1]*ht-dy, cw*point1->border[1]*MIN(wd,ht)};
+    float p2[5] = {point2->corner[0]*wd-dx, point2->corner[1]*ht-dy, point2->ctrl1[0]*wd-dx, point2->ctrl1[1]*ht-dy, cw*point2->border[0]*MIN(wd,ht)};
     
     //and we determine all points by recursion (to be sure the distance between 2 points is <=1)
     float rc[2],rb[2];
@@ -609,7 +617,7 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
   return 0;  
 }
 
-void dt_curve_get_distance(float x, int y, float as, dt_masks_form_gui_t *gui, int index, int corner_count, int *inside, int *inside_border, int *near)
+void dt_curve_get_distance(float x, int y, float as, dt_masks_form_gui_t *gui, int index, int corner_count, int *inside, int *inside_border, int *near, int *inside_source)
 {
   if (!gui) return;
   //we first check if it's inside borders
@@ -701,9 +709,9 @@ void dt_curve_get_distance(float x, int y, float as, dt_masks_form_gui_t *gui, i
   *inside = (nb & 1);
 }
 
-int dt_curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, float **points, int *points_count, float **border, int *border_count)
+int dt_curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, float **points, int *points_count, float **border, int *border_count,int source)
 {
-  return _curve_get_points_border(dev,form,999999,dev->preview_pipe,points,points_count,border,border_count);
+  return _curve_get_points_border(dev,form,999999,dev->preview_pipe,points,points_count,border,border_count,source);
 }
 
 int dt_curve_get_border(dt_develop_t *dev, dt_masks_form_t *form, float **points, int *points_count)
@@ -877,6 +885,8 @@ int dt_curve_events_button_pressed(struct dt_iop_module_t *module,float pzx, flo
         bzpt2->border[0] = bzpt2->border[1] = 0.05;
         bzpt2->state = DT_MASKS_POINT_STATE_NORMAL;
         form->points = g_list_append(form->points,bzpt2);
+        form->source[0] = bzpt->corner[0] + 0.001f;
+        form->source[1] = bzpt->corner[1] + 0.001f;
         nb++;
       }
       form->points = g_list_append(form->points,bzpt);
@@ -1355,12 +1365,17 @@ int dt_curve_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float 
   }
   
   //are we inside the form or the borders or near a segment ???
-  int in, inb, near;
-  dt_curve_get_distance(pzx,(int)pzy,as,gui,index,nb,&in,&inb,&near);
+  int in, inb, near, ins;
+  dt_curve_get_distance(pzx,(int)pzy,as,gui,index,nb,&in,&inb,&near,&ins);
   gui->seg_selected = near;
   if (near<0)
   {
-    if (in)
+    if (ins)
+    {
+      gui->form_selected = TRUE;
+      gui->source_selected = TRUE;
+    }
+    else if (in)
     {
       gui->form_selected = TRUE;
     }
@@ -1537,63 +1552,101 @@ void dt_curve_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_form_gu
   }
 }
 
-gint _curve_sort_points(gconstpointer a, gconstpointer b)
-{
-  const int *am = (const int *)a;
-  const int *bm = (const int *)b;
-  if (am[1] == bm[1]) return am[0] - bm[0];
-  return am[1] - bm[1];
-}
+int dt_curve_get_source_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, int *width, int *height, int *posx, int *posy)
+{  
+  //we get buffers for all points
+  float *points, *border;
+  int points_count,border_count;
+  if (!_curve_get_points_border(module->dev,form,module->priority,piece->pipe,&points,&points_count,&border,&border_count,1)) return 0;
 
-int dt_curve_get_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, int *width, int *height, int *posx, int *posy)
-{
-  return 0;
-  /*float wd = piece->pipe->iwidth, ht = piece->pipe->iheight;
-  
-  //we get buffers for all points (by segments)
-  float *points = malloc(60000*sizeof(float));
-  const int nb = g_list_length(form->points);
-  //int seg[nb];
-  int pos = 0;
-  //we render all segments
-  for(int k = 0; k < nb; k++)
-  {
-    int k2 = (k+1)%nb;
-    dt_masks_point_curve_t *point1 = (dt_masks_point_curve_t *)g_list_nth_data(form->points,k);
-    dt_masks_point_curve_t *point2 = (dt_masks_point_curve_t *)g_list_nth_data(form->points,k2);
-    float p1[4] = {point1->corner[0]*wd, point1->corner[1]*ht, point1->ctrl2[0]*wd, point1->ctrl2[1]*ht};
-    float p2[4] = {point2->corner[0]*wd, point2->corner[1]*ht, point2->ctrl1[0]*wd, point2->ctrl1[1]*ht};
-    
-    //we store the first point
-    points[pos++] = p1[0];
-    points[pos++] = p1[1];
-    
-    //and we determine all points by recursion (to be sure the distance between 2 points is <=1)
-    float rx,ry;
-    _curve_points_recurs(p1,p2,0.0,1.0,p1[0],p1[1],p2[0],p2[1],&rx,&ry,points,&pos);
-  }
-  
-  if (!dt_dev_distort_transform_plus(darktable.develop,piece->pipe,0,module->priority,points,pos/2))
-  {
-    free(points);
-    return 0;
-  }
-  
   //now we want to find the area, so we search min/max points
   float xmin, xmax, ymin, ymax;
   xmin = ymin = FLT_MAX;
   xmax = ymax = FLT_MIN;
-  for (int i=0; i < pos/2; i++)
+  int nb_corner = g_list_length(form->points);
+  for (int i=nb_corner*3; i < border_count; i++)
   {
-    xmin = fminf(points[i*2],xmin);
-    xmax = fmaxf(points[i*2],xmax);
-    ymin = fminf(points[i*2+1],ymin);
-    ymax = fmaxf(points[i*2+1],ymax);
+    //we look at the borders
+    float xx = border[i*2];
+    float yy = border[i*2+1];
+    if (xx == -999999)
+    {
+      if (yy == -999999) break; //that means we have to skip the end of the border curve
+      i = yy-1;
+      continue;
+    }
+    xmin = fminf(xx,xmin);
+    xmax = fmaxf(xx,xmax);
+    ymin = fminf(yy,ymin);
+    ymax = fmaxf(yy,ymax);
   }
-  *height = ymax-ymin+1;
-  *width = xmax-xmin+1;
-  *posx = xmin;
-  *posy = ymin;*/
+  //------------
+  //this part is temporaray need to avoid crash in case of strange curve (self-intersect, loop, etc...)
+  //probably need to be handled differently for performances
+  for (int i=nb_corner*3; i < points_count; i++)
+  {
+    //we look at the curve too
+    float xx = points[i*2];
+    float yy = points[i*2+1];
+    xmin = fminf(xx,xmin);
+    xmax = fmaxf(xx,xmax);
+    ymin = fminf(yy,ymin);
+    ymax = fmaxf(yy,ymax);
+  }
+  //-------------
+  *height = ymax-ymin+2;
+  *width = xmax-xmin+2;
+  *posx = xmin-1;
+  *posy = ymin-1;
+  return 1;
+}
+
+int dt_curve_get_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, int *width, int *height, int *posx, int *posy)
+{  
+  //we get buffers for all points
+  float *points, *border;
+  int points_count,border_count;
+  if (!_curve_get_points_border(module->dev,form,module->priority,piece->pipe,&points,&points_count,&border,&border_count,0)) return 0;
+
+  //now we want to find the area, so we search min/max points
+  float xmin, xmax, ymin, ymax;
+  xmin = ymin = FLT_MAX;
+  xmax = ymax = FLT_MIN;
+  int nb_corner = g_list_length(form->points);
+  for (int i=nb_corner*3; i < border_count; i++)
+  {
+    //we look at the borders
+    float xx = border[i*2];
+    float yy = border[i*2+1];
+    if (xx == -999999)
+    {
+      if (yy == -999999) break; //that means we have to skip the end of the border curve
+      i = yy-1;
+      continue;
+    }
+    xmin = fminf(xx,xmin);
+    xmax = fmaxf(xx,xmax);
+    ymin = fminf(yy,ymin);
+    ymax = fmaxf(yy,ymax);
+  }
+  //------------
+  //this part is temporaray need to avoid crash in case of strange curve (self-intersect, loop, etc...)
+  //probably need to be handled differently for performances
+  for (int i=nb_corner*3; i < points_count; i++)
+  {
+    //we look at the curve too
+    float xx = points[i*2];
+    float yy = points[i*2+1];
+    xmin = fminf(xx,xmin);
+    xmax = fmaxf(xx,xmax);
+    ymin = fminf(yy,ymin);
+    ymax = fmaxf(yy,ymax);
+  }
+  //-------------
+  *height = ymax-ymin+2;
+  *width = xmax-xmin+2;
+  *posx = xmin-1;
+  *posy = ymin-1;
   return 1;
 }
 
@@ -1627,7 +1680,7 @@ int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt
   //we get buffers for all points
   float *points, *border;
   int points_count,border_count;
-  if (!_curve_get_points_border(module->dev,form,module->priority,piece->pipe,&points,&points_count,&border,&border_count)) return 0;
+  if (!_curve_get_points_border(module->dev,form,module->priority,piece->pipe,&points,&points_count,&border,&border_count,0)) return 0;
 
   
   gettimeofday(&tv3,NULL);

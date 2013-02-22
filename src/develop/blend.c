@@ -1608,7 +1608,7 @@ void dt_develop_blend_process (struct dt_iop_module_t *self, struct dt_dev_pixel
 
   /* enable mode if there is some mask */
   int mode = d->mode;
-  if (mode == 0 && self->blend_params->forms_count>0) mode = DEVELOP_BLEND_NORMAL;
+  if (mode == 0 && self->blend_params->forms_count>0 && (!(self->flags()&IOP_FLAGS_NO_MASKS))) mode = DEVELOP_BLEND_NORMAL;
   
   /* check if blend is disabled */
   if (!d || mode==0) return;
@@ -1699,7 +1699,7 @@ void dt_develop_blend_process (struct dt_iop_module_t *self, struct dt_dev_pixel
   //NOTE : add openmp pragma...
   
   /* apply masks if there's some */
-  if (self->blend_params->forms_count>0)
+  if (self->blend_params->forms_count>0 && (!(self->flags()&IOP_FLAGS_NO_MASKS)))
   {
     memset(mask,0,roi_out->width*roi_out->height*sizeof(float));
     for (int i=0; i<self->blend_params->forms_count; i++)
