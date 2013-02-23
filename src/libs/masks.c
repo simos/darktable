@@ -252,23 +252,19 @@ static void _tree_selection_change (GtkTreeSelection *selection,dt_lib_masks_t *
   GList *items = g_list_first(gtk_tree_selection_get_selected_rows(selection,NULL));
   while(items)
   {
-    printf("a\n");
     GtkTreePath *item = (GtkTreePath *)items->data;
     GtkTreeIter iter;
     if (gtk_tree_model_get_iter (model,&iter,item))
     {
-      printf("b\n");
       GValue gv = {0,};
       gtk_tree_model_get_value (model,&iter,2,&gv);
       int id = g_value_get_int(&gv);
       if (id > 0)
       {
-        printf("c\n");
         //we get the corresponding form
         dt_masks_form_t *form = dt_masks_get_from_id(darktable.develop,id);
         if (form)
         {
-          printf("d\n");
           if (form->type & DT_MASKS_GROUP)
           {
             GList *sforms = g_list_first(form->points);
@@ -284,7 +280,6 @@ static void _tree_selection_change (GtkTreeSelection *selection,dt_lib_masks_t *
           }
           else
           {
-            printf("e\n");
             dt_masks_point_group_t *fpt = (dt_masks_point_group_t *) malloc(sizeof(dt_masks_point_group_t));
             fpt->formid = id;
             fpt->state = DT_MASKS_STATE_USE;
@@ -535,6 +530,12 @@ static void _lib_masks_recreate_list(dt_lib_module_t *self)
   while (forms)
   {
     dt_masks_form_t *form = (dt_masks_form_t *)forms->data;
+    //we don't display clone forms
+    if (form->type & DT_MASKS_CLONE)
+    {
+      forms = g_list_next(forms);
+      continue;  
+    }
     gtk_tree_store_append(treestore, &child, &toplevel);
     gtk_tree_store_set(treestore, &child, 0, form->name,1,NULL,2,form->formid, -1);
     if (form->type & DT_MASKS_GROUP)
@@ -562,7 +563,7 @@ static void _lib_masks_recreate_list(dt_lib_module_t *self)
   while(iops)
   {
     dt_iop_module_t *module = (dt_iop_module_t *)iops->data;
-    if ((module->flags() & IOP_FLAGS_SUPPORTS_BLENDING) && module->blend_params->forms_count > 0)
+    if ((module->flags() & IOP_FLAGS_SUPPORTS_BLENDING) && !(module->flags() & IOP_FLAGS_NO_MASKS) && module->blend_params->forms_count > 0)
     {
       //we create the entry
       gtk_tree_store_append(treestore, &toplevel, NULL);
