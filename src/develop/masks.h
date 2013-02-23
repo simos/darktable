@@ -151,11 +151,7 @@ typedef struct dt_masks_form_gui_t
 }
 dt_masks_form_gui_t;
 
-dt_masks_point_circle_t *dt_masks_get_circle(dt_masks_form_t *form);
-
 /** get points in real space with respect of distortion dx and dy are used to eventually move the center of the circle */
-int dt_masks_get_points(dt_develop_t *dev, dt_masks_form_t *form, float **points, int *points_count, float dx, float dy);
-int dt_masks_get_border(dt_develop_t *dev, dt_masks_form_t *form, float **border, int *border_count, float dx, float dy);
 int dt_masks_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, float **points, int *points_count, float **border, int *border_count, int source);
 
 /** get the rectangle which include the form and his border */
@@ -189,7 +185,6 @@ void dt_masks_events_post_expose (struct dt_iop_module_t *module, cairo_t *cr, i
 /** functions used to manipulate gui datas */
 void dt_masks_gui_form_create (dt_masks_form_t *form, dt_masks_form_gui_t *gui,int index);
 void dt_masks_gui_form_remove (dt_masks_form_t *form, dt_masks_form_gui_t *gui, int index);
-void dt_masks_gui_form_update_border (dt_masks_form_t *form, dt_masks_form_gui_t *gui, int index);
 void dt_masks_gui_form_test_create (dt_masks_form_t *form, dt_masks_form_gui_t *gui);
 void dt_masks_gui_form_save_creation (struct dt_iop_module_t *module, dt_masks_form_t *form, dt_masks_form_gui_t *gui);
 

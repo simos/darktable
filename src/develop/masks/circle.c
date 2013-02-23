@@ -22,7 +22,7 @@
 #include "develop/masks.h"
 #include "common/debug.h"
 
-void dt_circle_get_distance(float x, int y, float as, dt_masks_form_gui_t *gui, int index, int *inside, int *inside_border, int *near, int *inside_source)
+static void dt_circle_get_distance(float x, int y, float as, dt_masks_form_gui_t *gui, int index, int *inside, int *inside_border, int *near, int *inside_source)
 {
   if (!gui) return;
   
@@ -91,7 +91,7 @@ void dt_circle_get_distance(float x, int y, float as, dt_masks_form_gui_t *gui, 
   *inside_border = !(nb & 1);
 }
 
-int dt_circle_events_mouse_scrolled(struct dt_iop_module_t *module, float pzx, float pzy, int up, uint32_t state,
+static int dt_circle_events_mouse_scrolled(struct dt_iop_module_t *module, float pzx, float pzy, int up, uint32_t state,
                                           dt_masks_form_t *form, dt_masks_form_gui_t *gui, int index)
 {
   if (gui->form_selected)
@@ -102,7 +102,8 @@ int dt_circle_events_mouse_scrolled(struct dt_iop_module_t *module, float pzx, f
       if(up && circle->border > 0.002f) circle->border *= 0.9f;
       else  if(circle->border < 1.0f  ) circle->border *= 1.0f/0.9f;
       dt_masks_write_form(form,darktable.develop);
-      dt_masks_gui_form_update_border(form,gui,index);
+      dt_masks_gui_form_remove(form,gui,index);
+      dt_masks_gui_form_create(form,gui,index);
     }
     else
     {
@@ -118,7 +119,7 @@ int dt_circle_events_mouse_scrolled(struct dt_iop_module_t *module, float pzx, f
   return 0;
 }
 
-int dt_circle_events_button_pressed(struct dt_iop_module_t *module,float pzx, float pzy, int which, int type, uint32_t state,
+static int dt_circle_events_button_pressed(struct dt_iop_module_t *module,float pzx, float pzy, int which, int type, uint32_t state,
                                           dt_masks_form_t *form, dt_masks_form_gui_t *gui, int index)
 {
   if (which != 1) return 0;
@@ -181,7 +182,7 @@ int dt_circle_events_button_pressed(struct dt_iop_module_t *module,float pzx, fl
   return 0;
 }
 
-int dt_circle_events_button_released(struct dt_iop_module_t *module,float pzx, float pzy, int which, uint32_t state,
+static int dt_circle_events_button_released(struct dt_iop_module_t *module,float pzx, float pzy, int which, uint32_t state,
                                           dt_masks_form_t *form, dt_masks_form_gui_t *gui,int index)
 {
   if (which == 3)
@@ -248,7 +249,7 @@ int dt_circle_events_button_released(struct dt_iop_module_t *module,float pzx, f
   return 0;
 }
 
-int dt_circle_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float pzy, int which, dt_masks_form_t *form, dt_masks_form_gui_t *gui, int index)
+static int dt_circle_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float pzy, int which, dt_masks_form_t *form, dt_masks_form_gui_t *gui, int index)
 {
   if (gui->form_dragging || gui->source_dragging)
   {
@@ -298,7 +299,7 @@ int dt_circle_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float
   return 0;
 }
 
-void dt_circle_events_post_expose(cairo_t *cr,float zoom_scale,dt_masks_form_gui_t *gui,int index)
+static void dt_circle_events_post_expose(cairo_t *cr,float zoom_scale,dt_masks_form_gui_t *gui,int index)
 {
   double dashed[] = {4.0, 4.0};
   dashed[0] /= zoom_scale;
@@ -395,7 +396,7 @@ void dt_circle_events_post_expose(cairo_t *cr,float zoom_scale,dt_masks_form_gui
   }
 }
 
-int dt_circle_get_points(dt_develop_t *dev, float x, float y, float radius, float **points, int *points_count)
+static int dt_circle_get_points(dt_develop_t *dev, float x, float y, float radius, float **points, int *points_count)
 {
   float wd = dev->preview_pipe->iwidth;
   float ht = dev->preview_pipe->iheight;
@@ -428,7 +429,7 @@ int dt_circle_get_points(dt_develop_t *dev, float x, float y, float radius, floa
   return 0;  
 }
 
-int dt_circle_get_source_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, int *width, int *height, int *posx, int *posy)
+static int dt_circle_get_source_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, int *width, int *height, int *posx, int *posy)
 {  
   //we get the cicle values
   dt_masks_point_circle_t *circle = (dt_masks_point_circle_t *) (g_list_first(form->points)->data);
@@ -476,7 +477,7 @@ int dt_circle_get_source_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *p
   return 1;
 }
 
-int dt_circle_get_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, int *width, int *height, int *posx, int *posy)
+static int dt_circle_get_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, int *width, int *height, int *posx, int *posy)
 {  
   //we get the cicle values
   dt_masks_point_circle_t *circle = (dt_masks_point_circle_t *) (g_list_first(form->points)->data);
@@ -524,7 +525,7 @@ int dt_circle_get_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, d
   return 1;
 }
 
-int dt_circle_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, float **buffer, int *width, int *height, int *posx, int *posy)
+static int dt_circle_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, float **buffer, int *width, int *height, int *posx, int *posy)
 {
   //we get the area
   if (!dt_circle_get_area(module,piece,form,width,height,posx,posy)) return 0;

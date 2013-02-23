@@ -22,7 +22,7 @@
 #include "develop/masks.h"
 #include "common/debug.h"
 
-int dt_group_events_mouse_scrolled(struct dt_iop_module_t *module, float pzx, float pzy, int up, uint32_t state,
+static int dt_group_events_mouse_scrolled(struct dt_iop_module_t *module, float pzx, float pzy, int up, uint32_t state,
                                           dt_masks_form_t *form, dt_masks_form_gui_t *gui)
 {
   if (gui->group_edited >=0)
@@ -37,7 +37,7 @@ int dt_group_events_mouse_scrolled(struct dt_iop_module_t *module, float pzx, fl
   return 0;
 }
 
-int dt_group_events_button_pressed(struct dt_iop_module_t *module,float pzx, float pzy, int which, int type, uint32_t state,
+static int dt_group_events_button_pressed(struct dt_iop_module_t *module,float pzx, float pzy, int which, int type, uint32_t state,
                                           dt_masks_form_t *form, dt_masks_form_gui_t *gui)
 {
   if (gui->group_edited != gui->group_selected)
@@ -65,7 +65,7 @@ int dt_group_events_button_pressed(struct dt_iop_module_t *module,float pzx, flo
   return 0;
 }
 
-int dt_group_events_button_released(struct dt_iop_module_t *module,float pzx, float pzy, int which, uint32_t state,
+static int dt_group_events_button_released(struct dt_iop_module_t *module,float pzx, float pzy, int which, uint32_t state,
                                           dt_masks_form_t *form, dt_masks_form_gui_t *gui)
 {
   if (gui->group_edited >= 0)
@@ -80,7 +80,7 @@ int dt_group_events_button_released(struct dt_iop_module_t *module,float pzx, fl
   return 0;
 }
 
-int dt_group_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float pzy, int which, dt_masks_form_t *form, dt_masks_form_gui_t *gui)
+static int dt_group_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float pzy, int which, dt_masks_form_t *form, dt_masks_form_gui_t *gui)
 {
   int32_t zoom, closeup;
   DT_CTL_GET_GLOBAL(zoom, dev_zoom);
@@ -136,7 +136,7 @@ int dt_group_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float 
   return 0;
 }
 
-void dt_group_events_post_expose(cairo_t *cr,float zoom_scale,dt_masks_form_t *form,dt_masks_form_gui_t *gui)
+static void dt_group_events_post_expose(cairo_t *cr,float zoom_scale,dt_masks_form_t *form,dt_masks_form_gui_t *gui)
 {
   GList *fpts = g_list_first(form->points);
   int pos = 0;
@@ -151,12 +151,7 @@ void dt_group_events_post_expose(cairo_t *cr,float zoom_scale,dt_masks_form_t *f
   }
 }
 
-int dt_group_get_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, int *width, int *height, int *posx, int *posy)
-{  
-  return 0;
-}
-
-int dt_group_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, float **buffer, int *width, int *height, int *posx, int *posy)
+static int dt_group_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, float **buffer, int *width, int *height, int *posx, int *posy)
 {
   //we allocate buffers and values
   const int nb = g_list_length(form->points);

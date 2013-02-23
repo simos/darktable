@@ -56,20 +56,6 @@ void dt_masks_gui_form_remove(dt_masks_form_t *form, dt_masks_form_gui_t *gui, i
   gpt->source = NULL;
 }
 
-void dt_masks_gui_form_update_border(dt_masks_form_t *form, dt_masks_form_gui_t *gui, int index)
-{
-  float *border;
-  int border_count;
-  
-  if (dt_masks_get_border(darktable.develop,form, &border, &border_count,0,0))
-  {
-    dt_masks_form_gui_points_t *gpt = (dt_masks_form_gui_points_t *) g_list_nth_data(gui->points,index);
-    if (gpt->border) free(gpt->border);
-    gpt->border = border;
-    gpt->border_count = border_count;
-  }
-}
-
 void dt_masks_gui_form_test_create(dt_masks_form_t *form, dt_masks_form_gui_t *gui)
 {
   //we test if the image has changed
@@ -127,34 +113,6 @@ void dt_masks_gui_form_save_creation(dt_iop_module_t *module, dt_masks_form_t *f
   //show the form if needed
   darktable.develop->form_gui->formid = form->formid;
   dt_dev_masks_list_change(darktable.develop);
-}
-
-int dt_masks_get_points(dt_develop_t *dev, dt_masks_form_t *form, float **points, int *points_count, float dx, float dy)
-{
-  if (form->type & DT_MASKS_CIRCLE)
-  {
-    dt_masks_point_circle_t *circle = (dt_masks_point_circle_t *) (g_list_first(form->points)->data);
-    return dt_circle_get_points(dev,circle->center[0]-dx, circle->center[1]-dy, circle->radius, points, points_count);
-  }
-  else if (form->type & DT_MASKS_CURVE)
-  {
-    //return dt_curve_get_points(dev,form, points, points_count);
-  }
-  return 0;
-}
-
-int dt_masks_get_border(dt_develop_t *dev, dt_masks_form_t *form, float **border, int *border_count, float dx, float dy)
-{
-  if (form->type & DT_MASKS_CIRCLE)
-  {
-    dt_masks_point_circle_t *circle = (dt_masks_point_circle_t *) (g_list_first(form->points)->data);
-    return dt_circle_get_points(dev,circle->center[0]-dx, circle->center[1]-dy, circle->radius + circle->border, border, border_count); 
-  }
-  else if (form->type & DT_MASKS_CURVE)
-  {
-    //return dt_curve_get_border(dev,form, border, border_count);
-  }
-  return 0;
 }
 
 int dt_masks_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, float **points, int *points_count, float **border, int *border_count, int source)
@@ -219,12 +177,6 @@ int dt_masks_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt
     return dt_group_get_mask(module,piece,form,buffer,width,height,posx,posy);
   }
   return 0; 
-}
-
-dt_masks_point_circle_t *dt_masks_get_circle(dt_masks_form_t *form)
-{
-  if (form->type & DT_MASKS_CIRCLE) return (dt_masks_point_circle_t *) (g_list_first(form->points)->data);
-  return NULL;
 }
 
 dt_masks_form_t *dt_masks_create(dt_masks_type_t type)

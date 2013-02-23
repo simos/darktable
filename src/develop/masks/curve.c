@@ -616,7 +616,7 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
   return 0;  
 }
 
-void dt_curve_get_distance(float x, int y, float as, dt_masks_form_gui_t *gui, int index, int corner_count, int *inside, int *inside_border, int *near, int *inside_source)
+static void dt_curve_get_distance(float x, int y, float as, dt_masks_form_gui_t *gui, int index, int corner_count, int *inside, int *inside_border, int *near, int *inside_source)
 {
   if (!gui) return;
   //we first check if it's inside borders
@@ -733,18 +733,12 @@ void dt_curve_get_distance(float x, int y, float as, dt_masks_form_gui_t *gui, i
   *inside = (nb & 1);
 }
 
-int dt_curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, float **points, int *points_count, float **border, int *border_count,int source)
+static int dt_curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, float **points, int *points_count, float **border, int *border_count,int source)
 {
   return _curve_get_points_border(dev,form,999999,dev->preview_pipe,points,points_count,border,border_count,source);
 }
 
-int dt_curve_get_border(dt_develop_t *dev, dt_masks_form_t *form, float **points, int *points_count)
-{
-  *points_count = 0;
-  return 1;
-}
-
-int dt_curve_events_mouse_scrolled(struct dt_iop_module_t *module, float pzx, float pzy, int up, uint32_t state,
+static int dt_curve_events_mouse_scrolled(struct dt_iop_module_t *module, float pzx, float pzy, int up, uint32_t state,
                                           dt_masks_form_t *form, dt_masks_form_gui_t *gui, int index)
 {
   if (gui->form_selected)
@@ -830,7 +824,7 @@ int dt_curve_events_mouse_scrolled(struct dt_iop_module_t *module, float pzx, fl
   return 0;
 }
 
-int dt_curve_events_button_pressed(struct dt_iop_module_t *module,float pzx, float pzy, int which, int type, uint32_t state,
+static int dt_curve_events_button_pressed(struct dt_iop_module_t *module,float pzx, float pzy, int which, int type, uint32_t state,
                                           dt_masks_form_t *form, dt_masks_form_gui_t *gui, int index)
 {
   if (!gui) return 0;
@@ -1010,7 +1004,7 @@ int dt_curve_events_button_pressed(struct dt_iop_module_t *module,float pzx, flo
   return 0;
 }
 
-int dt_curve_events_button_released(struct dt_iop_module_t *module,float pzx, float pzy, int which, uint32_t state,
+static int dt_curve_events_button_released(struct dt_iop_module_t *module,float pzx, float pzy, int which, uint32_t state,
                                           dt_masks_form_t *form, dt_masks_form_gui_t *gui, int index)
 {
   if (gui->creation) return 1;
@@ -1238,7 +1232,7 @@ int dt_curve_events_button_released(struct dt_iop_module_t *module,float pzx, fl
   return 0;
 }
 
-int dt_curve_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float pzy, int which, dt_masks_form_t *form, dt_masks_form_gui_t *gui,int index)
+static int dt_curve_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float pzy, int which, dt_masks_form_t *form, dt_masks_form_gui_t *gui,int index)
 {
   int32_t zoom, closeup;
   DT_CTL_GET_GLOBAL(zoom, dev_zoom);
@@ -1462,7 +1456,7 @@ int dt_curve_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float 
   return 1;
 }
 
-void dt_curve_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_form_gui_t *gui, int index, int nb)
+static void dt_curve_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_form_gui_t *gui, int index, int nb)
 {
   double dashed[] = {4.0, 4.0};
   dashed[0] /= zoom_scale;
@@ -1663,7 +1657,7 @@ void dt_curve_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_form_gu
   }
 }
 
-int dt_curve_get_source_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, int *width, int *height, int *posx, int *posy)
+static int dt_curve_get_source_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, int *width, int *height, int *posx, int *posy)
 {  
   //we get buffers for all points
   float *points, *border;
@@ -1712,7 +1706,7 @@ int dt_curve_get_source_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *pi
   return 1;
 }
 
-int dt_curve_get_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, int *width, int *height, int *posx, int *posy)
+static int dt_curve_get_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, int *width, int *height, int *posx, int *posy)
 {  
   //we get buffers for all points
   float *points, *border;
@@ -1781,7 +1775,7 @@ static void _curve_falloff(float **buffer, int *p0, int *p1, int posx, int posy,
   }
 }
 
-int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, float **buffer, int *width, int *height, int *posx, int *posy)
+static int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, float **buffer, int *width, int *height, int *posx, int *posy)
 {
   struct timeval tv1,tv2,tv3;
   gettimeofday(&tv1,NULL);
