@@ -346,12 +346,12 @@ static void dt_circle_events_post_expose(cairo_t *cr,float zoom_scale,dt_masks_f
     else                     cairo_set_line_width(cr, 1.0/zoom_scale);
     cairo_set_source_rgba(cr, .3, .3, .3, .8);
       
-    cairo_move_to(cr,gpt->border[2],gpt->border[3]);
+    cairo_move_to(cr,gpt->border[2]+dx,gpt->border[3]+dy);
     for (int i=2; i<gpt->border_count; i++)
     {
-      cairo_line_to(cr,gpt->border[i*2],gpt->border[i*2+1]);
+      cairo_line_to(cr,gpt->border[i*2]+dx,gpt->border[i*2+1]+dy);
     }
-    cairo_line_to(cr,gpt->border[2],gpt->border[3]);
+    cairo_line_to(cr,gpt->border[2]+dx,gpt->border[3]+dy);
 
     cairo_stroke_preserve(cr);
     if ((gui->group_selected == index) && (gui->border_selected)) cairo_set_line_width(cr, 2.0/zoom_scale);
