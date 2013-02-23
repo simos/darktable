@@ -779,6 +779,11 @@ void dt_masks_iop_dropdown_callback(GtkWidget *widget, struct dt_iop_module_t *m
   while (forms)
   {
     dt_masks_form_t *form = (dt_masks_form_t *)forms->data;
+    if (form->type & DT_MASKS_CLONE)
+    {
+      forms = g_list_next(forms);
+      continue;
+    }
     char str[10000] = "";
     strcat(str,form->name);
     int nbuse = 0;
@@ -853,6 +858,62 @@ void dt_masks_iop_update(struct dt_iop_module_t *module)
   //gtk_widget_set_sensitive(bd->masks_edit,(module->blend_params->forms_count>0));
 }
 
+void dt_masks_form_delete(dt_masks_form_t *form)
+{
+  //we drop the form from all modules
+  int id = form->formid;
+  GList *iops = g_list_first(darktable.develop->iop);
+  while(iops)
+  {
+    dt_iop_module_t *m = (dt_iop_module_t *)iops->data;
+    if (m->flags() & IOP_FLAGS_SUPPORTS_BLENDING)
+    {
+      int ok = 0;
+      for (int i=0; i<m->blend_params->forms_count; i++)
+      {
+        if (m->blend_params->forms[i] == id) ok = 1;
+        if (ok) m->blend_params->forms[i] = m->blend_params->forms[i+1];
+      }
+      if (ok)
+      {
+        m->blend_params->forms_count--;
+        dt_masks_iop_update(m);
+        dt_dev_add_history_item(darktable.develop, m, TRUE);
+      }
+    }
+    iops = g_list_next(iops);
+  }
+  //we drop the form from the general list
+  GList *forms = g_list_first(darktable.develop->forms);
+  while (forms)
+  {
+    dt_masks_form_t *form = (dt_masks_form_t *)forms->data;
+    if (form->formid == id)
+    {
+      darktable.develop->forms = g_list_remove(darktable.develop->forms,form);
+      dt_masks_write_forms(darktable.develop);
+      break;
+    }
+    forms = g_list_next(forms);
+  }
+}
+void dt_masks_form_remove(struct dt_iop_module_t *module, dt_masks_form_t *form)
+{
+  //we just remove the form from the module
+  int ok = 0;
+  int id = form->formid;
+  for (int i=0; i<module->blend_params->forms_count; i++)
+  {
+    if (module->blend_params->forms[i] == id) ok = 1;
+    if (ok) module->blend_params->forms[i] = module->blend_params->forms[i+1];
+  }
+  if (ok)
+  {
+    module->blend_params->forms_count--;
+    dt_masks_iop_update(module);
+    dt_dev_add_history_item(darktable.develop, module, TRUE);
+  } 
+}
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
 // vim: shiftwidth=2 expandtab tabstop=2 cindent
 // kate: tab-indents: off; indent-width 2; replace-tabs on; indent-mode cstyle; remove-trailing-space on;

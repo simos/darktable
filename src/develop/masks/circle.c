@@ -184,6 +184,18 @@ int dt_circle_events_button_pressed(struct dt_iop_module_t *module,float pzx, fl
 int dt_circle_events_button_released(struct dt_iop_module_t *module,float pzx, float pzy, int which, uint32_t state,
                                           dt_masks_form_t *form, dt_masks_form_gui_t *gui,int index)
 {
+  if (which == 3)
+  {
+    //we hide all visible forms
+    dt_masks_init_formgui(darktable.develop);
+    darktable.develop->form_visible = NULL;
+    
+    //we delete or remove the shape
+    if ((form->type & DT_MASKS_CLONE) || !module) dt_masks_form_delete(form);
+    else dt_masks_form_remove(module,form);
+    dt_dev_masks_list_change(darktable.develop);
+    return 1;
+  }
   if (gui->form_dragging)
   {
     //we get the circle

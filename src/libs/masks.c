@@ -374,6 +374,11 @@ static int _tree_button_pressed (GtkWidget *treeview, GdkEventButton *event, dt_
         while (forms)
         {
           dt_masks_form_t *form = (dt_masks_form_t *)forms->data;
+          if (form->type & DT_MASKS_CLONE)
+          {
+            forms = g_list_next(forms);
+            continue;
+          }
           char str[10000] = "";
           strcat(str,form->name);
           int nbuse = 0;
