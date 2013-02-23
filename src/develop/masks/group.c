@@ -118,12 +118,12 @@ int dt_group_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float 
     dt_masks_point_group_t *fpt = (dt_masks_point_group_t *) fpts->data;
     dt_masks_form_t *sel = dt_masks_get_from_id(module->dev,fpt->formid);
     int inside, inside_border, near, inside_source;
-    inside = inside_border = 0;
+    inside = inside_border = inside_source = 0;
     near = -1;
     float xx = pzx*module->dev->preview_pipe->backbuf_width, yy = pzy*module->dev->preview_pipe->backbuf_height;
     if (sel->type & DT_MASKS_CIRCLE) dt_circle_get_distance(xx,yy,as,gui,pos,&inside, &inside_border, &near, &inside_source);
     else if (sel->type & DT_MASKS_CURVE) dt_curve_get_distance(xx,yy,as,gui,pos,g_list_length(sel->points),&inside, &inside_border, &near, &inside_source);
-    if (inside || inside_border || near || inside_source >= 0)
+    if (inside || inside_border || near>=0 || inside_source)
     {
       gui->group_edited = gui->group_selected = pos;
       if (sel->type & DT_MASKS_CIRCLE) return dt_circle_events_mouse_moved(module,pzx,pzy,which,sel,gui,pos);

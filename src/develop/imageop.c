@@ -1542,12 +1542,11 @@ void dt_iop_commit_params(dt_iop_module_t *module, dt_iop_params_t *params, dt_d
     {
       dt_masks_form_t *form = dt_masks_get_from_id(module->dev,blendop_params->forms[i]);
       if (!form) continue;
-      length += sizeof(int)+sizeof(dt_masks_type_t);
+      length += sizeof(int)+sizeof(dt_masks_type_t)+2*sizeof(float);
       int nb = g_list_length(form->points);
       if (form->type & DT_MASKS_CIRCLE) length += nb*sizeof(dt_masks_point_circle_t);
       else if (form->type & DT_MASKS_CURVE) length += nb*sizeof(dt_masks_point_curve_t);
     }
-    length += 2*sizeof(float);
     
     char *str = malloc(length);
     memcpy(str, module->params, module->params_size);

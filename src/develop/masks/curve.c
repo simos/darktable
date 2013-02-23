@@ -379,12 +379,15 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
   tv2 = tv3;
 
   //we don't want the border to self-intersect
-  int xmin, xmax, ymin, ymax;
-  xmin = ymin = INT_MAX;
-  xmax = ymax = INT_MIN;
-  int posextr[4] = {-1};  //xmin,xmax,ymin,ymax
+  int *intersections = NULL;
+  int inter_count = 0;
   if (border) 
-  {
+  {  
+    int xmin, xmax, ymin, ymax;
+    xmin = ymin = INT_MAX;
+    xmax = ymax = INT_MIN;
+    int posextr[4] = {-1};  //xmin,xmax,ymin,ymax
+
     for (int i=nb*3; i < *border_count; i++)
     {
       //if (isnanf((*border)[i*2]) || isnanf((*border)[i*2+1]))
@@ -414,59 +417,64 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
         posextr[3] = i;
       }
     }
-  }
   
-  const int hb = ymax-ymin+1;
-  const int wb = xmax-xmin+1;
-  const int ss = hb*wb;
-  int *intersections = malloc(sizeof(int)*nb*8);
-  int inter_count = 0;
-  if (ss>3 && border)
-  {
-    int *binter = malloc(sizeof(int)*ss);
-    memset(binter,0,sizeof(int)*ss);
-    int lastx = (*border)[(posextr[1]-1)*2];
-    int lasty = (*border)[(posextr[1]-1)*2+1];
-    int extra[1000];
-    int extra_count = 0;
-    for (int i=posextr[1]; i < *border_count; i++)
+    const int hb = ymax-ymin+1;
+    const int wb = xmax-xmin+1;
+    const int ss = hb*wb;
+    intersections = malloc(sizeof(int)*nb*8);
+    if (ss>3)
     {
-      if (inter_count >= nb*4) break;
-      //we want to be sure everything is continuous
-      _curve_fill_gaps(lastx,lasty,(*border)[i*2],(*border)[i*2+1],extra,&extra_count);
-      
-      //we now search intersections for all the point in extra
-      for (int j=extra_count-1; j>=0; j--)
+      int *binter = malloc(sizeof(int)*ss);
+      memset(binter,0,sizeof(int)*ss);
+      int lastx = (*border)[(posextr[1]-1)*2];
+      int lasty = (*border)[(posextr[1]-1)*2+1];
+      int extra[1000];
+      int extra_count = 0;
+      for (int i=posextr[1]; i < *border_count; i++)
       {
-        int xx = extra[j*2];
-        int yy = extra[j*2+1];
-        int v[3] = {0};
-        v[0] = binter[(yy-ymin)*wb+(xx-xmin)];
-        if (xx>xmin) v[1] = binter[(yy-ymin)*wb+(xx-xmin-1)];
-        if (yy>ymin) v[2] = binter[(yy-ymin-1)*wb+(xx-xmin)];
-        for (int k=0; k<3;k++)
+        if (inter_count >= nb*4) break;
+        //we want to be sure everything is continuous
+        _curve_fill_gaps(lastx,lasty,(*border)[i*2],(*border)[i*2+1],extra,&extra_count);
+        
+        //we now search intersections for all the point in extra
+        for (int j=extra_count-1; j>=0; j--)
         {
-          if (v[k] > 0)
+          int xx = extra[j*2];
+          int yy = extra[j*2+1];
+          int v[3] = {0};
+          v[0] = binter[(yy-ymin)*wb+(xx-xmin)];
+          if (xx>xmin) v[1] = binter[(yy-ymin)*wb+(xx-xmin-1)];
+          if (yy>ymin) v[2] = binter[(yy-ymin-1)*wb+(xx-xmin)];
+          for (int k=0; k<3;k++)
           {
-            if ((xx == lastx && yy == lasty) || v[k] == i-1)
+            if (v[k] > 0)
             {
-              binter[(yy-ymin)*wb+(xx-xmin)] = i;
-            }
-            else if ((i>v[k] && ((posextr[0]<i || posextr[0]>v[k]) && 
-                              (posextr[1]<i || posextr[1]>v[k]) && 
-                              (posextr[2]<i || posextr[2]>v[k]) && 
-                              (posextr[3]<i || posextr[3]>v[k]))) ||
-                      (i<v[k] && posextr[0]<v[k] && posextr[0]>i && 
-                              posextr[1]<v[k] && posextr[1]>i && 
-                              posextr[2]<v[k] && posextr[2]>i && 
-                              posextr[3]<v[k] && posextr[3]>i))
-            {
-              if (inter_count > 0)
+              if ((xx == lastx && yy == lasty) || v[k] == i-1)
               {
-                if ((v[k]-i)*(intersections[inter_count*2-2]-intersections[inter_count*2-1])>0 && intersections[inter_count*2-2] >= v[k] && intersections[inter_count*2-1] <= i)
+                binter[(yy-ymin)*wb+(xx-xmin)] = i;
+              }
+              else if ((i>v[k] && ((posextr[0]<i || posextr[0]>v[k]) && 
+                                (posextr[1]<i || posextr[1]>v[k]) && 
+                                (posextr[2]<i || posextr[2]>v[k]) && 
+                                (posextr[3]<i || posextr[3]>v[k]))) ||
+                        (i<v[k] && posextr[0]<v[k] && posextr[0]>i && 
+                                posextr[1]<v[k] && posextr[1]>i && 
+                                posextr[2]<v[k] && posextr[2]>i && 
+                                posextr[3]<v[k] && posextr[3]>i))
+              {
+                if (inter_count > 0)
                 {
-                  intersections[inter_count*2-2] = v[k];
-                  intersections[inter_count*2-1] = i;
+                  if ((v[k]-i)*(intersections[inter_count*2-2]-intersections[inter_count*2-1])>0 && intersections[inter_count*2-2] >= v[k] && intersections[inter_count*2-1] <= i)
+                  {
+                    intersections[inter_count*2-2] = v[k];
+                    intersections[inter_count*2-1] = i;
+                  }
+                  else
+                  {
+                    intersections[inter_count*2] = v[k];
+                    intersections[inter_count*2+1] = i;
+                    inter_count++;
+                  }
                 }
                 else
                 {
@@ -475,61 +483,61 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
                   inter_count++;
                 }
               }
-              else
-              {
-                intersections[inter_count*2] = v[k];
-                intersections[inter_count*2+1] = i;
-                inter_count++;
-              }
             }
-          }
-          else
-          {
-            binter[(yy-ymin)*wb+(xx-xmin)] = i;
-          }
-        }
-        lastx = xx;
-        lasty = yy;
-      }
-    }
-    for (int i=nb*3; i < posextr[1]; i++)
-    {
-      if (inter_count >= nb*4) break;
-      //we want to be sure everything is continuous
-      _curve_fill_gaps(lastx,lasty,(*border)[i*2],(*border)[i*2+1],extra,&extra_count);
-      
-      //we now search intersections for all the point in extra
-      for (int j=extra_count-1; j>=0; j--)
-      {
-        int xx = extra[j*2];
-        int yy = extra[j*2+1];
-        int v[3] = {0};
-        v[0] = binter[(yy-ymin)*wb+(xx-xmin)];
-        if (xx>xmin) v[1] = binter[(yy-ymin)*wb+(xx-xmin-1)];
-        if (yy>ymin) v[2] = binter[(yy-ymin-1)*wb+(xx-xmin)];
-        for (int k=0; k<3;k++)
-        {
-          if (v[k] > 0)
-          {
-            if ((xx == lastx && yy == lasty) || v[k] == i-1)
+            else
             {
               binter[(yy-ymin)*wb+(xx-xmin)] = i;
             }
-            else if ((i>v[k] && ((posextr[0]<i || posextr[0]>v[k]) && 
-                              (posextr[1]<i || posextr[1]>v[k]) && 
-                              (posextr[2]<i || posextr[2]>v[k]) && 
-                              (posextr[3]<i || posextr[3]>v[k]))) ||
-                      (i<v[k] && posextr[0]<v[k] && posextr[0]>i && 
-                              posextr[1]<v[k] && posextr[1]>i && 
-                              posextr[2]<v[k] && posextr[2]>i && 
-                              posextr[3]<v[k] && posextr[3]>i))
+          }
+          lastx = xx;
+          lasty = yy;
+        }
+      }
+      for (int i=nb*3; i < posextr[1]; i++)
+      {
+        if (inter_count >= nb*4) break;
+        //we want to be sure everything is continuous
+        _curve_fill_gaps(lastx,lasty,(*border)[i*2],(*border)[i*2+1],extra,&extra_count);
+        
+        //we now search intersections for all the point in extra
+        for (int j=extra_count-1; j>=0; j--)
+        {
+          int xx = extra[j*2];
+          int yy = extra[j*2+1];
+          int v[3] = {0};
+          v[0] = binter[(yy-ymin)*wb+(xx-xmin)];
+          if (xx>xmin) v[1] = binter[(yy-ymin)*wb+(xx-xmin-1)];
+          if (yy>ymin) v[2] = binter[(yy-ymin-1)*wb+(xx-xmin)];
+          for (int k=0; k<3;k++)
+          {
+            if (v[k] > 0)
             {
-              if (inter_count > 0)
+              if ((xx == lastx && yy == lasty) || v[k] == i-1)
               {
-                if ((v[k]-i)*(intersections[inter_count*2-2]-intersections[inter_count*2-1])>0 && intersections[inter_count*2-2] >= v[k] && intersections[inter_count*2-1] <= i)
+                binter[(yy-ymin)*wb+(xx-xmin)] = i;
+              }
+              else if ((i>v[k] && ((posextr[0]<i || posextr[0]>v[k]) && 
+                                (posextr[1]<i || posextr[1]>v[k]) && 
+                                (posextr[2]<i || posextr[2]>v[k]) && 
+                                (posextr[3]<i || posextr[3]>v[k]))) ||
+                        (i<v[k] && posextr[0]<v[k] && posextr[0]>i && 
+                                posextr[1]<v[k] && posextr[1]>i && 
+                                posextr[2]<v[k] && posextr[2]>i && 
+                                posextr[3]<v[k] && posextr[3]>i))
+              {
+                if (inter_count > 0)
                 {
-                  intersections[inter_count*2-2] = v[k];
-                  intersections[inter_count*2-1] = i;
+                  if ((v[k]-i)*(intersections[inter_count*2-2]-intersections[inter_count*2-1])>0 && intersections[inter_count*2-2] >= v[k] && intersections[inter_count*2-1] <= i)
+                  {
+                    intersections[inter_count*2-2] = v[k];
+                    intersections[inter_count*2-1] = i;
+                  }
+                  else
+                  {
+                    intersections[inter_count*2] = v[k];
+                    intersections[inter_count*2+1] = i;
+                    inter_count++;
+                  }
                 }
                 else
                 {
@@ -538,27 +546,21 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
                   inter_count++;
                 }
               }
-              else
-              {
-                intersections[inter_count*2] = v[k];
-                intersections[inter_count*2+1] = i;
-                inter_count++;
-              }
+            }
+            else
+            {
+              binter[(yy-ymin)*wb+(xx-xmin)] = i;
             }
           }
-          else
-          {
-            binter[(yy-ymin)*wb+(xx-xmin)] = i;
-          }
+          lastx = xx;
+          lasty = yy;
         }
-        lastx = xx;
-        lasty = yy;
       }
+      gettimeofday(&tv3,NULL);
+      printf("self-intersect3 %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
+      tv2 = tv3;
+      free(binter);
     }
-    gettimeofday(&tv3,NULL);
-    printf("self-intersect3 %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
-    tv2 = tv3;
-    free(binter);
   }
   //and we transform them with all distorted modules
   if (dt_dev_distort_transform_plus(dev,pipe,0,prio_max,*points,*points_count))
@@ -651,43 +653,45 @@ void dt_curve_get_distance(float x, int y, float as, dt_masks_form_gui_t *gui, i
   }
   *inside_source = 0;
   
-  for (int i=corner_count*3; i<gpt->border_count; i++)
+  if (gpt->border_count>corner_count*3)
   {
-    xx = (int) gpt->border[i*2];
-    yy = (int) gpt->border[i*2+1];
+    for (int i=corner_count*3; i<gpt->border_count; i++)
+    {
+      xx = (int) gpt->border[i*2];
+      yy = (int) gpt->border[i*2+1];
+      if (xx == -999999)
+      {
+        if (yy==-999999) break;
+        i = yy-1;
+        continue;
+      }
+      //we check if we are at a point were the curve change of direction
+      if (last2>0 && lastw>0 && lastw == last && yy != last)
+      {
+        if ((lastw-yy)*(lastw-last2)>0) nb++;
+      }
+      if (yy != last && (yy==y || (yy<last && y<last && y>yy) || (yy>last && last>0 && y>last && y<yy)))
+      {
+        if (xx > x)
+        {
+          nb++;
+          lastw = yy;
+        }
+      }
+      if (yy!=lastw) lastw = -999;
+      if (yy!=last) last2 = last;
+      last = yy;
+    }
+    xx = (int) gpt->border[corner_count*6];
+    yy = (int) gpt->border[corner_count*6+1];
     if (xx == -999999)
     {
-      if (yy==-999999) break;
-      i = yy-1;
-      continue;
+      xx = (int) gpt->border[(yy-1)*2];
+      yy = (int) gpt->border[(yy-1)*2+1];
     }
-    //we check if we are at a point were the curve change of direction
-    if (last2>0 && lastw>0 && lastw == last && yy != last)
-    {
-      if ((lastw-yy)*(lastw-last2)>0) nb++;
-    }
-    if (yy != last && (yy==y || (yy<last && y<last && y>yy) || (yy>last && last>0 && y>last && y<yy)))
-    {
-      if (xx > x)
-      {
-        nb++;
-        lastw = yy;
-      }
-    }
-    if (yy!=lastw) lastw = -999;
-    if (yy!=last) last2 = last;
-    last = yy;
+    if ((yy-last>1 || yy-last<-1) && ((yy<last && y<last && y>yy) || (yy>last && last>0 && y>last && y<yy)) && xx>x) nb++;
+    *inside_border = (nb & 1); 
   }
-  xx = (int) gpt->border[corner_count*6];
-  yy = (int) gpt->border[corner_count*6+1];
-  if (xx == -999999)
-  {
-    xx = (int) gpt->border[(yy-1)*2];
-    yy = (int) gpt->border[(yy-1)*2+1];
-  }
-  if ((yy-last>1 || yy-last<-1) && ((yy<last && y<last && y>yy) || (yy>last && last>0 && y>last && y<yy)) && xx>x) nb++;
-  *inside_border = (nb & 1); 
-  
   //and we check if it's inside form
   int seg = 1;
   nb=0;
@@ -1498,28 +1502,31 @@ void dt_curve_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_form_gu
   
   //draw corners
   float anchor_size;
-  for(int k = 0; k < nb; k++)
+  if (gpt->points_count > nb*3+6)
   {
-    if (k == gui->point_dragging || k == gui->point_selected)
+    for(int k = 0; k < nb; k++)
     {
-      anchor_size = 7.0f / zoom_scale;
+      if (k == gui->point_dragging || k == gui->point_selected)
+      {
+        anchor_size = 7.0f / zoom_scale;
+      }
+      else
+      {
+        anchor_size = 5.0f / zoom_scale;
+      }
+      cairo_set_source_rgba(cr, .8, .8, .8, .8);
+      cairo_rectangle(cr, 
+          gpt->points[k*6+2] - (anchor_size*0.5)+dx, 
+          gpt->points[k*6+3] - (anchor_size*0.5)+dy, 
+          anchor_size, anchor_size);
+      cairo_fill_preserve(cr);
+  
+      if ((gui->group_selected == index) && (k == gui->point_dragging || k == gui->point_selected )) cairo_set_line_width(cr, 2.0/zoom_scale);
+      else if ((gui->group_selected == index) && ((k == 0 || k == nb) && gui->creation && gui->creation_closing_form)) cairo_set_line_width(cr, 2.0/zoom_scale);
+      else cairo_set_line_width(cr, 1.0/zoom_scale);
+      cairo_set_source_rgba(cr, .3, .3, .3, .8);
+      cairo_stroke(cr);
     }
-    else
-    {
-      anchor_size = 5.0f / zoom_scale;
-    }
-    cairo_set_source_rgba(cr, .8, .8, .8, .8);
-    cairo_rectangle(cr, 
-        gpt->points[k*6+2] - (anchor_size*0.5)+dx, 
-        gpt->points[k*6+3] - (anchor_size*0.5)+dy, 
-        anchor_size, anchor_size);
-    cairo_fill_preserve(cr);
-
-    if ((gui->group_selected == index) && (k == gui->point_dragging || k == gui->point_selected )) cairo_set_line_width(cr, 2.0/zoom_scale);
-    else if ((gui->group_selected == index) && ((k == 0 || k == nb) && gui->creation && gui->creation_closing_form)) cairo_set_line_width(cr, 2.0/zoom_scale);
-    else cairo_set_line_width(cr, 1.0/zoom_scale);
-    cairo_set_source_rgba(cr, .3, .3, .3, .8);
-    cairo_stroke(cr);
   }
   
   //draw feathers
