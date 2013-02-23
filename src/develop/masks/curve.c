@@ -298,7 +298,7 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
   printf("sizes : %f %f\n",wd,ht);
   //we allocate buffer (very large) => how to handle this ???
   *points = malloc(600000*sizeof(float));
-  *border = malloc(600000*sizeof(float));
+  if (border) *border = malloc(600000*sizeof(float));
   
   gettimeofday(&tv3,NULL);
   printf("malloc %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
@@ -311,7 +311,7 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
   {
     dt_masks_point_curve_t *pt = (dt_masks_point_curve_t *)g_list_nth_data(form->points,0);
     dx = (pt->corner[0]-form->source[0])*wd;
-    dy = (pt->corner[1]-form->source[1])*wd;
+    dy = (pt->corner[1]-form->source[1])*ht;
   }
   for(int k = 0; k < nb; k++)
   {
@@ -324,14 +324,17 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
     (*points)[k*6+5] = pt->ctrl2[1]*ht-dy;
   }
   //for the border, we store value too
-  for(int k = 0; k < nb; k++)
+  if (border)
   {
-    (*border)[k*6] = 0.0; //x position of the border point
-    (*border)[k*6+1] = 0.0; //y position of the border point
-    (*border)[k*6+2] = 0.0; //start index for the initial gap. if <0 this mean we have to skip to index (-x)
-    (*border)[k*6+3] = 0.0; //end index for the initial gap
-    (*border)[k*6+4] = 0.0; //start index for the final gap. if <0 this mean we have to stop at index (-x)
-    (*border)[k*6+5] = 0.0; //end index for the final gap
+    for(int k = 0; k < nb; k++)
+    {
+      (*border)[k*6] = 0.0; //x position of the border point
+      (*border)[k*6+1] = 0.0; //y position of the border point
+      (*border)[k*6+2] = 0.0; //start index for the initial gap. if <0 this mean we have to skip to index (-x)
+      (*border)[k*6+3] = 0.0; //end index for the initial gap
+      (*border)[k*6+4] = 0.0; //start index for the final gap. if <0 this mean we have to stop at index (-x)
+      (*border)[k*6+5] = 0.0; //end index for the final gap
+    }
   }
   
   int pos = 6*nb;
@@ -359,17 +362,18 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
     float bmax[2] = {-99999,-99999};
     float cmin[2] = {-99999,-99999};
     float cmax[2] = {-99999,-99999};
-    _curve_points_recurs(p1,p2,0.0,1.0,cmin,cmax,bmin,bmax,rc,rb,*points,*border,&pos,&posb,(nb>=3));
+    if (border) _curve_points_recurs(p1,p2,0.0,1.0,cmin,cmax,bmin,bmax,rc,rb,*points,*border,&pos,&posb,(nb>=3));
+    else _curve_points_recurs(p1,p2,0.0,1.0,cmin,cmax,bmin,bmax,rc,rb,*points,NULL,&pos,&posb,FALSE);
     (*points)[pos++] = rc[0];
     (*points)[pos++] = rc[1];
-    (*border)[posb++] = rb[0];
-    (*border)[posb++] = rb[1];
+    if (border) (*border)[posb++] = rb[0];
+    if (border) (*border)[posb++] = rb[1];
     border_init[k*6+4] = -posb;
-    (*border)[k*6] = border_init[k*6] = (*border)[pb];
-    (*border)[k*6+1] = border_init[k*6+1] = (*border)[pb+1];
+    if (border) (*border)[k*6] = border_init[k*6] = (*border)[pb];
+    if (border) (*border)[k*6+1] = border_init[k*6+1] = (*border)[pb+1];
   }
   *points_count = pos/2;
-  *border_count = posb/2;
+  if (border) *border_count = posb/2;
   gettimeofday(&tv3,NULL);
   printf("points %ld %d\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec), *points_count);
   tv2 = tv3;
@@ -379,41 +383,45 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
   xmin = ymin = INT_MAX;
   xmax = ymax = INT_MIN;
   int posextr[4] = {-1};  //xmin,xmax,ymin,ymax
-  for (int i=nb*3; i < *border_count; i++)
+  if (border) 
   {
-    //if (isnanf((*border)[i*2]) || isnanf((*border)[i*2+1]))
-    if ((*border)[i*2]<-999999 || (*border)[i*2+1]<-999999)
+    for (int i=nb*3; i < *border_count; i++)
     {
-      (*border)[i*2] = (*border)[i*2-2];
-      (*border)[i*2+1] = (*border)[i*2-1];
-    }
-    if (xmin > (*border)[i*2])
-    {
-      xmin = (*border)[i*2];
-      posextr[0] = i;
-    }
-    if (xmax < (*border)[i*2])
-    {
-      xmax = (*border)[i*2];
-      posextr[1] = i;
-    }
-    if (ymin > (*border)[i*2+1])
-    {
-      ymin = (*border)[i*2+1];
-      posextr[2] = i;
-    }
-    if (ymax < (*border)[i*2+1])
-    {
-      ymax = (*border)[i*2+1];
-      posextr[3] = i;
+      //if (isnanf((*border)[i*2]) || isnanf((*border)[i*2+1]))
+      if ((*border)[i*2]<-999999 || (*border)[i*2+1]<-999999)
+      {
+        (*border)[i*2] = (*border)[i*2-2];
+        (*border)[i*2+1] = (*border)[i*2-1];
+      }
+      if (xmin > (*border)[i*2])
+      {
+        xmin = (*border)[i*2];
+        posextr[0] = i;
+      }
+      if (xmax < (*border)[i*2])
+      {
+        xmax = (*border)[i*2];
+        posextr[1] = i;
+      }
+      if (ymin > (*border)[i*2+1])
+      {
+        ymin = (*border)[i*2+1];
+        posextr[2] = i;
+      }
+      if (ymax < (*border)[i*2+1])
+      {
+        ymax = (*border)[i*2+1];
+        posextr[3] = i;
+      }
     }
   }
+  
   const int hb = ymax-ymin+1;
   const int wb = xmax-xmin+1;
   const int ss = hb*wb;
   int *intersections = malloc(sizeof(int)*nb*8);
   int inter_count = 0;
-  if (ss>3)
+  if (ss>3 && border)
   {
     int *binter = malloc(sizeof(int)*ss);
     memset(binter,0,sizeof(int)*ss);
@@ -553,67 +561,56 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
     free(binter);
   }
   //and we transform them with all distorted modules
-  if (dt_dev_distort_transform_plus(dev,pipe,0,prio_max,*points,*points_count) && dt_dev_distort_transform_plus(dev,pipe,0,prio_max,*border,*border_count))
+  if (dt_dev_distort_transform_plus(dev,pipe,0,prio_max,*points,*points_count))
   {
-    gettimeofday(&tv3,NULL);
-  printf("transform %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
-  tv2 = tv3;
-    //memcpy(*border,border_init,sizeof(float)*6*nb);
-    //we don't want to copy the falloff points
-    for(int k = 0; k < nb; k++)
+    if (!border || dt_dev_distort_transform_plus(dev,pipe,0,prio_max,*border,*border_count))
     {
-      for (int i=2; i<6; i++) (*border)[k*6+i] = border_init[k*6+i]; 
-    }
-    //now we want to write the skipping zones
-    for (int i=0; i<inter_count; i++)
-    {
-      int v = intersections[i*2];
-      int w = intersections[i*2+1];
-      printf("inter %d %d\n",v,w);
-      if (v<=w)
+      gettimeofday(&tv3,NULL);
+    printf("transform %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
+    tv2 = tv3;
+      //memcpy(*border,border_init,sizeof(float)*6*nb);
+      //we don't want to copy the falloff points
+      if (border)
+        for(int k = 0; k < nb; k++)
+          for (int i=2; i<6; i++) (*border)[k*6+i] = border_init[k*6+i]; 
+      //now we want to write the skipping zones
+      for (int i=0; i<inter_count; i++)
       {
-        (*border)[v*2] = -999999;
-        (*border)[v*2+1] = w;
-      }
-      else
-      {
-        if (w>nb*3)
+        int v = intersections[i*2];
+        int w = intersections[i*2+1];
+        printf("inter %d %d\n",v,w);
+        if (v<=w)
         {
-          if ((*border)[nb*6] == -999999) (*border)[nb*6+1] = MAX((*border)[nb*6+1],w);
-          else (*border)[nb*6+1] = w;
-          (*border)[nb*6] = -999999;
+          (*border)[v*2] = -999999;
+          (*border)[v*2+1] = w;
         }
-        (*border)[v*2] = -999999;
-        (*border)[v*2+1] = -999999;
+        else
+        {
+          if (w>nb*3)
+          {
+            if ((*border)[nb*6] == -999999) (*border)[nb*6+1] = MAX((*border)[nb*6+1],w);
+            else (*border)[nb*6+1] = w;
+            (*border)[nb*6] = -999999;
+          }
+          (*border)[v*2] = -999999;
+          (*border)[v*2+1] = -999999;
+        }
       }
+      gettimeofday(&tv3,NULL);
+    printf("cpy corners %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
+    tv2 = tv3;
+      free(border_init);
+      return 1;
     }
-    gettimeofday(&tv3,NULL);
-  printf("cpy corners %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
-  tv2 = tv3;
-    free(border_init);
-    /*for (int i=nb*3; i < *border_count; i++)
-  {
-    int xx = (*border)[i*2];
-    int yy = (*border)[i*2+1];
-    if (xx == -999999)
-    {
-      if (yy == -999999) break; //that means we have to skip the end of the border curve
-      i = yy-1;
-      continue;
-    }
-    printf("%d %d    ",xx,yy);
-  }
-  printf("\n");*/
-    return 1;
   }
   
   //if we failed, then free all and return
   free(*points);
   *points = NULL;
   *points_count = 0;
-  free(*border);
-  *border = NULL;
-  *border_count = 0;
+  if (border) free(*border);
+  if (border) *border = NULL;
+  if (border) *border_count = 0;
   return 0;  
 }
 
@@ -630,7 +627,30 @@ void dt_curve_get_distance(float x, int y, float as, dt_masks_form_gui_t *gui, i
   *near = -1;
   dt_masks_form_gui_points_t *gpt = (dt_masks_form_gui_points_t *) g_list_nth_data(gui->points,index);
   if (!gpt) return;
-
+  
+  //we first check if we are inside the source form
+  if (gpt->source_count>corner_count*6+4)
+  {
+    for (int i=corner_count*6; i<gpt->source_count; i++)
+    {
+      int yy = (int) gpt->source[i*2+1];
+      if (yy != last && yy == y)
+      {
+        if (gpt->source[i*2] > x) nb++;
+      }
+      last = yy;
+    }  
+    if (nb & 1)
+    {
+      *inside_source = 1;
+      *inside = 1;
+      *inside_border = 0;
+      *near = -1;
+      return;
+    }
+  }
+  *inside_source = 0;
+  
   for (int i=corner_count*3; i<gpt->border_count; i++)
   {
     xx = (int) gpt->border[i*2];
@@ -902,6 +922,18 @@ int dt_curve_events_button_pressed(struct dt_iop_module_t *module,float pzx, flo
       dt_control_queue_redraw_center();
       return 1;
     }
+    else if (gui->source_selected)
+    {
+      dt_masks_form_gui_points_t *gpt = (dt_masks_form_gui_points_t *) g_list_nth_data(gui->points,index);
+      if (!gpt) return 0;
+      //we start the form dragging
+      gui->source_dragging = TRUE;
+      gui->posx = pzx*darktable.develop->preview_pipe->backbuf_width;
+      gui->posy = pzy*darktable.develop->preview_pipe->backbuf_height;
+      gui->dx = gpt->source[2] - gui->posx;
+      gui->dy = gpt->source[3] - gui->posy;
+      return 1;
+    }
     else if (gui->form_selected)
     {
       gui->form_dragging = TRUE;
@@ -1009,6 +1041,29 @@ int dt_curve_events_button_released(struct dt_iop_module_t *module,float pzx, fl
       points = g_list_next(points);
     }
     
+    dt_masks_write_form(form,darktable.develop);
+
+    //we recreate the form points
+    dt_masks_gui_form_remove(form,gui,index);
+    dt_masks_gui_form_create(form,gui,index);
+    
+    //we save the move
+    if (module) dt_dev_add_history_item(darktable.develop, module, TRUE);
+    
+    return 1;
+  }
+  else if (gui->source_dragging)
+  {
+    //we end the form dragging
+    gui->source_dragging = FALSE;
+    
+    //we change the source value
+    float wd = darktable.develop->preview_pipe->backbuf_width;
+    float ht = darktable.develop->preview_pipe->backbuf_height;
+    float pts[2] = {pzx*wd+gui->dx,pzy*ht+gui->dy};
+    dt_dev_distort_backtransform(darktable.develop,pts,1);
+    form->source[0] = pts[0]/darktable.develop->preview_pipe->iwidth;
+    form->source[1] = pts[1]/darktable.develop->preview_pipe->iheight;
     dt_masks_write_form(form,darktable.develop);
 
     //we recreate the form points
@@ -1306,7 +1361,7 @@ int dt_curve_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float 
     dt_control_queue_redraw_center();
     return 1;
   }
-  else if (gui->form_dragging)
+  else if (gui->form_dragging || gui->source_dragging)
   {
     gui->posx = pzx*darktable.develop->preview_pipe->backbuf_width;
     gui->posy = pzy*darktable.develop->preview_pipe->backbuf_height;
@@ -1316,6 +1371,7 @@ int dt_curve_events_mouse_moved(struct dt_iop_module_t *module,float pzx, float 
   
   gui->form_selected = FALSE;
   gui->border_selected = FALSE;
+  gui->source_selected = FALSE;
   gui->feather_selected  = -1;
   gui->point_selected = -1;
   gui->seg_selected = -1;
@@ -1396,14 +1452,19 @@ void dt_curve_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_form_gu
   dashed[0] /= zoom_scale;
   dashed[1] /= zoom_scale;
   int len  = sizeof(dashed) / sizeof(dashed[0]);
-  float dx=0, dy=0;
   if (!gui) return;
   dt_masks_form_gui_points_t *gpt = (dt_masks_form_gui_points_t *) g_list_nth_data(gui->points,index);
   if (!gpt) return;
+  float dx=0, dy=0, dxs=0, dys=0; 
   if ((gui->group_selected == index) && gui->form_dragging)
   {
     dx = gui->posx + gui->dx - gpt->points[2];
     dy = gui->posy + gui->dy - gpt->points[3];
+  }
+  if ((gui->group_selected == index) && gui->source_dragging)
+  {
+    dxs = gui->posx + gui->dx - gpt->source[2];
+    dys = gui->posy + gui->dy - gpt->source[3];
   }
   
   //draw curve
@@ -1549,6 +1610,37 @@ void dt_curve_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_form_gu
       cairo_set_dash(cr, dashed, 0, 0);
       cairo_stroke(cr);
     }
+  }
+  
+  //draw the source if needed
+  if (gpt->source_count>nb*3+6)
+  {
+    //we draw the line between source and dest
+    cairo_move_to(cr,gpt->source[2]+dxs,gpt->source[3]+dys);
+    cairo_line_to(cr,gpt->points[2]+dx,gpt->points[3]+dy);
+    cairo_set_dash(cr, dashed, 0, 0);     
+    if ((gui->group_selected == index) && (gui->form_selected || gui->form_dragging)) cairo_set_line_width(cr, 2.5/zoom_scale);
+    else                                     cairo_set_line_width(cr, 1.5/zoom_scale);
+    cairo_set_source_rgba(cr, .3, .3, .3, .8);
+    cairo_stroke_preserve(cr);
+    if ((gui->group_selected == index) && (gui->form_selected || gui->form_dragging)) cairo_set_line_width(cr, 1.0/zoom_scale);
+    else                                     cairo_set_line_width(cr, 0.5/zoom_scale);
+    cairo_set_source_rgba(cr, .8, .8, .8, .8);
+    cairo_stroke(cr);
+    
+    //we draw the source
+    cairo_set_dash(cr, dashed, 0, 0);     
+    if ((gui->group_selected == index) && (gui->form_selected || gui->form_dragging)) cairo_set_line_width(cr, 2.5/zoom_scale);
+    else                                     cairo_set_line_width(cr, 1.5/zoom_scale);
+    cairo_set_source_rgba(cr, .3, .3, .3, .8);
+    cairo_move_to(cr,gpt->source[nb*6]+dxs,gpt->source[nb*6+1]+dys);
+    for (int i=nb*3; i<gpt->source_count; i++) cairo_line_to(cr,gpt->source[i*2]+dxs,gpt->source[i*2+1]+dys);
+    cairo_line_to(cr,gpt->source[nb*6]+dxs,gpt->source[nb*6+1]+dys);
+    cairo_stroke_preserve(cr);
+    if ((gui->group_selected == index) && (gui->form_selected || gui->form_dragging)) cairo_set_line_width(cr, 1.0/zoom_scale);
+    else                                     cairo_set_line_width(cr, 0.5/zoom_scale);
+    cairo_set_source_rgba(cr, .8, .8, .8, .8);
+    cairo_stroke(cr);
   }
 }
 
