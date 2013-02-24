@@ -252,11 +252,11 @@ void process (struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, void 
     {
       dt_masks_point_circle_t *circle = (dt_masks_point_circle_t *)g_list_nth_data(form->points,0);
       // convert from world space:
-      const int posx  = (circle->center[0] * piece->buf_in.width)*roi_in->scale;
-      const int posy  = (circle->center[1] * piece->buf_in.height)*roi_in->scale;
-      const int posx_source = (form->source[0]*piece->buf_in.width)*roi_in->scale;
-      const int posy_source = (form->source[1]*piece->buf_in.height)*roi_in->scale;      
       const int rad = circle->radius* MIN(piece->buf_in.width, piece->buf_in.height)*roi_in->scale;
+      const int posx  = (circle->center[0] * piece->buf_in.width)*roi_in->scale - rad;
+      const int posy  = (circle->center[1] * piece->buf_in.height)*roi_in->scale - rad;
+      const int posx_source = (form->source[0]*piece->buf_in.width)*roi_in->scale - rad;
+      const int posy_source = (form->source[1]*piece->buf_in.height)*roi_in->scale - rad;      
       const int dx = posx-posx_source;
       const int dy = posy-posy_source;
       fw = fh = 2*rad;
@@ -289,7 +289,7 @@ void process (struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, void 
           //we test if the source point is inside roi_in
           if (xx-dx<roi_in->x || xx-dx>=roi_in->x+roi_in->width) continue;
           
-          const float f = filter[xx-posx+rad+1]*filter[yy-posy+rad+1];//*d->spot[i].opacity;          
+          const float f = filter[xx-posx+1]*filter[yy-posy+1];//*d->spot[i].opacity;          
           for(int c=0; c<ch; c++)
             out[4*(roi_out->width*(yy-roi_out->y) + xx-roi_out->x) + c] =
               out[4*(roi_out->width*(yy-roi_out->y) + xx-roi_out->x) + c] * (1.0f-f) +
