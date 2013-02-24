@@ -897,6 +897,24 @@ void dt_dev_read_history(dt_develop_t *dev)
     snprintf(hist->multi_name,128,"%s",multi_name);
     hist->multi_priority = multi_priority;
 
+    const void *blendop_params = sqlite3_column_blob(stmt, 6);
+    int bl_length = sqlite3_column_bytes(stmt, 6);
+    int blendop_version = sqlite3_column_int(stmt, 7);
+
+    if (blendop_params && (blendop_version == dt_develop_blend_version()) && (bl_length == sizeof(dt_develop_blend_params_t)))
+    {
+      memcpy(hist->blend_params, blendop_params, sizeof(dt_develop_blend_params_t));
+    }
+    else if (blendop_params && dt_develop_blend_legacy_params(hist->module, blendop_params, blendop_version, hist->blend_params, dt_develop_blend_version(), bl_length) == 0)
+    {
+      // do nothing
+    }
+    else
+    {
+      memcpy(hist->blend_params, hist->module->default_blendop_params, sizeof(dt_develop_blend_params_t));
+    }    
+    
+    int nbf = hist->module->blend_params->forms_count;
     if(hist->module->version() != modversion || hist->module->params_size != sqlite3_column_bytes(stmt, 4) ||
         strcmp((char *)sqlite3_column_text(stmt, 3), hist->module->op))
     {
@@ -918,22 +936,15 @@ void dt_dev_read_history(dt_develop_t *dev)
     {
       memcpy(hist->params, sqlite3_column_blob(stmt, 4), hist->module->params_size);
     }
-
-    const void *blendop_params = sqlite3_column_blob(stmt, 6);
-    int bl_length = sqlite3_column_bytes(stmt, 6);
-    int blendop_version = sqlite3_column_int(stmt, 7);
-
-    if (blendop_params && (blendop_version == dt_develop_blend_version()) && (bl_length == sizeof(dt_develop_blend_params_t)))
+    
+    if (nbf != hist->module->blend_params->forms_count)
     {
-      memcpy(hist->blend_params, blendop_params, sizeof(dt_develop_blend_params_t));
-    }
-    else if (blendop_params && dt_develop_blend_legacy_params(hist->module, blendop_params, blendop_version, hist->blend_params, dt_develop_blend_version(), bl_length) == 0)
-    {
-      // do nothing
-    }
-    else
-    {
-      memcpy(hist->blend_params, hist->module->default_blendop_params, sizeof(dt_develop_blend_params_t));
+      hist->blend_params->forms_count = hist->module->blend_params->forms_count;
+      for (int i=0; i<hist->module->blend_params->forms_count; i++)
+      {
+        hist->blend_params->forms[i] = hist->module->blend_params->forms[i];
+        hist->blend_params->forms_state[i] = hist->module->blend_params->forms_state[i];
+      }
     }
     // memcpy(hist->module->params, hist->params, hist->module->params_size);
     // hist->module->enabled = hist->enabled;

@@ -97,6 +97,7 @@ int legacy_params (dt_iop_module_t *self, const void *const old_params, const in
       circle->center[1] = o->spot[i].y;
       circle->radius = o->spot[i].radius;
       circle->border = 0.0f;
+      form->points = g_list_append(form->points,circle);
       form->source[0] =  o->spot[i].xc;
       form->source[1] =  o->spot[i].yc;
       dt_masks_gui_form_save_creation(self,form,NULL);
