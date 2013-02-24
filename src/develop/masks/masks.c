@@ -90,13 +90,29 @@ void dt_masks_gui_form_test_create(dt_masks_form_t *form, dt_masks_form_gui_t *g
 
 void dt_masks_gui_form_save_creation(dt_iop_module_t *module, dt_masks_form_t *form, dt_masks_form_gui_t *gui)
 {
+  //we check if the id is already registered
+  GList *forms = g_list_first(darktable.develop->forms);
+  int nid = 100;
+  while (forms)
+  {
+    dt_masks_form_t *ff = (dt_masks_form_t *)forms->data;
+    if (ff->formid == form->formid)
+    {
+      form->formid = nid++;
+      forms = g_list_first(darktable.develop->forms);
+      continue;
+    }
+    forms = g_list_next(forms);
+  }
+  
   darktable.develop->forms = g_list_append(darktable.develop->forms,form);
-  gui->creation = FALSE;
+  if (gui) gui->creation = FALSE;
   
   int nb = g_list_length(darktable.develop->forms);
   
   if (form->type & DT_MASKS_CIRCLE) snprintf(form->name,128,"circle #%d",nb);
   else if (form->type & DT_MASKS_CURVE) snprintf(form->name,128,"curve #%d",nb);
+  
   dt_masks_write_form(form,darktable.develop);  
     
   if (module)
@@ -108,11 +124,11 @@ void dt_masks_gui_form_save_creation(dt_iop_module_t *module, dt_masks_form_t *f
     module->blend_params->forms_count++;
     
     //update gui
-    dt_masks_iop_update(module);
+    if (gui) dt_masks_iop_update(module);
   }
   //show the form if needed
-  darktable.develop->form_gui->formid = form->formid;
-  dt_dev_masks_list_change(darktable.develop);
+  if (gui) darktable.develop->form_gui->formid = form->formid;
+  if (gui) dt_dev_masks_list_change(darktable.develop);
 }
 
 int dt_masks_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, float **points, int *points_count, float **border, int *border_count, int source)

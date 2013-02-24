@@ -30,10 +30,11 @@
 
 // this is the version of the modules parameters,
 // and includes version information about compile-time dt
-DT_MODULE(3)
+DT_MODULE(2)
 
 typedef struct dt_iop_spots_params_t
 {
+  int clone_id[64];
   int clone_algo[64];
 }
 dt_iop_spots_params_t;
@@ -66,7 +67,7 @@ int flags()
 
 int legacy_params (dt_iop_module_t *self, const void *const old_params, const int old_version, void *new_params, const int new_version)
 {
-  /*if(old_version == 1 && new_version == 2)
+  if(old_version == 1 && new_version == 2)
   {
     typedef struct dt_iop_spots_v1_t
     {
@@ -87,21 +88,57 @@ int legacy_params (dt_iop_module_t *self, const void *const old_params, const in
     dt_iop_spots_params_t *d = (dt_iop_spots_params_t *)self->default_params;
 
     *n = *d;  // start with a fresh copy of default parameters
-    n->num_spots = o->num_spots;
-    for (int i=0; i<n->num_spots; i++)
+    for (int i=0; i<o->num_spots; i++)
     {
-      n->spot[i].version = 1;
-      n->spot[i].opacity = 1.0f;
-      n->spot[i].spot.center[0] = o->spot[i].x;
-      n->spot[i].spot.center[1] = o->spot[i].y;
-      n->spot[i].source[0] = o->spot[i].xc;
-      n->spot[i].source[1] = o->spot[i].yc;
-      n->spot[i].spot.border = 0.0f;
-      n->spot[i].spot.radius = o->spot[i].radius;
+      //we have to register a new circle mask
+      dt_masks_form_t *form = dt_masks_create(DT_MASKS_CIRCLE|DT_MASKS_CLONE);
+      dt_masks_point_circle_t *circle = (dt_masks_point_circle_t *) (malloc(sizeof(dt_masks_point_circle_t)));
+      circle->center[0] = o->spot[i].x;
+      circle->center[1] = o->spot[i].y;
+      circle->radius = o->spot[i].radius;
+      circle->border = 0.0f;
+      form->source[0] =  o->spot[i].xc;
+      form->source[1] =  o->spot[i].yc;
+      dt_masks_gui_form_save_creation(self,form,NULL);
+      
+      //and add it to the module params
+      n->clone_id[i] = form->formid;
+      n->clone_algo[i] = 1;
     }
     return 0;
-  }*/
+  }
   return 1;
+}
+
+static void _resynch_params(struct dt_iop_module_t *self)
+{
+  dt_iop_spots_params_t *p = (dt_iop_spots_params_t *)self->params;
+  dt_develop_blend_params_t *bp = self->blend_params;
+  
+  //we create 2 new buffers
+  int nid[64] = {0};
+  int nalgo[64] = {2};
+  
+  //we go throught all forms in blend params
+  for (int i=0; i<bp->forms_count; i++)
+  {
+    nid[i] = bp->forms[i];
+    for (int j=0; j<64; j++)
+    {
+      if (p->clone_id[j]==nid[i])
+      {
+        nalgo[i] = p->clone_algo[j];
+        break;
+      }
+    }
+  }
+  
+  //we reaffect params
+  for (int i=0; i<64; i++)
+  {
+    p->clone_algo[i] = nalgo[i];
+    p->clone_id[i] = nid[i];
+  }  
 }
 
 static void _add_curve(GtkWidget *widget, GdkEventButton *e, dt_iop_module_t *self)
@@ -145,66 +182,48 @@ void modify_roi_in(struct dt_iop_module_t *self, struct dt_dev_pixelpipe_iop_t *
   //dt_iop_spots_params_t *d = (dt_iop_spots_params_t *)piece->data;
   dt_develop_blend_params_t *bp = self->blend_params;
 
-  //We calcul full image width and height at scale of ROI
-  //const int imw = CLAMP(piece->pipe->iwidth*roi_in->scale, 1, piece->pipe->iwidth);
-  //const int imh = CLAMP(piece->pipe->iheight*roi_in->scale, 1, piece->pipe->iheight);
-
   // We iterate throught all spots or polygons
-  printf("spot roi\n");
   for(int i=0; i<bp->forms_count; i++)
   {
-    printf("spot roi a %d\n",i);
     //we get the spot
     dt_masks_form_t *form = dt_masks_get_from_id(self->dev,bp->forms[i]);
     if (!form) continue;
-    printf("spot roi b %d\n",i);
+
     //we get the area for the form
     int fl,ft,fw,fh;
     if (!dt_masks_get_area(self,piece,form,&fw,&fh,&fl,&ft)) continue;
-    printf("spot roi c %d\n",i);
+
     //if the form is outside the roi, we just skip it
     fw *= roi_in->scale, fh *= roi_in->scale, fl *= roi_in->scale, ft *= roi_in->scale;
     if (ft>=roi_out->y+roi_out->height || ft+fh<=roi_out->y || fl>=roi_out->x+roi_out->width || fl+fw<=roi_out->x) continue;
-    printf("spot roi d %d\n",i);
+
     //we get the area for the source
     if (!dt_masks_get_source_area(self,piece,form,&fw,&fh,&fl,&ft)) continue;
     fw *= roi_in->scale, fh *= roi_in->scale, fl *= roi_in->scale, ft *= roi_in->scale;
-printf("spot roi e %d\n",i);
+
     //we elarge the roi if needed
     roiy = fminf(ft,roiy);
     roix = fminf(fl,roix);
     roir = fmaxf(fl+fw,roir);
     roib = fmaxf(ft+fh,roib);
-    printf("spot roi f %d\n",i);
   }
-printf("spot roi g\n");
+
   //now we set the values
   roi_in->x = CLAMP(roix, 0, piece->pipe->iwidth*roi_in->scale-1);
   roi_in->y = CLAMP(roiy, 0, piece->pipe->iheight*roi_in->scale-1);
   roi_in->width = CLAMP(roir-roi_in->x, 1, piece->pipe->iwidth*roi_in->scale-roi_in->x);
   roi_in->height = CLAMP(roib-roi_in->y, 1, piece->pipe->iheight*roi_in->scale-roi_in->y);
-  printf("spot roi h\n");
 }
 
 void process (struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, void *i, void *o, const dt_iop_roi_t *roi_in, const dt_iop_roi_t *roi_out)
 {
   dt_iop_spots_params_t *d = (dt_iop_spots_params_t *)piece->data;
-  // const float scale = piece->iscale/roi_in->scale;
-  //const float scale = 1.0f/roi_in->scale;
   dt_develop_blend_params_t *bp = self->blend_params;
   
   const int ch = piece->colors;
   const float *in = (float *)i;
   float *out = (float *)o;
 
-  //We calcul full image width and height at scale of ROI
-  //const int imw = CLAMP(piece->pipe->iwidth*roi_in->scale, 1, piece->pipe->iwidth);
-  //const int imh = CLAMP(piece->pipe->iheight*roi_in->scale, 1, piece->pipe->iheight);
-
-  printf("spot process piece %d %d  %f\n",piece->pipe->iwidth,piece->pipe->iheight,roi_in->scale);
-  printf("spot process roi_o %d %d %d %d\n",roi_out->x,roi_out->y,roi_out->width,roi_out->height);
-  printf("spot process roi_i %d %d %d %d\n",roi_in->x,roi_in->y,roi_in->width,roi_in->height);
-  printf("spot process %d\n",bp->forms_count);
   // we don't modify most of the image:
 #ifdef _OPENMP
     #pragma omp parallel for schedule(static) default(none) shared(out,in,roi_in,roi_out)
@@ -219,19 +238,15 @@ void process (struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, void 
   // iterate throught all forms
   for(int i=0; i<bp->forms_count; i++)
   {
-    printf("a %d\n",d->clone_algo[i]);
     //we get the spot
     dt_masks_form_t *form = dt_masks_get_from_id(self->dev,bp->forms[i]);
     if (!form) continue;
-    printf("b\n");
     //we get the area for the form
     int fl,ft,fw,fh;
     if (!dt_masks_get_area(self,piece,form,&fw,&fh,&fl,&ft)) continue;
-    printf("c\n");
     //if the form is outside the roi, we just skip it
     fw *= roi_in->scale, fh *= roi_in->scale, fl *= roi_in->scale, ft *= roi_in->scale;
     if (ft>=roi_out->y+roi_out->height || ft+fh<=roi_out->y || fl>=roi_out->x+roi_out->width || fl+fw<=roi_out->x) continue;
-    printf("d\n");
     if (d->clone_algo[i] == 1 && (form->type & DT_MASKS_CIRCLE))
     {
       dt_masks_point_circle_t *circle = (dt_masks_point_circle_t *)g_list_nth_data(form->points,0);
@@ -283,7 +298,6 @@ void process (struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, void 
     }
     else
     {
-      printf("e\n");
       //we get the mask
       float *mask;
       int posx,posy,width,height;    
@@ -293,7 +307,6 @@ void process (struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, void 
       dx=dy=0;
       if (form->type & DT_MASKS_CURVE)
       {
-        printf("f\n");
         dt_masks_point_curve_t *pt = (dt_masks_point_curve_t *)g_list_nth_data(form->points,0);
         dx = pt->corner[0]*roi_in->scale*piece->buf_in.width - form->source[0]*roi_in->scale*piece->buf_in.width;
         dy = pt->corner[1]*roi_in->scale*piece->buf_in.height - form->source[1]*roi_in->scale*piece->buf_in.height;
@@ -301,16 +314,10 @@ void process (struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, void 
       else if (form->type & DT_MASKS_CIRCLE)
       {
         dt_masks_point_circle_t *pt = (dt_masks_point_circle_t *)g_list_nth_data(form->points,0);
-        printf("g %f %f %f %f\n",pt->center[0],form->source[0],pt->center[1],form->source[1]);
         dx = pt->center[0]*roi_in->scale*piece->buf_in.width - form->source[0]*roi_in->scale*piece->buf_in.width;
         dy = pt->center[1]*roi_in->scale*piece->buf_in.height - form->source[1]*roi_in->scale*piece->buf_in.height;
       }
       if (dx==0 && dy==0) continue;
-printf("h form %d %d %d %d\n",posx,posy,width,height);
-printf("h roio %d %d %d %d\n",roi_out->x,roi_out->y,roi_out->width,roi_out->height);
-printf("h roii %d %d %d %d\n",roi_in->x,roi_in->y,roi_in->width,roi_in->height);
-printf("h pice %f %d %d\n",roi_in->scale,piece->buf_in.width,piece->buf_in.height);
-printf("h recu %d %d %d %d  %d %d\n",fl,ft,fw,fh,dx,dy);
       //now we do the pixel clone
       for (int yy=ft ; yy<ft+fh; yy++)
       {
@@ -354,7 +361,7 @@ void init(dt_iop_module_t *module)
   // init defaults:
   dt_iop_spots_params_t tmp = (dt_iop_spots_params_t)
   {
-    {2}
+    {0},{2}
   };
 
   memcpy(module->params, &tmp, sizeof(dt_iop_spots_params_t));
@@ -409,7 +416,7 @@ void cleanup_pipe (struct dt_iop_module_t *self, dt_dev_pixelpipe_t *pipe, dt_de
 /** gui callbacks, these are needed. */
 void gui_update (dt_iop_module_t *self)
 {
-  //dt_iop_spots_params_t *p = (dt_iop_spots_params_t *)self->params;
+  _resynch_params(self);
   dt_iop_spots_gui_data_t *g = (dt_iop_spots_gui_data_t *)self->gui_data;
   char str[3];
   snprintf(str,3,"%d",self->blend_params->forms_count);
