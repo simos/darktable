@@ -1218,9 +1218,24 @@ static int dt_curve_events_button_released(struct dt_iop_module_t *module,float 
   }
   else if (which==3)
   {
-    //we hide all visible forms
     dt_masks_init_formgui(darktable.develop);
-    darktable.develop->form_visible = NULL;
+    //we hide the form
+    if (!(darktable.develop->form_visible->type & DT_MASKS_GROUP)) darktable.develop->form_visible = NULL;
+    else if (g_list_length(darktable.develop->form_visible->points) < 2) darktable.develop->form_visible = NULL;
+    else
+    {
+      GList *forms = g_list_first(darktable.develop->form_visible->points);
+      while (forms)
+      {
+        dt_masks_point_group_t *gpt = (dt_masks_point_group_t *)forms->data;
+        if (gpt->formid == form->formid)
+        {
+          darktable.develop->form_visible->points = g_list_remove(darktable.develop->form_visible->points,gpt);
+          break;
+        }
+        forms = g_list_next(forms);
+      }
+    }
     
     //we delete or remove the shape
     if ((form->type & DT_MASKS_CLONE) || !module) dt_masks_form_delete(form);
