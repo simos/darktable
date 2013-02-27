@@ -63,7 +63,7 @@
 #endif
 #include "dbus.h"
 
-#if !defined(__APPLE__) && !defined(__FreeBSD__) && !defined(__DragonFly__)
+#if !defined(__APPLE__) && !defined(__FreeBSD__) && !defined(__OpenBSD__) && !defined(__DragonFly__)
 #include <malloc.h>
 #endif
 #ifdef __APPLE__
@@ -111,7 +111,7 @@ static dt_signal_handler_t *_dt_sigsegv_old_handler = NULL;
 #endif
 
 #if (defined(__FreeBSD_version) && (__FreeBSD_version < 800071)) || \
-  defined(__SUNOS__)
+  defined(__OpenBSD__) || defined(__SUNOS__)
 static int dprintf(int fd,const char *fmt, ...)
 {
   va_list ap;
@@ -776,6 +776,7 @@ void dt_cleanup()
   {
     dt_control_cleanup(darktable.control);
     free(darktable.control);
+    dt_undo_cleanup(darktable.undo);
   }
   dt_conf_cleanup(darktable.conf);
   free(darktable.conf);
@@ -795,8 +796,6 @@ void dt_cleanup()
 #endif
 
   dt_database_destroy(darktable.db);
-
-  dt_undo_cleanup(darktable.undo);
 
   dt_bauhaus_cleanup();
 

@@ -40,7 +40,7 @@ static inline void _RGB_2_HSL(const float *RGB, float *HSL)
 
   L = (var_Max + var_Min) / 2.0f;
 
-  if (del_Max == 0.0f)
+  if (del_Max < 1e-6f)
   {
     H = 0.0f;
     S = 0.0f;
@@ -88,7 +88,7 @@ static inline void _HSL_2_RGB(const float *HSL, float *RGB)
 
   float var_1, var_2;
 
-  if (S == 0.0f)
+  if (S < 1e-6f)
   {
     RGB[0] = RGB[1] = RGB[2] = L;
   }
@@ -1982,6 +1982,12 @@ dt_develop_blend_process_cl (struct dt_iop_module_t *self, struct dt_dev_pixelpi
 
   dev_mask = dt_opencl_alloc_device(devid, width, height, sizeof(float));
   if (dev_mask == NULL) goto error;
+
+  /* The following call to clFinish() works around a bug in some OpenCL drivers (namely AMD).
+     Without this synchronization point, reads to dev_in would often not return the correct value.
+     This depends on the module after which blending is called. One of the affected ones is sharpen.
+  */
+  dt_opencl_finish(devid);
 
   dt_opencl_set_kernel_arg(devid, kernel_mask, 0, sizeof(cl_mem), (void *)&dev_in);
   dt_opencl_set_kernel_arg(devid, kernel_mask, 1, sizeof(cl_mem), (void *)&dev_out);

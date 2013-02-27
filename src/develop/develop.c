@@ -404,7 +404,7 @@ void dt_dev_load_image(dt_develop_t *dev, const uint32_t imgid)
   dev->form_visible = NULL;
   
   dev->iop = dt_iop_load_modules(dev);
-
+  
   dt_dev_read_history(dev);
 
   dev->first_load = 0;
