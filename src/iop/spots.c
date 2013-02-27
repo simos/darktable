@@ -430,8 +430,6 @@ void gui_init (dt_iop_module_t *self)
   
   self->gui_data = malloc(sizeof(dt_iop_spots_gui_data_t));
   dt_iop_spots_gui_data_t *g = (dt_iop_spots_gui_data_t *)self->gui_data;
-    g->spot[i].source = NULL;
-    g->spot[i].spot = NULL;
 
   self->widget = gtk_vbox_new(FALSE, 5);
   //GtkWidget *label = gtk_label_new(_("click on a spot and drag on canvas to heal.\nuse the mouse wheel to adjust size.\nright click to remove a stroke."));
@@ -469,9 +467,6 @@ void gui_cleanup (dt_iop_module_t *self)
   free(self->gui_data);
   self->gui_data = NULL;
 }
-
-      g->spot[i].source = g->spot[i].spot = NULL;
-      g->spot[i].ok = g->spot[i].pts_count = 0;
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
 // vim: shiftwidth=2 expandtab tabstop=2 cindent
 // kate: tab-indents: off; indent-width 2; replace-tabs on; indent-mode cstyle; remove-trailing-space on;
