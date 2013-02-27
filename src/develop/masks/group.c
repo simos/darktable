@@ -29,7 +29,7 @@ static int dt_group_events_mouse_scrolled(struct dt_iop_module_t *module, float 
   {
     //we get the form
     dt_masks_point_group_t *fpt = (dt_masks_point_group_t *)g_list_nth_data(form->points,gui->group_edited);
-    dt_masks_form_t *sel = dt_masks_get_from_id(module->dev,fpt->formid);
+    dt_masks_form_t *sel = dt_masks_get_from_id(darktable.develop,fpt->formid);
     if (!sel) return 0;
     if (sel->type & DT_MASKS_CIRCLE) return dt_circle_events_mouse_scrolled(module,pzx,pzy,up,state,sel,gui,gui->group_edited);
     else if (sel->type & DT_MASKS_CURVE) return dt_curve_events_mouse_scrolled(module,pzx,pzy,up,state,sel,gui,gui->group_edited);
@@ -57,7 +57,7 @@ static int dt_group_events_button_pressed(struct dt_iop_module_t *module,float p
   {
     //we get the form
     dt_masks_point_group_t *fpt = (dt_masks_point_group_t *)g_list_nth_data(form->points,gui->group_edited);
-    dt_masks_form_t *sel = dt_masks_get_from_id(module->dev,fpt->formid);
+    dt_masks_form_t *sel = dt_masks_get_from_id(darktable.develop,fpt->formid);
     if (!sel) return 0;
     if (sel->type & DT_MASKS_CIRCLE) return dt_circle_events_button_pressed(module,pzx,pzy,which,type,state,sel,gui,gui->group_edited);
     else if (sel->type & DT_MASKS_CURVE) return dt_curve_events_button_pressed(module,pzx,pzy,which,type,state,sel,gui,gui->group_edited);
@@ -72,7 +72,7 @@ static int dt_group_events_button_released(struct dt_iop_module_t *module,float 
   {
     //we get the form
     dt_masks_point_group_t *fpt = (dt_masks_point_group_t *)g_list_nth_data(form->points,gui->group_edited);
-    dt_masks_form_t *sel = dt_masks_get_from_id(module->dev,fpt->formid);
+    dt_masks_form_t *sel = dt_masks_get_from_id(darktable.develop,fpt->formid);
     if (!sel) return 0;
     if (sel->type & DT_MASKS_CIRCLE) return dt_circle_events_button_released(module,pzx,pzy,which,state,sel,gui,gui->group_edited);
     else if (sel->type & DT_MASKS_CURVE) return dt_curve_events_button_released(module,pzx,pzy,which,state,sel,gui,gui->group_edited);
@@ -85,15 +85,15 @@ static int dt_group_events_mouse_moved(struct dt_iop_module_t *module,float pzx,
   int32_t zoom, closeup;
   DT_CTL_GET_GLOBAL(zoom, dev_zoom);
   DT_CTL_GET_GLOBAL(closeup, dev_closeup);
-  float zoom_scale = dt_dev_get_zoom_scale(module->dev, zoom, closeup ? 2 : 1, 1);
-  float as = 0.005f/zoom_scale*module->dev->preview_pipe->backbuf_width;
+  float zoom_scale = dt_dev_get_zoom_scale(darktable.develop, zoom, closeup ? 2 : 1, 1);
+  float as = 0.005f/zoom_scale*darktable.develop->preview_pipe->backbuf_width;
   
   //if a form is in edit mode, we first execute the corresponding event
   if (gui->group_edited >= 0)
   {
     //we get the form
     dt_masks_point_group_t *fpt = (dt_masks_point_group_t *)g_list_nth_data(form->points,gui->group_edited);
-    dt_masks_form_t *sel = dt_masks_get_from_id(module->dev,fpt->formid);
+    dt_masks_form_t *sel = dt_masks_get_from_id(darktable.develop,fpt->formid);
     if (!sel) return 0;
     int rep = 0;
     if (sel->type & DT_MASKS_CIRCLE) rep = dt_circle_events_mouse_moved(module,pzx,pzy,which,sel,gui,gui->group_edited);
@@ -116,11 +116,11 @@ static int dt_group_events_mouse_moved(struct dt_iop_module_t *module,float pzx,
   while(fpts)
   {
     dt_masks_point_group_t *fpt = (dt_masks_point_group_t *) fpts->data;
-    dt_masks_form_t *sel = dt_masks_get_from_id(module->dev,fpt->formid);
+    dt_masks_form_t *sel = dt_masks_get_from_id(darktable.develop,fpt->formid);
     int inside, inside_border, near, inside_source;
     inside = inside_border = inside_source = 0;
     near = -1;
-    float xx = pzx*module->dev->preview_pipe->backbuf_width, yy = pzy*module->dev->preview_pipe->backbuf_height;
+    float xx = pzx*darktable.develop->preview_pipe->backbuf_width, yy = pzy*darktable.develop->preview_pipe->backbuf_height;
     if (sel->type & DT_MASKS_CIRCLE) dt_circle_get_distance(xx,yy,as,gui,pos,&inside, &inside_border, &near, &inside_source);
     else if (sel->type & DT_MASKS_CURVE) dt_curve_get_distance(xx,yy,as,gui,pos,g_list_length(sel->points),&inside, &inside_border, &near, &inside_source);
     if (inside || inside_border || near>=0 || inside_source)

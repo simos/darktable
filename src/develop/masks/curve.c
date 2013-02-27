@@ -1674,6 +1674,7 @@ static void dt_curve_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_
 
 static int dt_curve_get_source_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, int *width, int *height, int *posx, int *posy)
 {  
+  if (!module) return 0;
   //we get buffers for all points
   float *points, *border;
   int points_count,border_count;
@@ -1723,6 +1724,7 @@ static int dt_curve_get_source_area(dt_iop_module_t *module, dt_dev_pixelpipe_io
 
 static int dt_curve_get_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, int *width, int *height, int *posx, int *posy)
 {  
+  if (!module) return 0;
   //we get buffers for all points
   float *points, *border;
   int points_count,border_count;
@@ -1792,6 +1794,7 @@ static void _curve_falloff(float **buffer, int *p0, int *p1, int posx, int posy,
 
 static int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, float **buffer, int *width, int *height, int *posx, int *posy)
 {
+  if (!module) return 0;
   struct timeval tv1,tv2,tv3;
   gettimeofday(&tv1,NULL);
   gettimeofday(&tv2,NULL);
