@@ -1523,7 +1523,7 @@ static void dt_curve_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_
   
   //draw corners
   float anchor_size;
-  if (gpt->points_count > nb*3+6)
+  if (gui->group_selected == index && gpt->points_count > nb*3+6)
   {
     for(int k = 0; k < nb; k++)
     {

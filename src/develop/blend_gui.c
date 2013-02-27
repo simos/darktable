@@ -1063,7 +1063,7 @@ void dt_iop_gui_init_blending(GtkWidget *iopw, dt_iop_module_t *module)
       //masks line
       bd->masks_hbox = gtk_hbox_new(FALSE,DT_GUI_IOP_MODULE_CONTROL_SPACING);
     
-      gtk_box_pack_start(GTK_BOX(bd->masks_hbox), gtk_label_new(_("masks")), FALSE,FALSE,0);
+      gtk_box_pack_start(GTK_BOX(bd->masks_hbox), gtk_label_new(_("masks")), FALSE,FALSE,2);
       bd->masks_state = gtk_label_new(_("no masks used"));
       gtk_misc_set_alignment(GTK_MISC(bd->masks_state), 1.0f, 0.5f);
       gtk_box_pack_start(GTK_BOX(bd->masks_hbox), bd->masks_state, TRUE, TRUE,5);
