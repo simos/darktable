@@ -426,7 +426,7 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
     
     const int ss = hb*wb;
     intersections = malloc(sizeof(int)*nb*8);
-    if (ss>3)
+    if (ss>10)
     {
       int *binter = malloc(sizeof(int)*ss);
       memset(binter,0,sizeof(int)*ss);
@@ -747,82 +747,90 @@ static int dt_curve_events_mouse_scrolled(struct dt_iop_module_t *module, float 
 {
   if (gui->form_selected)
   {
-    float amount = 1.05;
-    if (!up) amount = 0.95;
-    int nb = g_list_length(form->points);
-    if (gui->border_selected)
+    if ((state&GDK_CONTROL_MASK) == GDK_CONTROL_MASK)
     {
-      for(int k = 0; k < nb; k++)
-      {
-        dt_masks_point_curve_t *point = (dt_masks_point_curve_t *)g_list_nth_data(form->points,k);
-        point->border[0] *= amount;
-        point->border[1] *= amount;
-      }
+      //we try to change the opacity
+      dt_masks_form_change_opacity(module,form,up);
     }
     else
     {
-      //get the center of gravity of the form (like if it was a simple polygon)
-      float bx = 0.0f;
-      float by = 0.0f;
-      float surf = 0.0f;
-      
-      for(int k = 0; k < nb; k++)
-      {
-        int k2 = (k+1)%nb;
-        dt_masks_point_curve_t *point1 = (dt_masks_point_curve_t *)g_list_nth_data(form->points,k);
-        dt_masks_point_curve_t *point2 = (dt_masks_point_curve_t *)g_list_nth_data(form->points,k2);
-        surf += point1->corner[0]*point2->corner[1] - point2->corner[0]*point1->corner[1];
-        
-        bx += (point1->corner[0] + point2->corner[0])*(point1->corner[0]*point2->corner[1] - point2->corner[0]*point1->corner[1]);
-        by += (point1->corner[1] + point2->corner[1])*(point1->corner[0]*point2->corner[1] - point2->corner[0]*point1->corner[1]);
-      }
-      bx /= 3.0*surf;
-      by /= 3.0*surf;
-      
-      //first, we have to be sure that the shape is not too small to be resized
-      if (amount < 1.0)
+      float amount = 1.05;
+      if (!up) amount = 0.95;
+      int nb = g_list_length(form->points);
+      if (gui->border_selected)
       {
         for(int k = 0; k < nb; k++)
         {
           dt_masks_point_curve_t *point = (dt_masks_point_curve_t *)g_list_nth_data(form->points,k);
-          float l = (point->corner[0]-bx)*(point->corner[0]-bx) + (point->corner[1]-by)*(point->corner[1]-by);
-          if ( l < 0.0005f) return 1;
+          point->border[0] *= amount;
+          point->border[1] *= amount;
         }
       }
-      //now we move each point
-      for(int k = 0; k < nb; k++)
+      else
       {
-        dt_masks_point_curve_t *point = (dt_masks_point_curve_t *)g_list_nth_data(form->points,k);
-        float x = (point->corner[0]-bx)*amount;
-        float y = (point->corner[1]-by)*amount;
+        //get the center of gravity of the form (like if it was a simple polygon)
+        float bx = 0.0f;
+        float by = 0.0f;
+        float surf = 0.0f;
         
-        //we stretch ctrl points
-        float ct1x = (point->ctrl1[0]-point->corner[0])*amount;
-        float ct1y = (point->ctrl1[1]-point->corner[1])*amount;
-        float ct2x = (point->ctrl2[0]-point->corner[0])*amount;
-        float ct2y = (point->ctrl2[1]-point->corner[1])*amount;
+        for(int k = 0; k < nb; k++)
+        {
+          int k2 = (k+1)%nb;
+          dt_masks_point_curve_t *point1 = (dt_masks_point_curve_t *)g_list_nth_data(form->points,k);
+          dt_masks_point_curve_t *point2 = (dt_masks_point_curve_t *)g_list_nth_data(form->points,k2);
+          surf += point1->corner[0]*point2->corner[1] - point2->corner[0]*point1->corner[1];
+          
+          bx += (point1->corner[0] + point2->corner[0])*(point1->corner[0]*point2->corner[1] - point2->corner[0]*point1->corner[1]);
+          by += (point1->corner[1] + point2->corner[1])*(point1->corner[0]*point2->corner[1] - point2->corner[0]*point1->corner[1]);
+        }
+        bx /= 3.0*surf;
+        by /= 3.0*surf;
         
-        //and we set the new points
-        point->corner[0] = bx + x;
-        point->corner[1] = by + y;
-        point->ctrl1[0] = point->corner[0] + ct1x;
-        point->ctrl1[1] = point->corner[1] + ct1y;
-        point->ctrl2[0] = point->corner[0] + ct2x;
-        point->ctrl2[1] = point->corner[1] + ct2y;   
+        //first, we have to be sure that the shape is not too small to be resized
+        if (amount < 1.0)
+        {
+          for(int k = 0; k < nb; k++)
+          {
+            dt_masks_point_curve_t *point = (dt_masks_point_curve_t *)g_list_nth_data(form->points,k);
+            float l = (point->corner[0]-bx)*(point->corner[0]-bx) + (point->corner[1]-by)*(point->corner[1]-by);
+            if ( l < 0.0005f) return 1;
+          }
+        }
+        //now we move each point
+        for(int k = 0; k < nb; k++)
+        {
+          dt_masks_point_curve_t *point = (dt_masks_point_curve_t *)g_list_nth_data(form->points,k);
+          float x = (point->corner[0]-bx)*amount;
+          float y = (point->corner[1]-by)*amount;
+          
+          //we stretch ctrl points
+          float ct1x = (point->ctrl1[0]-point->corner[0])*amount;
+          float ct1y = (point->ctrl1[1]-point->corner[1])*amount;
+          float ct2x = (point->ctrl2[0]-point->corner[0])*amount;
+          float ct2y = (point->ctrl2[1]-point->corner[1])*amount;
+          
+          //and we set the new points
+          point->corner[0] = bx + x;
+          point->corner[1] = by + y;
+          point->ctrl1[0] = point->corner[0] + ct1x;
+          point->ctrl1[1] = point->corner[1] + ct1y;
+          point->ctrl2[0] = point->corner[0] + ct2x;
+          point->ctrl2[1] = point->corner[1] + ct2y;   
+        }
+        
+        //now the redraw/save stuff
+        _curve_init_ctrl_points(form);
       }
-      
-      //now the redraw/save stuff
-      _curve_init_ctrl_points(form);
-    }
-  
-    dt_masks_write_form(form,darktable.develop);
-
-    //we recreate the form points
-    dt_masks_gui_form_remove(form,gui,index);
-    dt_masks_gui_form_create(form,gui,index);
     
-    //we save the move
-    if (module) dt_dev_add_history_item(darktable.develop, module, TRUE);
+      dt_masks_write_form(form,darktable.develop);
+  
+      //we recreate the form points
+      dt_masks_gui_form_remove(form,gui,index);
+      dt_masks_gui_form_create(form,gui,index);
+      
+      //we save the move
+      if (module) dt_dev_add_history_item(darktable.develop, module, TRUE);
+    }
     return 1;
   }
   return 0;
@@ -834,49 +842,46 @@ static int dt_curve_events_button_pressed(struct dt_iop_module_t *module,float p
   if (!gui) return 0;
   dt_masks_form_gui_points_t *gpt = (dt_masks_form_gui_points_t *) g_list_nth_data(gui->points,index);
   if (!gpt) return 0;
-  if (which == 3 || (gui->creation && gui->creation_closing_form))
+  if (gui->creation && (which == 3 || gui->creation_closing_form))
   {
-    if (gui->creation)
+    //we don't want a form with less than 3 points
+    if (g_list_length(form->points) < 4)
     {
-      //we don't want a form with less than 3 points
-      if (g_list_length(form->points) < 4)
+      //we remove the form
+      dt_masks_free_form(form);
+      darktable.develop->form_visible = NULL;
+      dt_masks_init_formgui(darktable.develop);
+      dt_control_queue_redraw_center();
+      return 1;
+    }
+    else
+    {
+      dt_iop_module_t *crea_module = gui->creation_module;
+      //we delete last point (the one we are currently dragging)
+      dt_masks_point_curve_t *point = (dt_masks_point_curve_t *)g_list_last(form->points)->data;
+      form->points = g_list_remove(form->points,point);
+      free(point);
+      point = NULL;
+      
+      gui->point_dragging = -1;
+      _curve_init_ctrl_points(form);
+
+      //we save the form and quit creation mode
+      dt_masks_gui_form_save_creation(crea_module,form,gui);
+      if (crea_module)
       {
-        //we remove the form
-        dt_masks_free_form(form);
-        darktable.develop->form_visible = NULL;
-        dt_masks_init_formgui(darktable.develop);
-        dt_control_queue_redraw_center();
-        return 1;
+        dt_dev_add_history_item(darktable.develop, crea_module, TRUE);
+        //and we switch in edit mode to show all the forms
+        dt_masks_set_edit_mode(crea_module, TRUE);
+        dt_masks_iop_update(crea_module);
+        gui->creation_module = NULL;
       }
       else
       {
-        dt_iop_module_t *crea_module = gui->creation_module;
-        //we delete last point (the one we are currently dragging)
-        dt_masks_point_curve_t *point = (dt_masks_point_curve_t *)g_list_last(form->points)->data;
-        form->points = g_list_remove(form->points,point);
-        free(point);
-        point = NULL;
-        
-        gui->point_dragging = -1;
-        _curve_init_ctrl_points(form);
-
-        //we save the form and quit creation mode
-        dt_masks_gui_form_save_creation(crea_module,form,gui);
-        if (crea_module)
-        {
-          dt_dev_add_history_item(darktable.develop, crea_module, TRUE);
-          //and we switch in edit mode to show all the forms
-          dt_masks_set_edit_mode(crea_module, TRUE);
-          dt_masks_iop_update(crea_module);
-          gui->creation_module = NULL;
-        }
-        else
-        {
-          dt_masks_gui_form_remove(form,gui,index);
-          dt_masks_gui_form_create(form,gui,index);
-        }
-        dt_control_queue_redraw_center();
+        dt_masks_gui_form_remove(form,gui,index);
+        dt_masks_gui_form_create(form,gui,index);
       }
+      dt_control_queue_redraw_center();
     }
   }
   else if (which == 1)
@@ -1004,7 +1009,34 @@ static int dt_curve_events_button_pressed(struct dt_iop_module_t *module,float p
       return 1;
     }
     gui->point_edited = -1;
-  }  
+  }
+  else if (which==3)
+  {
+    dt_masks_init_formgui(darktable.develop);
+    //we hide the form
+    if (!(darktable.develop->form_visible->type & DT_MASKS_GROUP)) darktable.develop->form_visible = NULL;
+    else if (g_list_length(darktable.develop->form_visible->points) < 2) darktable.develop->form_visible = NULL;
+    else
+    {
+      GList *forms = g_list_first(darktable.develop->form_visible->points);
+      while (forms)
+      {
+        dt_masks_point_group_t *gpt = (dt_masks_point_group_t *)forms->data;
+        if (gpt->formid == form->formid)
+        {
+          darktable.develop->form_visible->points = g_list_remove(darktable.develop->form_visible->points,gpt);
+          break;
+        }
+        forms = g_list_next(forms);
+      }
+    }
+    
+    //we delete or remove the shape
+    dt_masks_form_remove(module,form);
+    dt_dev_masks_list_change(darktable.develop);
+    return 1;
+  }
+    
   return 0;
 }
 
@@ -1218,32 +1250,6 @@ static int dt_curve_events_button_released(struct dt_iop_module_t *module,float 
       //we save the move
       if (module) dt_dev_add_history_item(darktable.develop, module, TRUE);
     }
-    return 1;
-  }
-  else if (which==3)
-  {
-    dt_masks_init_formgui(darktable.develop);
-    //we hide the form
-    if (!(darktable.develop->form_visible->type & DT_MASKS_GROUP)) darktable.develop->form_visible = NULL;
-    else if (g_list_length(darktable.develop->form_visible->points) < 2) darktable.develop->form_visible = NULL;
-    else
-    {
-      GList *forms = g_list_first(darktable.develop->form_visible->points);
-      while (forms)
-      {
-        dt_masks_point_group_t *gpt = (dt_masks_point_group_t *)forms->data;
-        if (gpt->formid == form->formid)
-        {
-          darktable.develop->form_visible->points = g_list_remove(darktable.develop->form_visible->points,gpt);
-          break;
-        }
-        forms = g_list_next(forms);
-      }
-    }
-    
-    //we delete or remove the shape
-    dt_masks_form_remove(module,form);
-    dt_dev_masks_list_change(darktable.develop);
     return 1;
   }
   

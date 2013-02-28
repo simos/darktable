@@ -162,6 +162,7 @@ static int dt_group_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *pi
   int px[nb];
   int py[nb];
   int ok[nb];
+  float op[nb];
   
   //and we get all masks
   GList *fpts = g_list_first(form->points);
@@ -174,6 +175,7 @@ static int dt_group_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *pi
     if (sel)
     {
       ok[pos] = dt_masks_get_mask(module,piece,sel,&bufs[pos],&w[pos],&h[pos],&px[pos],&py[pos]);
+      op[pos] = fpt->opacity;
       if (ok[pos]) nb_ok++;
     }
     fpts = g_list_next(fpts);
@@ -207,7 +209,7 @@ static int dt_group_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *pi
     {
       for (int x=0; x<w[i]; x++)
       {
-        (*buffer)[(py[i]+y-t)*(r-l)+px[i]+x-l] = fmaxf((*buffer)[(py[i]+y-t)*(r-l)+px[i]+x-l],bufs[i][y*w[i]+x]);
+        (*buffer)[(py[i]+y-t)*(r-l)+px[i]+x-l] = fmaxf((*buffer)[(py[i]+y-t)*(r-l)+px[i]+x-l],bufs[i][y*w[i]+x]*op[i]);
       }
     }
   }

@@ -1729,7 +1729,7 @@ void dt_develop_blend_process (struct dt_iop_module_t *self, struct dt_dev_pixel
         {
           int a = (yy/roi_in->scale-fy);
           int b = (xx/roi_in->scale);
-          mask[(yy-roi_out->y)*roi_out->width+xx-roi_out->x] = fmaxf(mask[(yy-roi_out->y)*roi_out->width+xx-roi_out->x],fm[a*fw+b-fx]);
+          mask[(yy-roi_out->y)*roi_out->width+xx-roi_out->x] = fmaxf(mask[(yy-roi_out->y)*roi_out->width+xx-roi_out->x],fm[a*fw+b-fx]*self->blend_params->forms_opacity[i]);
         }
       }
       

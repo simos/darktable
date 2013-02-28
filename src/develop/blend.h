@@ -178,6 +178,8 @@ typedef struct dt_develop_blend_params_t
   int forms[64];
   /** state of masks */
   uint32_t forms_state[64];
+  /** opacity of masks */
+  float forms_opacity[64];
   /** number of masks */
   int forms_count;
 }

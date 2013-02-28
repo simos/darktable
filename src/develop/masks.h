@@ -81,6 +81,7 @@ typedef struct dt_masks_point_group_t
 {
   int formid;
   dt_masks_states_t state;
+  float opacity;
 }
 dt_masks_point_group_t;
 
@@ -194,6 +195,7 @@ void dt_masks_set_edit_mode(struct dt_iop_module_t *module,gboolean value);
 void dt_masks_iop_update(struct dt_iop_module_t *module);
 
 void dt_masks_form_remove(struct dt_iop_module_t *module, dt_masks_form_t *form);
+void dt_masks_form_change_opacity(struct dt_iop_module_t *module, dt_masks_form_t *form, int up);
 #endif
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
 // vim: shiftwidth=2 expandtab tabstop=2 cindent

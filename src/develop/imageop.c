@@ -1580,7 +1580,7 @@ void dt_iop_commit_params(dt_iop_module_t *module, dt_iop_params_t *params, dt_d
         points = g_list_next(points);
       }
       memcpy(str+pos, form->source, 2*sizeof(float));
-      pos+=2;      
+      pos+=2*sizeof(float);      
     }
     
     // assume process_cl is ready, commit_params can overwrite this.

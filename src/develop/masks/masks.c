@@ -121,6 +121,7 @@ void dt_masks_gui_form_save_creation(dt_iop_module_t *module, dt_masks_form_t *f
     int forms_count = module->blend_params->forms_count;
     module->blend_params->forms[forms_count] = form->formid;
     module->blend_params->forms_state[forms_count] = DT_MASKS_STATE_SHOW | DT_MASKS_STATE_USE;
+    module->blend_params->forms_opacity[forms_count] = 1.0f;
     module->blend_params->forms_count++;
     
     //update gui
@@ -840,7 +841,12 @@ void dt_masks_form_remove(struct dt_iop_module_t *module, dt_masks_form_t *form)
     for (int i=0; i<module->blend_params->forms_count; i++)
     {
       if (module->blend_params->forms[i] == id) ok = 1;
-      if (ok) module->blend_params->forms[i] = module->blend_params->forms[i+1];
+      if (ok)
+      {
+        module->blend_params->forms[i] = module->blend_params->forms[i+1];
+        module->blend_params->forms_state[i] = module->blend_params->forms_state[i+1];
+        module->blend_params->forms_opacity[i] = module->blend_params->forms_opacity[i+1];
+      }
     }
     if (ok)
     {
@@ -863,7 +869,12 @@ void dt_masks_form_remove(struct dt_iop_module_t *module, dt_masks_form_t *form)
       for (int i=0; i<m->blend_params->forms_count; i++)
       {
         if (m->blend_params->forms[i] == id) ok = 1;
-        if (ok) m->blend_params->forms[i] = m->blend_params->forms[i+1];
+        if (ok)
+        {
+          m->blend_params->forms[i] = m->blend_params->forms[i+1];
+          m->blend_params->forms_state[i] = m->blend_params->forms_state[i+1];
+          m->blend_params->forms_opacity[i] = m->blend_params->forms_opacity[i+1];
+        }
       }
       if (ok)
       {
@@ -886,6 +897,65 @@ void dt_masks_form_remove(struct dt_iop_module_t *module, dt_masks_form_t *form)
       break;
     }
     forms = g_list_next(forms);
+  }
+}
+
+void dt_masks_form_change_opacity(struct dt_iop_module_t *module, dt_masks_form_t *form, int up)
+{
+  //we first need to test if the opacity can be set to the form
+  if (form->type & DT_MASKS_GROUP) return;
+  int id = form->formid;
+  float amount = 0.05f;
+  if (!up) amount = -amount;
+  //case where the form is inside the current module
+  if (module)
+  {
+    for (int i=0; i<module->blend_params->forms_count; i++)
+    {
+      if (module->blend_params->forms[i] == id)
+      {
+        float nv = module->blend_params->forms_opacity[i] + amount;
+        if (nv<=1.0f && nv>=0.0f)
+        {
+          module->blend_params->forms_opacity[i] = nv;
+          dt_dev_add_history_item(darktable.develop, module, TRUE);
+        }
+        return;
+      }
+    }
+  }
+  //is the visible form a group ?
+  dt_masks_form_t *vf = darktable.develop->form_visible;
+  if (!vf) return;
+  if (!(vf->type & DT_MASKS_GROUP)) return;
+  
+  //is this group a registered one ?
+  GList *forms = g_list_first(darktable.develop->forms);
+  int ok=0;
+  while(forms)
+  {
+    dt_masks_form_t *f = (dt_masks_form_t *)forms->data;
+    if (f->formid == vf->formid) ok=1;
+    forms = g_list_next(forms);
+  }
+  if (!ok) return;
+  
+  //so we change the value inside the group
+  GList *fpts = g_list_first(vf->points);
+  while(fpts)
+  {
+    dt_masks_point_group_t *fpt = (dt_masks_point_group_t *) fpts->data;
+    if (fpt->formid == id)
+    {
+      float nv = fpt->opacity + amount;
+      if (nv<=1.0f && nv>=0.0f)
+      {
+        fpt->opacity = nv;
+        dt_masks_write_form(vf,darktable.develop);
+        if (module) dt_dev_add_history_item(darktable.develop, module, TRUE);
+      }
+    }
+    fpts = g_list_next(fpts);
   }
 }
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh

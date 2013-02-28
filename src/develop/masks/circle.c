@@ -96,24 +96,32 @@ static int dt_circle_events_mouse_scrolled(struct dt_iop_module_t *module, float
 {
   if (gui->form_selected)
   {
-    dt_masks_point_circle_t *circle = (dt_masks_point_circle_t *) (g_list_first(form->points)->data);
-    if (gui->border_selected)
+    if ((state&GDK_CONTROL_MASK) == GDK_CONTROL_MASK)
     {
-      if(up && circle->border > 0.002f) circle->border *= 0.9f;
-      else  if(circle->border < 1.0f  ) circle->border *= 1.0f/0.9f;
-      dt_masks_write_form(form,darktable.develop);
-      dt_masks_gui_form_remove(form,gui,index);
-      dt_masks_gui_form_create(form,gui,index);
+      //we try to change the opacity
+      dt_masks_form_change_opacity(module,form,up);
     }
     else
     {
-      if(up && circle->radius > 0.002f) circle->radius *= 0.9f;
-      else  if(circle->radius < 1.0f  ) circle->radius *= 1.0f/0.9f;
-      dt_masks_write_form(form,darktable.develop);
-      dt_masks_gui_form_remove(form,gui,index);
-      dt_masks_gui_form_create(form,gui,index);
+      dt_masks_point_circle_t *circle = (dt_masks_point_circle_t *) (g_list_first(form->points)->data);
+      if (gui->border_selected)
+      {
+        if(up && circle->border > 0.002f) circle->border *= 0.9f;
+        else  if(circle->border < 1.0f  ) circle->border *= 1.0f/0.9f;
+        dt_masks_write_form(form,darktable.develop);
+        dt_masks_gui_form_remove(form,gui,index);
+        dt_masks_gui_form_create(form,gui,index);
+      }
+      else
+      {
+        if(up && circle->radius > 0.002f) circle->radius *= 0.9f;
+        else  if(circle->radius < 1.0f  ) circle->radius *= 1.0f/0.9f;
+        dt_masks_write_form(form,darktable.develop);
+        dt_masks_gui_form_remove(form,gui,index);
+        dt_masks_gui_form_create(form,gui,index);
+      }
+      if (module) dt_dev_add_history_item(darktable.develop, module, TRUE);
     }
-    if (module) dt_dev_add_history_item(darktable.develop, module, TRUE);
     return 1;
   }
   return 0;
