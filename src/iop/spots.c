@@ -419,9 +419,19 @@ void gui_update (dt_iop_module_t *self)
 {
   _resynch_params(self);
   dt_iop_spots_gui_data_t *g = (dt_iop_spots_gui_data_t *)self->gui_data;
+  //update clones count
   char str[3];
   snprintf(str,3,"%d",self->blend_params->forms_count);
   gtk_label_set_text(g->label, str);
+  //update buttons status
+  int b1=0,b2=0;
+  if (self->dev->form_gui && self->dev->form_visible && self->dev->form_gui->creation && self->dev->form_gui->creation_module == self)
+  {
+    if (self->dev->form_visible->type & DT_MASKS_CIRCLE) b1=1;
+    else if (self->dev->form_visible->type & DT_MASKS_CURVE) b2=1;
+  }
+  gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(g->bt_circle), b1);
+  gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(g->bt_curve), b2);
 }
 
 void gui_init (dt_iop_module_t *self)

@@ -300,7 +300,7 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
   *points = malloc(600000*sizeof(float));
   memset(*points,0,600000*sizeof(float));
   if (border) *border = malloc(600000*sizeof(float));
-  memset(*border,0,600000*sizeof(float));
+  if (border) memset(*border,0,600000*sizeof(float));
   
   gettimeofday(&tv3,NULL);
   printf("malloc %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
@@ -907,8 +907,8 @@ static int dt_curve_events_button_pressed(struct dt_iop_module_t *module,float p
         bzpt2->border[0] = bzpt2->border[1] = 0.05;
         bzpt2->state = DT_MASKS_POINT_STATE_NORMAL;
         form->points = g_list_append(form->points,bzpt2);
-        form->source[0] = bzpt->corner[0] + 0.001f;
-        form->source[1] = bzpt->corner[1] + 0.001f;
+        form->source[0] = bzpt->corner[0] + 0.1f;
+        form->source[1] = bzpt->corner[1] + 0.1f;
         nb++;
       }
       form->points = g_list_append(form->points,bzpt);
@@ -1644,7 +1644,7 @@ static void dt_curve_events_post_expose(cairo_t *cr, float zoom_scale, dt_masks_
   }
   
   //draw the source if needed
-  if (gpt->source_count>nb*3+6)
+  if (!gui->creation && gpt->source_count>nb*3+6)
   {
     //we draw the line between source and dest
     cairo_move_to(cr,gpt->source[2]+dxs,gpt->source[3]+dys);
