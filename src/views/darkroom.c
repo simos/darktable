@@ -663,6 +663,8 @@ dt_dev_change_image(dt_develop_t *dev, const uint32_t imgid)
     g_free(active_plugin);
   }
 
+  dt_dev_masks_list_change(dev);
+  
   /* last set the group to update visibility of iop modules for new pipe */
   dt_dev_modulegroups_set(dev,dt_conf_get_int("plugins/darkroom/groups"));
 
@@ -1217,7 +1219,8 @@ void enter(dt_view_t *self)
     }
     g_free(active_plugin);
   }
-
+  dt_dev_masks_list_change(dev);
+  
   // image should be there now.
   float zoom_x, zoom_y;
   dt_dev_check_zoom_bounds(dev, &zoom_x, &zoom_y, DT_ZOOM_FIT, 0, NULL, NULL);
