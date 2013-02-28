@@ -298,7 +298,9 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
   printf("sizes : %f %f\n",wd,ht);
   //we allocate buffer (very large) => how to handle this ???
   *points = malloc(600000*sizeof(float));
+  memset(*points,0,600000*sizeof(float));
   if (border) *border = malloc(600000*sizeof(float));
+  memset(*border,0,600000*sizeof(float));
   
   gettimeofday(&tv3,NULL);
   printf("malloc %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
@@ -1240,8 +1242,7 @@ static int dt_curve_events_button_released(struct dt_iop_module_t *module,float 
     }
     
     //we delete or remove the shape
-    if ((form->type & DT_MASKS_CLONE) || !module) dt_masks_form_delete(form);
-    else dt_masks_form_remove(module,form);
+    dt_masks_form_remove(module,form);
     dt_dev_masks_list_change(darktable.develop);
     return 1;
   }

@@ -822,14 +822,37 @@ void dt_masks_iop_update(struct dt_iop_module_t *module)
     snprintf(txt,512,"%d shapes used",module->blend_params->forms_count);
     gtk_label_set_text(GTK_LABEL(bd->masks_state),txt);
   }
-  else gtk_label_set_text(GTK_LABEL(bd->masks_state),_("no masks used"));
+  else
+  {
+    gtk_label_set_text(GTK_LABEL(bd->masks_state),_("no masks used"));
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(bd->masks_edit),FALSE);
+  }
   //gtk_widget_set_sensitive(bd->masks_edit,(module->blend_params->forms_count>0));
 }
 
-void dt_masks_form_delete(dt_masks_form_t *form)
+void dt_masks_form_remove(struct dt_iop_module_t *module, dt_masks_form_t *form)
 {
-  //we drop the form from all modules
   int id = form->formid;
+  if (!(form->type & DT_MASKS_CLONE) && module)
+  {
+    //we try to remove the form from the module
+    int ok = 0;
+    for (int i=0; i<module->blend_params->forms_count; i++)
+    {
+      if (module->blend_params->forms[i] == id) ok = 1;
+      if (ok) module->blend_params->forms[i] = module->blend_params->forms[i+1];
+    }
+    if (ok)
+    {
+      module->blend_params->forms_count--;
+      dt_masks_iop_update(module);
+      dt_dev_add_history_item(darktable.develop, module, TRUE);
+      return;
+    }
+  }
+  
+  //if we are here that mean we have to permanently delete this form
+  //we drop the form from all modules
   GList *iops = g_list_first(darktable.develop->iop);
   while(iops)
   {
@@ -864,23 +887,6 @@ void dt_masks_form_delete(dt_masks_form_t *form)
     }
     forms = g_list_next(forms);
   }
-}
-void dt_masks_form_remove(struct dt_iop_module_t *module, dt_masks_form_t *form)
-{
-  //we just remove the form from the module
-  int ok = 0;
-  int id = form->formid;
-  for (int i=0; i<module->blend_params->forms_count; i++)
-  {
-    if (module->blend_params->forms[i] == id) ok = 1;
-    if (ok) module->blend_params->forms[i] = module->blend_params->forms[i+1];
-  }
-  if (ok)
-  {
-    module->blend_params->forms_count--;
-    dt_masks_iop_update(module);
-    dt_dev_add_history_item(darktable.develop, module, TRUE);
-  } 
 }
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
 // vim: shiftwidth=2 expandtab tabstop=2 cindent
