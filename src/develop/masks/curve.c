@@ -417,9 +417,11 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
         posextr[3] = i;
       }
     }
-  
-    const int hb = ymax-ymin+1;
-    const int wb = xmax-xmin+1;
+    xmin-=1, ymin-=1;
+    xmax+=1, ymax+=1;
+    const int hb = ymax-ymin;
+    const int wb = xmax-xmin;
+    
     const int ss = hb*wb;
     intersections = malloc(sizeof(int)*nb*8);
     if (ss>3)
