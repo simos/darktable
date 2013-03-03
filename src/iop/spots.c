@@ -121,16 +121,25 @@ static void _resynch_params(struct dt_iop_module_t *self)
   int nalgo[64] = {2};
   
   //we go throught all forms in blend params
-  for (int i=0; i<bp->forms_count; i++)
+  dt_masks_form_t *grp = dt_masks_get_from_id(darktable.develop,bp->mask_id);
+  if (grp && (grp->type & DT_MASKS_GROUP))
   {
-    nid[i] = bp->forms[i];
-    for (int j=0; j<64; j++)
+    GList *forms = g_list_first(grp->points);
+    int i=0;
+    while(forms)
     {
-      if (p->clone_id[j]==nid[i])
+      dt_masks_point_group_t *grpt = (dt_masks_point_group_t *)forms->data;
+      nid[i] = grpt->formid;
+      for (int j=0; j<64; j++)
       {
-        nalgo[i] = p->clone_algo[j];
-        break;
+        if (p->clone_id[j]==nid[i])
+        {
+          nalgo[i] = p->clone_algo[j];
+          break;
+        }
       }
+      i++;
+      forms = g_list_next(forms);
     }
   }
   
@@ -184,29 +193,37 @@ void modify_roi_in(struct dt_iop_module_t *self, struct dt_dev_pixelpipe_iop_t *
   dt_develop_blend_params_t *bp = self->blend_params;
 
   // We iterate throught all spots or polygons
-  for(int i=0; i<bp->forms_count; i++)
+  dt_masks_form_t *grp = dt_masks_get_from_id(darktable.develop,bp->mask_id);
+  if (grp && (grp->type & DT_MASKS_GROUP))
   {
-    //we get the spot
-    dt_masks_form_t *form = dt_masks_get_from_id(self->dev,bp->forms[i]);
-    if (!form) continue;
-
-    //we get the area for the form
-    int fl,ft,fw,fh;
-    if (!dt_masks_get_area(self,piece,form,&fw,&fh,&fl,&ft)) continue;
-
-    //if the form is outside the roi, we just skip it
-    fw *= roi_in->scale, fh *= roi_in->scale, fl *= roi_in->scale, ft *= roi_in->scale;
-    if (ft>=roi_out->y+roi_out->height || ft+fh<=roi_out->y || fl>=roi_out->x+roi_out->width || fl+fw<=roi_out->x) continue;
-
-    //we get the area for the source
-    if (!dt_masks_get_source_area(self,piece,form,&fw,&fh,&fl,&ft)) continue;
-    fw *= roi_in->scale, fh *= roi_in->scale, fl *= roi_in->scale, ft *= roi_in->scale;
-
-    //we elarge the roi if needed
-    roiy = fminf(ft,roiy);
-    roix = fminf(fl,roix);
-    roir = fmaxf(fl+fw,roir);
-    roib = fmaxf(ft+fh,roib);
+    GList *forms = g_list_first(grp->points);
+    while(forms)
+    {
+      dt_masks_point_group_t *grpt = (dt_masks_point_group_t *)forms->data;
+      //we get the spot
+      dt_masks_form_t *form = dt_masks_get_from_id(self->dev,grpt->formid);
+      if (form)
+      {
+        //we get the area for the form
+        int fl,ft,fw,fh;
+        if (!dt_masks_get_area(self,piece,form,&fw,&fh,&fl,&ft)) continue;
+    
+        //if the form is outside the roi, we just skip it
+        fw *= roi_in->scale, fh *= roi_in->scale, fl *= roi_in->scale, ft *= roi_in->scale;
+        if (ft>=roi_out->y+roi_out->height || ft+fh<=roi_out->y || fl>=roi_out->x+roi_out->width || fl+fw<=roi_out->x) continue;
+    
+        //we get the area for the source
+        if (!dt_masks_get_source_area(self,piece,form,&fw,&fh,&fl,&ft)) continue;
+        fw *= roi_in->scale, fh *= roi_in->scale, fl *= roi_in->scale, ft *= roi_in->scale;
+    
+        //we elarge the roi if needed
+        roiy = fminf(ft,roiy);
+        roix = fminf(fl,roix);
+        roir = fmaxf(fl+fw,roir);
+        roib = fmaxf(ft+fh,roib);
+      }
+      forms = g_list_next(forms);
+    }
   }
 
   //now we set the values
@@ -237,112 +254,136 @@ void process (struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, void 
   }
 
   // iterate throught all forms
-  for(int i=0; i<bp->forms_count; i++)
+  dt_masks_form_t *grp = dt_masks_get_from_id(darktable.develop,bp->mask_id);
+  int pos=0;
+  if (grp && (grp->type & DT_MASKS_GROUP))
   {
-    //we get the spot
-    dt_masks_form_t *form = dt_masks_get_from_id(self->dev,bp->forms[i]);
-    if (!form) continue;
-    //we get the area for the form
-    int fl,ft,fw,fh;
-    if (!dt_masks_get_area(self,piece,form,&fw,&fh,&fl,&ft)) continue;
-    //if the form is outside the roi, we just skip it
-    fw *= roi_in->scale, fh *= roi_in->scale, fl *= roi_in->scale, ft *= roi_in->scale;
-    if (ft>=roi_out->y+roi_out->height || ft+fh<=roi_out->y || fl>=roi_out->x+roi_out->width || fl+fw<=roi_out->x) continue;
-    if (d->clone_algo[i] == 1 && (form->type & DT_MASKS_CIRCLE))
+    GList *forms = g_list_first(grp->points);
+    while(forms)
     {
-      dt_masks_point_circle_t *circle = (dt_masks_point_circle_t *)g_list_nth_data(form->points,0);
-      // convert from world space:
-      const int rad = circle->radius* MIN(piece->buf_in.width, piece->buf_in.height)*roi_in->scale;
-      const int posx  = (circle->center[0] * piece->buf_in.width)*roi_in->scale - rad;
-      const int posy  = (circle->center[1] * piece->buf_in.height)*roi_in->scale - rad;
-      const int posx_source = (form->source[0]*piece->buf_in.width)*roi_in->scale - rad;
-      const int posy_source = (form->source[1]*piece->buf_in.height)*roi_in->scale - rad;      
-      const int dx = posx-posx_source;
-      const int dy = posy-posy_source;
-      fw = fh = 2*rad;
-  
-      // convert from world space:
-      float filter[2*rad + 1];
-      // for(int k=-rad; k<=rad; k++) filter[rad + k] = expf(-k*k*2.f/(rad*rad));
-      if(rad > 0)
+      dt_masks_point_group_t *grpt = (dt_masks_point_group_t *)forms->data;
+      //we get the spot
+      dt_masks_form_t *form = dt_masks_get_from_id(self->dev,grpt->formid);
+      if (!form)
       {
-        for(int k=-rad; k<=rad; k++)
+        forms = g_list_next(forms);
+        pos++;
+        continue;
+      }
+      //we get the area for the form
+      int fl,ft,fw,fh;
+      if (!dt_masks_get_area(self,piece,form,&fw,&fh,&fl,&ft))
+      {
+        forms = g_list_next(forms);
+        pos++;
+        continue;
+      }
+      //if the form is outside the roi, we just skip it
+      fw *= roi_in->scale, fh *= roi_in->scale, fl *= roi_in->scale, ft *= roi_in->scale;
+      if (ft>=roi_out->y+roi_out->height || ft+fh<=roi_out->y || fl>=roi_out->x+roi_out->width || fl+fw<=roi_out->x)
+      {
+        forms = g_list_next(forms);
+        pos++;
+        continue;
+      }
+      if (d->clone_algo[pos] == 1 && (form->type & DT_MASKS_CIRCLE))
+      {
+        dt_masks_point_circle_t *circle = (dt_masks_point_circle_t *)g_list_nth_data(form->points,0);
+        // convert from world space:
+        const int rad = circle->radius* MIN(piece->buf_in.width, piece->buf_in.height)*roi_in->scale;
+        const int posx  = (circle->center[0] * piece->buf_in.width)*roi_in->scale - rad;
+        const int posy  = (circle->center[1] * piece->buf_in.height)*roi_in->scale - rad;
+        const int posx_source = (form->source[0]*piece->buf_in.width)*roi_in->scale - rad;
+        const int posy_source = (form->source[1]*piece->buf_in.height)*roi_in->scale - rad;      
+        const int dx = posx-posx_source;
+        const int dy = posy-posy_source;
+        fw = fh = 2*rad;
+    
+        // convert from world space:
+        float filter[2*rad + 1];
+        // for(int k=-rad; k<=rad; k++) filter[rad + k] = expf(-k*k*2.f/(rad*rad));
+        if(rad > 0)
         {
-          const float kk = 1.0f - fabsf(k/(float)rad);
-          filter[rad + k] = kk*kk*(3.0f - 2.0f*kk);
+          for(int k=-rad; k<=rad; k++)
+          {
+            const float kk = 1.0f - fabsf(k/(float)rad);
+            filter[rad + k] = kk*kk*(3.0f - 2.0f*kk);
+          }
+        }
+        else
+        {
+          filter[0] = 1.0f;
+        }
+        for (int yy=posy ; yy<posy+fh; yy++)
+        {
+          //we test if we are inside roi_out
+          if (yy<roi_out->y || yy>=roi_out->y+roi_out->height) continue;
+          //we test if the source point is inside roi_in
+          if (yy-dy<roi_in->y || yy-dy>=roi_in->y+roi_in->height) continue;
+          for (int xx=posx ; xx<posx+fw; xx++)
+          {
+            //we test if we are inside roi_out
+            if (xx<roi_out->x || xx>=roi_out->x+roi_out->width) continue;
+            //we test if the source point is inside roi_in
+            if (xx-dx<roi_in->x || xx-dx>=roi_in->x+roi_in->width) continue;
+            
+            const float f = filter[xx-posx+1]*filter[yy-posy+1];//*d->spot[i].opacity;          
+            for(int c=0; c<ch; c++)
+              out[4*(roi_out->width*(yy-roi_out->y) + xx-roi_out->x) + c] =
+                out[4*(roi_out->width*(yy-roi_out->y) + xx-roi_out->x) + c] * (1.0f-f) +
+                in[4*(roi_in->width*(yy-posy+posy_source-roi_in->y) + xx-posx+posx_source-roi_in->x) + c] * f;
+          }
         }
       }
       else
       {
-        filter[0] = 1.0f;
-      }
-      for (int yy=posy ; yy<posy+fh; yy++)
-      {
-        //we test if we are inside roi_out
-        if (yy<roi_out->y || yy>=roi_out->y+roi_out->height) continue;
-        //we test if the source point is inside roi_in
-        if (yy-dy<roi_in->y || yy-dy>=roi_in->y+roi_in->height) continue;
-        for (int xx=posx ; xx<posx+fw; xx++)
+        //we get the mask
+        float *mask;
+        int posx,posy,width,height;    
+        dt_masks_get_mask(self,piece,form,&mask,&width,&height,&posx,&posy);
+        //now we search the delta with the source
+        int dx,dy;
+        dx=dy=0;
+        if (form->type & DT_MASKS_CURVE)
+        {
+          dt_masks_point_curve_t *pt = (dt_masks_point_curve_t *)g_list_nth_data(form->points,0);
+          dx = pt->corner[0]*roi_in->scale*piece->buf_in.width - form->source[0]*roi_in->scale*piece->buf_in.width;
+          dy = pt->corner[1]*roi_in->scale*piece->buf_in.height - form->source[1]*roi_in->scale*piece->buf_in.height;
+        }
+        else if (form->type & DT_MASKS_CIRCLE)
+        {
+          dt_masks_point_circle_t *pt = (dt_masks_point_circle_t *)g_list_nth_data(form->points,0);
+          dx = pt->center[0]*roi_in->scale*piece->buf_in.width - form->source[0]*roi_in->scale*piece->buf_in.width;
+          dy = pt->center[1]*roi_in->scale*piece->buf_in.height - form->source[1]*roi_in->scale*piece->buf_in.height;
+        }
+        if (dx==0 && dy==0) continue;
+        //now we do the pixel clone
+        for (int yy=ft ; yy<ft+fh; yy++)
         {
           //we test if we are inside roi_out
-          if (xx<roi_out->x || xx>=roi_out->x+roi_out->width) continue;
+          if (yy<roi_out->y || yy>=roi_out->y+roi_out->height) continue;
           //we test if the source point is inside roi_in
-          if (xx-dx<roi_in->x || xx-dx>=roi_in->x+roi_in->width) continue;
-          
-          const float f = filter[xx-posx+1]*filter[yy-posy+1];//*d->spot[i].opacity;          
-          for(int c=0; c<ch; c++)
-            out[4*(roi_out->width*(yy-roi_out->y) + xx-roi_out->x) + c] =
-              out[4*(roi_out->width*(yy-roi_out->y) + xx-roi_out->x) + c] * (1.0f-f) +
-              in[4*(roi_in->width*(yy-posy+posy_source-roi_in->y) + xx-posx+posx_source-roi_in->x) + c] * f;
+          if (yy-dy<roi_in->y || yy-dy>=roi_in->y+roi_in->height) continue;
+          for (int xx=fl ; xx<fl+fw; xx++)
+          {
+            //we test if we are inside roi_out
+            if (xx<roi_out->x || xx>=roi_out->x+roi_out->width) continue;
+            //we test if the source point is inside roi_in
+            if (xx-dx<roi_in->x || xx-dx>=roi_in->x+roi_in->width) continue;
+            
+            float f = mask[((int)((yy-ft)/roi_in->scale))*width + (int)((xx-fl)/roi_in->scale)];  //we can add the opacity here
+            
+            for(int c=0; c<ch; c++)
+              out[4*(roi_out->width*(yy-roi_out->y) + xx-roi_out->x) + c] =
+                out[4*(roi_out->width*(yy-roi_out->y) + xx-roi_out->x) + c] * (1.0f-f) +
+                in[4*(roi_in->width*(yy-dy-roi_in->y) + xx-dx-roi_in->x) + c] * f;
+          }
         }
+        free(mask);
       }
-    }
-    else
-    {
-      //we get the mask
-      float *mask;
-      int posx,posy,width,height;    
-      dt_masks_get_mask(self,piece,form,&mask,&width,&height,&posx,&posy);
-      //now we search the delta with the source
-      int dx,dy;
-      dx=dy=0;
-      if (form->type & DT_MASKS_CURVE)
-      {
-        dt_masks_point_curve_t *pt = (dt_masks_point_curve_t *)g_list_nth_data(form->points,0);
-        dx = pt->corner[0]*roi_in->scale*piece->buf_in.width - form->source[0]*roi_in->scale*piece->buf_in.width;
-        dy = pt->corner[1]*roi_in->scale*piece->buf_in.height - form->source[1]*roi_in->scale*piece->buf_in.height;
-      }
-      else if (form->type & DT_MASKS_CIRCLE)
-      {
-        dt_masks_point_circle_t *pt = (dt_masks_point_circle_t *)g_list_nth_data(form->points,0);
-        dx = pt->center[0]*roi_in->scale*piece->buf_in.width - form->source[0]*roi_in->scale*piece->buf_in.width;
-        dy = pt->center[1]*roi_in->scale*piece->buf_in.height - form->source[1]*roi_in->scale*piece->buf_in.height;
-      }
-      if (dx==0 && dy==0) continue;
-      //now we do the pixel clone
-      for (int yy=ft ; yy<ft+fh; yy++)
-      {
-        //we test if we are inside roi_out
-        if (yy<roi_out->y || yy>=roi_out->y+roi_out->height) continue;
-        //we test if the source point is inside roi_in
-        if (yy-dy<roi_in->y || yy-dy>=roi_in->y+roi_in->height) continue;
-        for (int xx=fl ; xx<fl+fw; xx++)
-        {
-          //we test if we are inside roi_out
-          if (xx<roi_out->x || xx>=roi_out->x+roi_out->width) continue;
-          //we test if the source point is inside roi_in
-          if (xx-dx<roi_in->x || xx-dx>=roi_in->x+roi_in->width) continue;
-          
-          float f = mask[((int)((yy-ft)/roi_in->scale))*width + (int)((xx-fl)/roi_in->scale)];  //we can add the opacity here
-          
-          for(int c=0; c<ch; c++)
-            out[4*(roi_out->width*(yy-roi_out->y) + xx-roi_out->x) + c] =
-              out[4*(roi_out->width*(yy-roi_out->y) + xx-roi_out->x) + c] * (1.0f-f) +
-              in[4*(roi_in->width*(yy-dy-roi_in->y) + xx-dx-roi_in->x) + c] * f;
-        }
-      }
-      free(mask);
-    }    
+      pos++;
+      forms = g_list_next(forms);
+    }  
   }
 }
 
@@ -421,7 +462,10 @@ void gui_update (dt_iop_module_t *self)
   dt_iop_spots_gui_data_t *g = (dt_iop_spots_gui_data_t *)self->gui_data;
   //update clones count
   char str[3];
-  snprintf(str,3,"%d",self->blend_params->forms_count);
+  dt_masks_form_t *grp = dt_masks_get_from_id(self->dev,self->blend_params->mask_id);
+  int nb = 0;
+  if (grp && (grp->type & DT_MASKS_GROUP)) nb = g_list_length(grp->points);
+  snprintf(str,3,"%d",nb);
   gtk_label_set_text(g->label, str);
   //update buttons status
   int b1=0,b2=0;

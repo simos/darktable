@@ -1032,7 +1032,9 @@ static int dt_curve_events_button_pressed(struct dt_iop_module_t *module,float p
     }
     
     //we delete or remove the shape
-    dt_masks_form_remove(module,form);
+    int id = 0;
+    if(module) id = module->blend_params->mask_id;
+    dt_masks_form_remove(module,dt_masks_get_from_id(darktable.develop,id),form);
     dt_dev_masks_list_change(darktable.develop);
     return 1;
   }
@@ -1195,27 +1197,29 @@ static int dt_curve_events_button_released(struct dt_iop_module_t *module,float 
     //we remove the point (and the entire form if there is too few points)
     if (g_list_length(form->points) < 4)
     {
-      //we remove the form
-      dt_masks_free_form(form);
-      darktable.develop->form_visible = NULL;
       dt_masks_init_formgui(darktable.develop);
-      if (module)
+      //we hide the form
+      if (!(darktable.develop->form_visible->type & DT_MASKS_GROUP)) darktable.develop->form_visible = NULL;
+      else if (g_list_length(darktable.develop->form_visible->points) < 2) darktable.develop->form_visible = NULL;
+      else
       {
-        int pos = 0;
-        for (int i=0; i<module->blend_params->forms_count; i++)
+        GList *forms = g_list_first(darktable.develop->form_visible->points);
+        while (forms)
         {
-          if (module->blend_params->forms[i] == form->formid)
+          dt_masks_point_group_t *gpt = (dt_masks_point_group_t *)forms->data;
+          if (gpt->formid == form->formid)
           {
-            pos = i;
+            darktable.develop->form_visible->points = g_list_remove(darktable.develop->form_visible->points,gpt);
             break;
           }
+          forms = g_list_next(forms);
         }
-        module->blend_params->forms_count--;
-        for (int i=pos; i<module->blend_params->forms_count; i++) module->blend_params->forms[i] = module->blend_params->forms[i+1];
-        dt_masks_iop_update(module);
       }
+      
+      //we delete or remove the shape
+      dt_masks_form_remove(module,NULL,form);
+      dt_dev_masks_list_change(darktable.develop);
       dt_control_queue_redraw_center();
-      if (module) dt_dev_add_history_item(darktable.develop, module, TRUE);
       return 1;
     }
     form->points = g_list_delete_link(form->points,g_list_nth(form->points,gui->point_selected));

@@ -949,10 +949,11 @@ void dt_iop_gui_update_blending(dt_iop_module_t *module)
   /* update masks state */
   if (!(module->flags()&IOP_FLAGS_NO_MASKS))
   {
-    if (module->blend_params->forms_count>0)
+    dt_masks_form_t *grp = dt_masks_get_from_id(darktable.develop,module->blend_params->mask_id);
+    if (grp && (grp->type & DT_MASKS_GROUP) && g_list_length(grp->points)>0)
     {
       char txt[512];
-      snprintf(txt,512,"%d shapes used",module->blend_params->forms_count);
+      snprintf(txt,512,"%d shapes used",g_list_length(grp->points));
       gtk_label_set_text(GTK_LABEL(bd->masks_state),txt);
     }
     else gtk_label_set_text(GTK_LABEL(bd->masks_state),_("no masks used"));

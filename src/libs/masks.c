@@ -87,14 +87,29 @@ static void _tree_add_curve(GtkButton *button, dt_iop_module_t *module)
 
 static void _tree_add_exist(GtkButton *button, dt_iop_module_t *module)
 {
+  if (!module) return;
   //we get the new formid
   int id = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(button),"formid"));
   
-  //add the form to the current module
-  int forms_count = module->blend_params->forms_count;
-  module->blend_params->forms[forms_count] = id;
-  module->blend_params->forms_state[forms_count] = DT_MASKS_STATE_SHOW | DT_MASKS_STATE_USE;
-  module->blend_params->forms_count++;
+  //is there already a masks group for this module ?
+  int grpid = module->blend_params->mask_id;
+  dt_masks_form_t *grp = dt_masks_get_from_id(darktable.develop,grpid);
+  if (!grp)
+  {
+    //we create a new group
+    grp = dt_masks_create(DT_MASKS_GROUP);
+    snprintf(grp->name,128,"grp %s",module->name());
+    darktable.develop->forms = g_list_append(darktable.develop->forms,grp);
+    module->blend_params->mask_id = grpid = grp->formid;
+  }
+  //we add the form in this group
+  dt_masks_point_group_t *grpt = malloc(sizeof(dt_masks_point_group_t));
+  grpt->formid = id;
+  grpt->state = DT_MASKS_STATE_SHOW | DT_MASKS_STATE_USE;
+  grpt->opacity = 1.0f;
+  grp->points = g_list_append(grp->points,grpt);
+  //we save the group
+  dt_masks_write_form(grp,darktable.develop);
   
   //and we ensure that we are in edit mode
   dt_masks_set_edit_mode(module,TRUE);
@@ -166,66 +181,16 @@ static void _tree_delete_shape(GtkButton *button, dt_lib_module_t *self)
     {
       GValue gv = {0,};
       gtk_tree_model_get_value (model,&iter,2,&gv);
-      int id = g_value_get_int(&gv);
+      int grid = g_value_get_int(&gv);
+      GValue gv3 = {0,};
+      gtk_tree_model_get_value (model,&iter,3,&gv3);
+      int id = g_value_get_int(&gv3);
       GValue gv2 = {0,};
       gtk_tree_model_get_value (model,&iter,1,&gv2);
-      if (G_VALUE_TYPE(&gv2) == G_TYPE_POINTER)
-      {
-        module = (dt_iop_module_t *)g_value_get_pointer(&gv2);
-      }
-      if (module)
-      {
-        int ok = 0;
-        for (int i=0; i<module->blend_params->forms_count; i++)
-        {
-          if (module->blend_params->forms[i] == id) ok = 1;
-          if (ok) module->blend_params->forms[i] = module->blend_params->forms[i+1];
-        }
-        if (ok)
-        {
-          module->blend_params->forms_count--;
-          dt_masks_iop_update(module);
-          dt_dev_add_history_item(darktable.develop, module, TRUE);
-        }
-      }
-      else
-      {
-        //we drop the form from all modules
-        GList *iops = g_list_first(darktable.develop->iop);
-        while(iops)
-        {
-          dt_iop_module_t *m = (dt_iop_module_t *)iops->data;
-          if (m->flags() & IOP_FLAGS_SUPPORTS_BLENDING)
-          {
-            int ok = 0;
-            for (int i=0; i<m->blend_params->forms_count; i++)
-            {
-              if (m->blend_params->forms[i] == id) ok = 1;
-              if (ok) m->blend_params->forms[i] = m->blend_params->forms[i+1];
-            }
-            if (ok)
-            {
-              m->blend_params->forms_count--;
-              dt_masks_iop_update(m);
-              dt_dev_add_history_item(darktable.develop, m, TRUE);
-            }
-          }
-          iops = g_list_next(iops);
-        }
-        //we drop the form from the general list
-        GList *forms = g_list_first(darktable.develop->forms);
-        while (forms)
-        {
-          dt_masks_form_t *form = (dt_masks_form_t *)forms->data;
-          if (form->formid == id)
-          {
-            darktable.develop->forms = g_list_remove(darktable.develop->forms,form);
-            dt_masks_write_forms(darktable.develop);
-            break;
-          }
-          forms = g_list_next(forms);
-        }
-      }
+      module = NULL;
+      if (G_VALUE_TYPE(&gv2) == G_TYPE_POINTER) module = (dt_iop_module_t *)g_value_get_pointer(&gv2);
+
+      dt_masks_form_remove(module,dt_masks_get_from_id(darktable.develop,grid),dt_masks_get_from_id(darktable.develop,id));
     }
     items = g_list_next(items);
   }
@@ -257,41 +222,25 @@ static void _tree_selection_change (GtkTreeSelection *selection,dt_lib_masks_t *
     if (gtk_tree_model_get_iter (model,&iter,item))
     {
       GValue gv = {0,};
-      gtk_tree_model_get_value (model,&iter,2,&gv);
+      gtk_tree_model_get_value (model,&iter,3,&gv);
       int id = g_value_get_int(&gv);
-      if (id > 0)
+      dt_masks_form_t *form = dt_masks_get_from_id(darktable.develop,id);
+      if (form)
       {
-        //we get the corresponding form
-        dt_masks_form_t *form = dt_masks_get_from_id(darktable.develop,id);
-        if (form)
-        {
-          if (form->type & DT_MASKS_GROUP)
-          {
-            GList *sforms = g_list_first(form->points);
-            while(sforms)
-            {
-              dt_masks_point_group_t *fpt = (dt_masks_point_group_t *)sforms->data;
-              dt_masks_point_group_t *fpt2 = (dt_masks_point_group_t *) malloc(sizeof(dt_masks_point_group_t));
-              fpt2->formid = fpt->formid;
-              fpt2->state = fpt->state;
-              grp->points = g_list_append(grp->points,fpt2);
-              sforms = g_list_next(sforms);
-            }
-          }
-          else
-          {
-            dt_masks_point_group_t *fpt = (dt_masks_point_group_t *) malloc(sizeof(dt_masks_point_group_t));
-            fpt->formid = id;
-            fpt->state = DT_MASKS_STATE_USE;
-            grp->points = g_list_append(grp->points,fpt);
-          }
-        }
+        dt_masks_point_group_t *fpt = (dt_masks_point_group_t *) malloc(sizeof(dt_masks_point_group_t));
+        fpt->formid = id;
+        fpt->state = DT_MASKS_STATE_USE;
+        fpt->opacity = 1.0f;
+        grp->points = g_list_append(grp->points,fpt);
       }
     }
     items = g_list_next(items); 
   }
+  dt_masks_form_t *grp2 = dt_masks_create(DT_MASKS_GROUP);
+  dt_masks_group_ungroup(grp2,grp);
+  free(grp);
   dt_masks_init_formgui(darktable.develop);
-  darktable.develop->form_visible = grp;    
+  darktable.develop->form_visible = grp2;    
   dt_control_queue_redraw_center();   
 }
 
@@ -309,7 +258,6 @@ static int _tree_button_pressed (GtkWidget *treeview, GdkEventButton *event, dt_
     GtkTreePath *mouse_path = NULL;
     GtkTreeIter iter;
     dt_iop_module_t *module = NULL;
-    int from_base = 0;
     if (gtk_tree_view_get_path_at_pos(GTK_TREE_VIEW(treeview), (gint) event->x, (gint) event->y, &mouse_path, NULL, NULL, NULL))
     {
       //we retrive the iter and module from path
@@ -319,18 +267,13 @@ static int _tree_button_pressed (GtkWidget *treeview, GdkEventButton *event, dt_
         gtk_tree_model_get_value (model,&iter,1,&gv);
         module = g_value_peek_pointer(&gv);
       }
-      //if this is a primary node, then no selection change
-      if (gtk_tree_path_get_depth(mouse_path) > 1)
+      //if we are already inside the selection, no change
+      if (!gtk_tree_selection_path_is_selected(selection,mouse_path))
       {
-        //if we are already inside the selection, no change
-        if (!gtk_tree_selection_path_is_selected(selection,mouse_path))
-        {
-          if (!(event->state & GDK_CONTROL_MASK)) gtk_tree_selection_unselect_all(selection);
-          gtk_tree_selection_select_path(selection, mouse_path);
-          gtk_tree_path_free(mouse_path);
-        }
+        if (!(event->state & GDK_CONTROL_MASK)) gtk_tree_selection_unselect_all(selection);
+        gtk_tree_selection_select_path(selection, mouse_path);
+        gtk_tree_path_free(mouse_path);
       }
-      else from_base = 1;
     }
     else return 0;
     
@@ -340,93 +283,87 @@ static int _tree_button_pressed (GtkWidget *treeview, GdkEventButton *event, dt_
     
     //we get all infos from selection
     int nb = gtk_tree_selection_count_selected_rows(selection);
-    //if (nb == 0) return 0;
-    int from_all = 0;
+    if (nb==0) return 0;
     int from_group = 0;
     
-    GtkTreePath *it0;
-    if (from_base) it0 = mouse_path;
-    else it0 = (GtkTreePath *)g_list_nth_data(gtk_tree_selection_get_selected_rows(selection,NULL),0);
-    int *indices = gtk_tree_path_get_indices (it0);
+    GtkTreePath *it0 = (GtkTreePath *)g_list_nth_data(gtk_tree_selection_get_selected_rows(selection,NULL),0);
     int depth = gtk_tree_path_get_depth (it0);
-    if (depth > 2) from_group = 1;
-    else if (depth == 1) from_base = 1;
-    if (indices[0] == 0) from_all = 1;
+    if (depth > 1) from_group = 1;
     
-    if (from_base)
+    item = gtk_menu_item_new_with_label(_("add circle shape"));
+    g_signal_connect(item, "activate",(GCallback) _tree_add_circle, module);
+    gtk_menu_append(menu, item);
+    
+    item = gtk_menu_item_new_with_label(_("add curve shape"));
+    g_signal_connect(item, "activate",(GCallback) _tree_add_curve, module);
+    gtk_menu_append(menu, item);
+    
+    if (from_group)
     {
-      item = gtk_menu_item_new_with_label(_("add circle shape"));
-      g_signal_connect(item, "activate",(GCallback) _tree_add_circle, module);
+      item = gtk_menu_item_new_with_label(_("add existing shape"));
       gtk_menu_append(menu, item);
-      
-      item = gtk_menu_item_new_with_label(_("add curve shape"));
-      g_signal_connect(item, "activate",(GCallback) _tree_add_curve, module);
-      gtk_menu_append(menu, item);
-      
-      if (!from_all)
+      //existing forms
+      GtkWidget *menu0 = gtk_menu_new();
+      gtk_menu_item_set_submenu(GTK_MENU_ITEM(item), menu0);
+      GList *forms = g_list_first(darktable.develop->forms);
+      while (forms)
       {
-        item = gtk_menu_item_new_with_label(_("add existing shape"));
-        gtk_menu_append(menu, item);
-        //existing forms
-        GtkWidget *menu0 = gtk_menu_new();
-        gtk_menu_item_set_submenu(GTK_MENU_ITEM(item), menu0);
-        GList *forms = g_list_first(darktable.develop->forms);
-        while (forms)
+        dt_masks_form_t *form = (dt_masks_form_t *)forms->data;
+        if (form->type & DT_MASKS_CLONE)
         {
-          dt_masks_form_t *form = (dt_masks_form_t *)forms->data;
-          if (form->type & DT_MASKS_CLONE)
-          {
-            forms = g_list_next(forms);
-            continue;
-          }
-          char str[10000] = "";
-          strcat(str,form->name);
-          int nbuse = 0;
-          
-          //we search were this form is used
-          GList *modules = g_list_first(darktable.develop->iop);
-          while (modules)
-          {
-            dt_iop_module_t *m = (dt_iop_module_t *)modules->data;
-            
-            if (m->blend_params)
-            {
-              for (int i=0; i<m->blend_params->forms_count; i++)
-              {
-                if (m->blend_params->forms[i] == form->formid)
-                {
-                  if (m == darktable.develop->gui_module)
-                  {
-                    nbuse = -1;
-                    break;
-                  }
-                  if (nbuse==0) strcat(str," (");
-                  strcat(str," ");
-                  strcat(str,m->name());
-                  nbuse++;
-                }
-              }
-            }
-            modules = g_list_next(modules);
-          }
-          if (nbuse != -1)
-          {
-            if (nbuse>0) strcat(str," )");
-            
-            //we add the menu entry
-            item = gtk_menu_item_new_with_label(str);
-            g_object_set_data(G_OBJECT(item), "formid", GUINT_TO_POINTER(form->formid));
-            g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (_tree_add_exist), module);
-            gtk_menu_append(menu0, item);
-          }
           forms = g_list_next(forms);
+          continue;
         }
+        char str[10000] = "";
+        strcat(str,form->name);
+        int nbuse = 0;
         
+        //we search were this form is used
+        GList *modules = g_list_first(darktable.develop->iop);
+        while (modules)
+        {
+          dt_iop_module_t *m = (dt_iop_module_t *)modules->data;
+          dt_masks_form_t *grp = dt_masks_get_from_id(darktable.develop,module->blend_params->mask_id);
+          if (grp && (grp->type & DT_MASKS_GROUP))
+          {
+            GList *pts = g_list_first(grp->points);
+            while(pts)
+            {
+              dt_masks_point_group_t *pt = (dt_masks_point_group_t *)pts->data;
+              if (pt->formid == form->formid)
+              {
+                if (m == module)
+                {
+                  nbuse = -1;
+                  break;
+                }
+                if (nbuse==0) strcat(str," (");
+                strcat(str," ");
+                strcat(str,m->name());
+                nbuse++;
+              }
+              pts = g_list_next(pts);
+            }
+          }
+          modules = g_list_next(modules);
+        }
+        if (nbuse != -1)
+        {
+          if (nbuse>0) strcat(str," )");
+          
+          //we add the menu entry
+          item = gtk_menu_item_new_with_label(str);
+          g_object_set_data(G_OBJECT(item), "formid", GUINT_TO_POINTER(form->formid));
+          g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (_tree_add_exist), module);
+          gtk_menu_append(menu0, item);
+        }
+    
+        forms = g_list_next(forms);
       }
-      
-      gtk_menu_append(menu, gtk_separator_menu_item_new());
     }
-    if (from_all)
+    
+    gtk_menu_append(menu, gtk_separator_menu_item_new());
+    if (!from_group)
     {
       item = gtk_menu_item_new_with_label(_("delete this shape"));
       g_signal_connect(item, "activate",(GCallback) _tree_delete_shape, self);
@@ -439,7 +376,7 @@ static int _tree_button_pressed (GtkWidget *treeview, GdkEventButton *event, dt_
       gtk_menu_append(menu, item);
     }
     
-    if (nb>1 && from_all)
+    if (nb>1 && !from_group)
     {
       gtk_menu_append(menu, gtk_separator_menu_item_new());
       item = gtk_menu_item_new_with_label(_("group the forms"));
@@ -448,7 +385,7 @@ static int _tree_button_pressed (GtkWidget *treeview, GdkEventButton *event, dt_
     }
         
     
-    if (from_group || !from_all)
+    if (from_group)
     {
       gtk_menu_append(menu, gtk_separator_menu_item_new());
       item = gtk_menu_item_new_with_label(_("use inversed shape"));
@@ -478,16 +415,13 @@ static gboolean _tree_restrict_select (GtkTreeSelection *selection, GtkTreeModel
   //if the change is SELECT->UNSELECT no pb
   if (path_currently_selected) return TRUE;
   
-  //we can't select a primary node
-  int depth = gtk_tree_path_get_depth (path);
-  if (depth == 1) return FALSE;
-  
   //if selection is empty, no pb
   if (gtk_tree_selection_count_selected_rows(selection) == 0) return TRUE;
   
   //now we unselect all members of selection with not the same parent node
   //idem for all those with a different depth
   int *indices = gtk_tree_path_get_indices (path);
+  int depth = gtk_tree_path_get_depth (path);
   
   GList *items = g_list_first(gtk_tree_selection_get_selected_rows(selection,NULL));
   while(items)
@@ -497,6 +431,7 @@ static gboolean _tree_restrict_select (GtkTreeSelection *selection, GtkTreeModel
     int *ii = gtk_tree_path_get_indices (item);
     int ok = 1;
     if (dd != depth) ok = 0;
+    else if (dd==1) ok=1;
     else if (ii[dd-2] != indices[dd-2]) ok = 0;
     if (!ok)
     {
@@ -507,6 +442,51 @@ static gboolean _tree_restrict_select (GtkTreeSelection *selection, GtkTreeModel
     items = g_list_next(items);
   }
   return TRUE;
+}
+
+static void _lib_masks_list_recurs(GtkTreeStore *treestore, GtkTreeIter *toplevel, dt_masks_form_t *form, int grp_id)
+{
+  if (form->type & DT_MASKS_CLONE) return;
+  if (!(form->type & DT_MASKS_GROUP))
+  {
+    //we just add it to the tree
+    GtkTreeIter child;
+    gtk_tree_store_append(treestore, &child, toplevel);
+    gtk_tree_store_set(treestore, &child, 0, form->name,1,NULL,2,grp_id, 3, form->formid, -1);
+  }
+  else
+  {
+    //we first check if it's a "module" group or not
+    dt_iop_module_t *module = NULL;
+    if (grp_id==0)
+    {
+      GList *iops = g_list_first(darktable.develop->iop);
+      while(iops)
+      {
+        dt_iop_module_t *iop = (dt_iop_module_t *)iops->data;
+        if ((iop->flags() & IOP_FLAGS_SUPPORTS_BLENDING) && !(iop->flags() & IOP_FLAGS_NO_MASKS) && iop->blend_params->mask_id == form->formid)
+        {
+          module = iop;
+          break;
+        }
+        iops = g_list_next(iops);
+      }
+    }
+    
+    //we add the group node to the tree
+    GtkTreeIter child;
+    gtk_tree_store_append(treestore, &child, toplevel);
+    gtk_tree_store_set(treestore, &child, 0, form->name,1,module,2,grp_id, 3, form->formid, -1);
+    //we add all nodes to the tree
+    GList *forms = g_list_first(form->points);
+    while (forms)
+    {
+      dt_masks_point_group_t *grpt = (dt_masks_point_group_t *)forms->data;
+      dt_masks_form_t *f = dt_masks_get_from_id(darktable.develop,grpt->formid);
+      if (f) _lib_masks_list_recurs(treestore,&child,f,form->formid);
+      forms = g_list_next(forms);
+    }
+  }
 }
 
 static void _lib_masks_recreate_list(dt_lib_module_t *self)
@@ -523,9 +503,9 @@ static void _lib_masks_recreate_list(dt_lib_module_t *self)
   //dt_iop_module_t *iop = darktable.develop->gui_module;
   
   GtkTreeStore *treestore;
-  GtkTreeIter toplevel, child, child2;
-  //we store : text ; *module ; formid
-  treestore = gtk_tree_store_new(3, G_TYPE_STRING, G_TYPE_POINTER, G_TYPE_INT);
+  GtkTreeIter toplevel;
+  //we store : text ; *module ; groupid ; formid
+  treestore = gtk_tree_store_new(4, G_TYPE_STRING, G_TYPE_POINTER, G_TYPE_INT, G_TYPE_INT);
   
   //first, we display the "all shapes" entry
   gtk_tree_store_append(treestore, &toplevel, NULL);
@@ -535,71 +515,8 @@ static void _lib_masks_recreate_list(dt_lib_module_t *self)
   while (forms)
   {
     dt_masks_form_t *form = (dt_masks_form_t *)forms->data;
-    //we don't display clone forms
-    if (form->type & DT_MASKS_CLONE)
-    {
-      forms = g_list_next(forms);
-      continue;  
-    }
-    gtk_tree_store_append(treestore, &child, &toplevel);
-    gtk_tree_store_set(treestore, &child, 0, form->name,1,NULL,2,form->formid, -1);
-    if (form->type & DT_MASKS_GROUP)
-    {
-      GList *sforms = g_list_first(form->points);
-      while(sforms)
-      {
-        dt_masks_point_group_t *fpt = (dt_masks_point_group_t *)sforms->data;
-        dt_masks_form_t *sform = dt_masks_get_from_id(darktable.develop,fpt->formid);
-        if (sform)
-        {
-          gtk_tree_store_append(treestore, &child2, &child);
-          gtk_tree_store_set(treestore, &child2, 0, sform->name,1,NULL,2,sform->formid, -1);
-        }
-        sforms = g_list_next(sforms);
-      }
-    }
+    _lib_masks_list_recurs(treestore, &toplevel, form, 0);
     forms = g_list_next(forms);
-  }
-  
-  //now we display shapes iop by iop
-  GList *iops = g_list_first(darktable.develop->iop);
-  int act = -1;
-  int pos = 1;
-  while(iops)
-  {
-    dt_iop_module_t *module = (dt_iop_module_t *)iops->data;
-    if ((module->flags() & IOP_FLAGS_SUPPORTS_BLENDING) && !(module->flags() & IOP_FLAGS_NO_MASKS) && module->blend_params->forms_count > 0)
-    {
-      //we create the entry
-      gtk_tree_store_append(treestore, &toplevel, NULL);
-      gtk_tree_store_set(treestore, &toplevel,0, module->name(),1,module,2,0,-1);
-      //ad we populate it
-      for (int i=0; i<module->blend_params->forms_count; i++)
-      {
-        dt_masks_form_t *form = dt_masks_get_from_id(module->dev,module->blend_params->forms[i]);
-        if (!form) continue;
-        gtk_tree_store_append(treestore, &child, &toplevel);
-        gtk_tree_store_set(treestore, &child, 0, form->name,1,module,2,form->formid, -1);
-        if (form->type & DT_MASKS_GROUP)
-        {
-          GList *sforms = g_list_first(form->points);
-          while(sforms)
-          {
-            dt_masks_point_group_t *fpt = (dt_masks_point_group_t *)sforms->data;
-            dt_masks_form_t *sform = dt_masks_get_from_id(darktable.develop,fpt->formid);
-            if (sform)
-            {
-              gtk_tree_store_append(treestore, &child2, &child);
-              gtk_tree_store_set(treestore, &child2, 0, sform->name,1,module,2,sform->formid, -1);
-            }
-            sforms = g_list_next(sforms);
-          }
-        }
-      }
-      if (module == darktable.develop->gui_module) act = pos;
-    }
-    iops = g_list_next(iops);
-    pos++;
   }
   
   lm->treeview = gtk_tree_view_new();
@@ -616,8 +533,7 @@ static void _lib_masks_recreate_list(dt_lib_module_t *self)
   
   //we expand the "all" entry and the actual module one
   gtk_tree_view_expand_row (GTK_TREE_VIEW(lm->treeview),gtk_tree_path_new_from_indices (0,-1),FALSE);
-  if (act >= 0) gtk_tree_view_expand_row (GTK_TREE_VIEW(lm->treeview),gtk_tree_path_new_from_indices (act,-1),FALSE);
-  
+
   GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(lm->treeview));
   gtk_tree_selection_set_mode(selection,GTK_SELECTION_MULTIPLE);
   gtk_tree_selection_set_select_function(selection,_tree_restrict_select,lm,NULL);

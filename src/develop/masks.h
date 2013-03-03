@@ -160,6 +160,7 @@ int dt_masks_get_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt
 int dt_masks_get_source_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, int *width, int *height, int *posx, int *posy);
 /** get the transparency mask of the form and his border */
 int dt_masks_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, float **buffer, int *width, int *height, int *posx, int *posy);
+int dt_masks_group_render(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, float **buffer, int *roi, float scale);
 
 /** we create a completly new form. */
 dt_masks_form_t *dt_masks_create(dt_masks_type_t type);
@@ -188,13 +189,16 @@ void dt_masks_gui_form_create (dt_masks_form_t *form, dt_masks_form_gui_t *gui,i
 void dt_masks_gui_form_remove (dt_masks_form_t *form, dt_masks_form_gui_t *gui, int index);
 void dt_masks_gui_form_test_create (dt_masks_form_t *form, dt_masks_form_gui_t *gui);
 void dt_masks_gui_form_save_creation (struct dt_iop_module_t *module, dt_masks_form_t *form, dt_masks_form_gui_t *gui);
+void dt_masks_group_ungroup(dt_masks_form_t *dest_grp, dt_masks_form_t *grp);
 
 void dt_masks_iop_edit_toggle_callback(GtkWidget *widget, struct dt_iop_module_t *module);
 void dt_masks_iop_dropdown_callback(GtkWidget *widget, struct dt_iop_module_t *module);
 void dt_masks_set_edit_mode(struct dt_iop_module_t *module,gboolean value);
 void dt_masks_iop_update(struct dt_iop_module_t *module);
+int dt_masks_group_get_hash_buffer_length(dt_masks_form_t *form);
+char *dt_masks_group_get_hash_buffer(dt_masks_form_t *form, char *str);
 
-void dt_masks_form_remove(struct dt_iop_module_t *module, dt_masks_form_t *form);
+void dt_masks_form_remove(struct dt_iop_module_t *module, dt_masks_form_t *grp, dt_masks_form_t *form);
 void dt_masks_form_change_opacity(struct dt_iop_module_t *module, dt_masks_form_t *form, int up);
 #endif
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh

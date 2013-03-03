@@ -217,6 +217,63 @@ static int dt_group_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *pi
   return 1;
 }
 
+int dt_masks_group_render(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *grp, float **buffer, int *roi, float scale)
+{
+  if (!grp || !(grp->type&DT_MASKS_GROUP)) return 0;
+  float *mask = *buffer;
+  //we first reset the buffer to 0
+  memset(mask,0,roi[2]*roi[3]*sizeof(float));
+  
+  //and we apply all the masks
+  GList *forms = g_list_first(grp->points);
+  while (forms)
+  {
+    dt_masks_point_group_t *grpt = (dt_masks_point_group_t *)forms->data;
+    dt_masks_form_t *form = dt_masks_get_from_id(darktable.develop,grpt->formid);
+    if (!form || !(grpt->state & DT_MASKS_STATE_USE) || grpt->opacity <= 0.0f)
+    {
+      forms = g_list_next(forms);
+      continue;
+    }
+      
+    //we get the mask
+    float *fm = NULL;
+    int fx,fy,fw,fh;
+    if (!dt_masks_get_mask(module,piece,form,&fm,&fw,&fh,&fx,&fy))
+    {
+      forms = g_list_next(forms);
+      continue;
+    }
+    //we don't want row which are outisde the roi_out
+    int fxx = fx*scale+1;
+    int fww = fw*scale-1;
+    int fyy = fy*scale+1;
+    int fhh = fh*scale-1;
+    if (fxx>roi[0]+roi[2])
+    {
+      forms = g_list_next(forms);
+      continue;
+    }
+    if (fxx<roi[0]) fww += fxx-roi[0], fxx=roi[0];
+    if (fww+fxx>=roi[0]+roi[2]) fww = roi[0]+roi[2]-fxx-1;
+    //we apply the mask row by row
+    for (int yy=fyy; yy<fyy+fhh; yy++)
+    {
+      if (yy<roi[1] || yy>=roi[1]+roi[3]) continue;
+      for (int xx=fxx; xx<fxx+fww; xx++)
+      {
+        int a = (yy/scale-fy);
+        int b = (xx/scale);
+        mask[(yy-roi[1])*roi[2]+xx-roi[0]] = fmaxf(mask[(yy-roi[1])*roi[2]+xx-roi[0]],fm[a*fw+b-fx]*grpt->opacity);
+      }
+    }
+    
+    //we free the mask
+    free(fm);
+    forms = g_list_next(forms);
+  }
+  return 1;
+}
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
 // vim: shiftwidth=2 expandtab tabstop=2 cindent
 // kate: tab-indents: off; indent-width 2; replace-tabs on; indent-mode cstyle; remove-trailing-space on;

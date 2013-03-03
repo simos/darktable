@@ -914,7 +914,6 @@ void dt_dev_read_history(dt_develop_t *dev)
       memcpy(hist->blend_params, hist->module->default_blendop_params, sizeof(dt_develop_blend_params_t));
     }    
     
-    int nbf = hist->module->blend_params->forms_count;
     if(hist->module->version() != modversion || hist->module->params_size != sqlite3_column_bytes(stmt, 4) ||
         strcmp((char *)sqlite3_column_text(stmt, 3), hist->module->op))
     {
@@ -937,15 +936,6 @@ void dt_dev_read_history(dt_develop_t *dev)
       memcpy(hist->params, sqlite3_column_blob(stmt, 4), hist->module->params_size);
     }
     
-    if (nbf != hist->module->blend_params->forms_count)
-    {
-      hist->blend_params->forms_count = hist->module->blend_params->forms_count;
-      for (int i=0; i<hist->module->blend_params->forms_count; i++)
-      {
-        hist->blend_params->forms[i] = hist->module->blend_params->forms[i];
-        hist->blend_params->forms_state[i] = hist->module->blend_params->forms_state[i];
-      }
-    }
     // memcpy(hist->module->params, hist->params, hist->module->params_size);
     // hist->module->enabled = hist->enabled;
     // printf("[dev read history] img %d number %d for operation %d - %s params %f %f\n", sqlite3_column_int(stmt, 0), sqlite3_column_int(stmt, 1), instance, hist->module->op, *(float *)hist->params, *(((float*)hist->params)+1));

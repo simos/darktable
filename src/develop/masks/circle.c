@@ -215,7 +215,9 @@ static int dt_circle_events_button_released(struct dt_iop_module_t *module,float
     }    
     
     //we delete or remove the shape
-    dt_masks_form_remove(module,form);
+    int id = 0;
+    if(module) id = module->blend_params->mask_id;
+    dt_masks_form_remove(module,dt_masks_get_from_id(darktable.develop,id),form);
     dt_dev_masks_list_change(darktable.develop);
     return 1;
   }

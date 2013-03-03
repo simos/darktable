@@ -1608,7 +1608,11 @@ void dt_develop_blend_process (struct dt_iop_module_t *self, struct dt_dev_pixel
 
   /* enable mode if there is some mask */
   int mode = d->mode;
-  if (mode == 0 && self->blend_params->forms_count>0 && (!(self->flags()&IOP_FLAGS_NO_MASKS))) mode = DEVELOP_BLEND_NORMAL;
+  if (mode == 0 && (!(self->flags()&IOP_FLAGS_NO_MASKS)))
+  {
+    dt_masks_form_t *grp = dt_masks_get_from_id(darktable.develop,d->mask_id);
+    if (grp && (grp->type & DT_MASKS_GROUP)) mode = DEVELOP_BLEND_NORMAL;
+  }
   
   /* check if blend is disabled */
   if (!d || mode==0) return;
@@ -1695,47 +1699,12 @@ void dt_develop_blend_process (struct dt_iop_module_t *self, struct dt_dev_pixel
     return;
   }
   
-  
-  //NOTE : add openmp pragma...
-  
   /* apply masks if there's some */
-  if (self->blend_params->forms_count>0 && (!(self->flags()&IOP_FLAGS_NO_MASKS)))
+  dt_masks_form_t *form = dt_masks_get_from_id(darktable.develop,self->blend_params->mask_id);
+  if (form && (!(self->flags()&IOP_FLAGS_NO_MASKS)))
   {
-    memset(mask,0,roi_out->width*roi_out->height*sizeof(float));
-    for (int i=0; i<self->blend_params->forms_count; i++)
-    {
-      if (!(self->blend_params->forms_state[i] & DT_MASKS_STATE_USE)) continue;
-      
-      dt_masks_form_t *form = dt_masks_get_from_id(self->dev,self->blend_params->forms[i]);
-      if (!form) continue;
-      
-      //we get the mask
-      float *fm = NULL;
-      int fx,fy,fw,fh;
-      if (!dt_masks_get_mask(self,piece,form,&fm,&fw,&fh,&fx,&fy)) continue;
-      //we don't want row which are outisde the roi_out
-      int fxx = fx*roi_in->scale+1;
-      int fww = fw*roi_in->scale-1;
-      int fyy = fy*roi_in->scale+1;
-      int fhh = fh*roi_in->scale-1;
-      if (fxx>roi_out->width+roi_out->x) continue;
-      if (fxx<roi_out->x) fww += fxx-roi_out->x, fxx=roi_out->x;
-      if (fww+fxx>=roi_out->width+roi_out->x) fww = roi_out->width+roi_out->x-fxx-1;
-      //we apply the mask row by row
-      for (int yy=fyy; yy<fyy+fhh; yy++)
-      {
-        if (yy<roi_out->y || yy>=roi_out->height+roi_out->y) continue;
-        for (int xx=fxx; xx<fxx+fww; xx++)
-        {
-          int a = (yy/roi_in->scale-fy);
-          int b = (xx/roi_in->scale);
-          mask[(yy-roi_out->y)*roi_out->width+xx-roi_out->x] = fmaxf(mask[(yy-roi_out->y)*roi_out->width+xx-roi_out->x],fm[a*fw+b-fx]*self->blend_params->forms_opacity[i]);
-        }
-      }
-      
-      //we free the mask
-      free(fm);
-    }
+    int roi[4] = {roi_out->x,roi_out->y,roi_out->width,roi_out->height};
+    dt_masks_group_render(self,piece,form,&mask,roi,roi_in->scale);
   }
   else
   {
@@ -1880,7 +1849,11 @@ dt_develop_blend_process_cl (struct dt_iop_module_t *self, struct dt_dev_pixelpi
   
   /* enable mode if there is some mask */
   int mode = d->mode;
-  if (mode == 0 && self->blend_params->forms_count>0) mode = DEVELOP_BLEND_NORMAL;
+  if (mode == 0 && (!(self->flags()&IOP_FLAGS_NO_MASKS)))
+  {
+    dt_masks_form_t *grp = dt_masks_get_from_id(darktable.develop,d->mask_id);
+    if (grp && (grp->type & DT_MASKS_GROUP)) mode = DEVELOP_BLEND_NORMAL;
+  }
   
   /* check if blend is disabled: just return, output is already in dev_out */
   if (!d || mode==0) return TRUE;
@@ -1927,43 +1900,13 @@ dt_develop_blend_process_cl (struct dt_iop_module_t *self, struct dt_dev_pixelpi
     dt_control_log("could not allocate buffer for blending");
     goto error;
   }
-  if (self->blend_params->forms_count>0)
+  
+  /* apply masks if there's some */
+  dt_masks_form_t *form = dt_masks_get_from_id(darktable.develop,self->blend_params->mask_id);
+  if (form && (!(self->flags()&IOP_FLAGS_NO_MASKS)))
   {
-    memset(mask,0,roi_out->width*roi_out->height*sizeof(float));
-    for (int i=0; i<self->blend_params->forms_count; i++)
-    {
-      if (!(self->blend_params->forms_state[i] & DT_MASKS_STATE_USE)) continue;
-      
-      dt_masks_form_t *form = dt_masks_get_from_id(self->dev,self->blend_params->forms[i]);
-      if (!form) continue;
-      
-      //we get the mask
-      float *fm = NULL;
-      int fx,fy,fw,fh;
-      if (!dt_masks_get_mask(self,piece,form,&fm,&fw,&fh,&fx,&fy)) continue;
-      //we don't want row which are outisde the roi_out
-      int fxx = fx*roi_in->scale+1;
-      int fww = fw*roi_in->scale-1;
-      int fyy = fy*roi_in->scale+1;
-      int fhh = fh*roi_in->scale-1;
-      if (fxx>roi_out->width+roi_out->x) continue;
-      if (fxx<roi_out->x) fww += fxx-roi_out->x, fxx=roi_out->x;
-      if (fww+fxx>=roi_out->width+roi_out->x) fww = roi_out->width+roi_out->x-fxx-1;
-      //we apply the mask row by row
-      for (int yy=fyy; yy<fyy+fhh; yy++)
-      {
-        if (yy<roi_out->y || yy>=roi_out->height+roi_out->y) continue;
-        for (int xx=fxx; xx<fxx+fww; xx++)
-        {
-          int a = (yy/roi_in->scale-fy);
-          int b = (xx/roi_in->scale);
-          mask[(yy-roi_out->y)*roi_out->width+xx-roi_out->x] = fmaxf(mask[(yy-roi_out->y)*roi_out->width+xx-roi_out->x],fm[a*fw+b-fx]);
-        }
-      }
-      
-      //we free the mask
-      free(fm);
-    }
+    int roi[4] = {roi_out->x,roi_out->y,roi_out->width,roi_out->height};
+    dt_masks_group_render(self,piece,form,&mask,roi,roi_in->scale);
   }
   else
   {
@@ -2128,7 +2071,7 @@ tiling_callback_blendop (struct dt_iop_module_t *self, struct dt_dev_pixelpipe_i
 int
 dt_develop_blend_legacy_params (dt_iop_module_t *module, const void *const old_params, const int old_version, void *new_params, const int new_version, const int length)
 {  
-  if(old_version == 1 && new_version == 5)
+  if(old_version == 1 && new_version == 4)
   {
     if(length != sizeof(dt_develop_blend_params1_t)) return 1;
 
@@ -2141,11 +2084,10 @@ dt_develop_blend_legacy_params (dt_iop_module_t *module, const void *const old_p
     n->opacity = o->opacity;
     n->mask_id = o->mask_id;
     n->radius = 0.0f;
-    n->forms_count = 0;
     return 0;
   }
 
-  if(old_version == 2 && new_version == 5)
+  if(old_version == 2 && new_version == 4)
   {
     if(length != sizeof(dt_develop_blend_params2_t)) return 1;
 
@@ -2158,7 +2100,6 @@ dt_develop_blend_legacy_params (dt_iop_module_t *module, const void *const old_p
     n->opacity = o->opacity;
     n->mask_id = o->mask_id;
     n->radius = 0.0f;
-    n->forms_count = 0;
     n->blendif = o->blendif & ((1<<31) | 0xff);  // only just in case: knock out all bits which were undefined in version 2
     for(int i=0; i<(4*8); i++)
       n->blendif_parameters[i] = o->blendif_parameters[i];
@@ -2166,7 +2107,7 @@ dt_develop_blend_legacy_params (dt_iop_module_t *module, const void *const old_p
     return 0;
   }
 
-  if(old_version == 3 && new_version == 5)
+  if(old_version == 3 && new_version == 4)
   {
     if(length != sizeof(dt_develop_blend_params3_t)) return 1;
 
@@ -2180,27 +2121,6 @@ dt_develop_blend_legacy_params (dt_iop_module_t *module, const void *const old_p
     n->mask_id = o->mask_id;
     n->radius = 0.0f;
     n->blendif = o->blendif;
-    n->forms_count = 0;
-    memcpy(n->blendif_parameters, o->blendif_parameters, 4*DEVELOP_BLENDIF_SIZE*sizeof(float));
-
-    return 0;
-  }
-
-  if(old_version == 4 && new_version == 5)
-  {
-    if(length != sizeof(dt_develop_blend_params4_t)) return 1;
-
-    dt_develop_blend_params4_t *o = (dt_develop_blend_params4_t *)old_params;
-    dt_develop_blend_params_t *n = (dt_develop_blend_params_t *)new_params;
-    dt_develop_blend_params_t *d = (dt_develop_blend_params_t *)module->default_blendop_params;
-
-    *n = *d;  // start with a fresh copy of default parameters
-    n->mode = o->mode;
-    n->opacity = o->opacity;
-    n->mask_id = o->mask_id;
-    n->radius = o->radius;
-    n->blendif = o->blendif;
-    n->forms_count = 0;
     memcpy(n->blendif_parameters, o->blendif_parameters, 4*DEVELOP_BLENDIF_SIZE*sizeof(float));
 
     return 0;

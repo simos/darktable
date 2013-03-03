@@ -1538,15 +1538,8 @@ void dt_iop_commit_params(dt_iop_module_t *module, dt_iop_params_t *params, dt_d
     /* construct module params data for hash calc */
     int length = module->params_size;
     if (module->flags() & IOP_FLAGS_SUPPORTS_BLENDING) length += sizeof(dt_develop_blend_params_t);
-    for (int i=0; i<blendop_params->forms_count; i++)
-    {
-      dt_masks_form_t *form = dt_masks_get_from_id(module->dev,blendop_params->forms[i]);
-      if (!form) continue;
-      length += sizeof(int)+sizeof(dt_masks_type_t)+2*sizeof(float);
-      int nb = g_list_length(form->points);
-      if (form->type & DT_MASKS_CIRCLE) length += nb*sizeof(dt_masks_point_circle_t);
-      else if (form->type & DT_MASKS_CURVE) length += nb*sizeof(dt_masks_point_curve_t);
-    }
+    dt_masks_form_t *grp = dt_masks_get_from_id(darktable.develop,blendop_params->mask_id);
+    length += dt_masks_group_get_hash_buffer_length(grp);
     
     char *str = malloc(length);
     memcpy(str, module->params, module->params_size);
@@ -1561,27 +1554,7 @@ void dt_iop_commit_params(dt_iop_module_t *module, dt_iop_params_t *params, dt_d
       memcpy(module->blend_params, blendop_params, sizeof(dt_develop_blend_params_t));
     }
     /* and we add masks */
-    for (int i=0; i<blendop_params->forms_count; i++)
-    {
-      dt_masks_form_t *form = dt_masks_get_from_id(module->dev,blendop_params->forms[i]);
-      if (!form) continue;
-      memcpy(str+pos, &form->type, sizeof(dt_masks_type_t));
-      pos += sizeof(dt_masks_type_t);
-      memcpy(str+pos, &form->version, sizeof(int));
-      pos += sizeof(int);
-      GList *points = g_list_first(form->points);
-      while (points)
-      {
-        int pts = 0;
-        if (form->type & DT_MASKS_CIRCLE) pts = sizeof(dt_masks_point_circle_t);
-        else if (form->type & DT_MASKS_CURVE) pts = sizeof(dt_masks_point_curve_t);
-        memcpy(str+pos, points->data, pts);
-        pos += pts;
-        points = g_list_next(points);
-      }
-      memcpy(str+pos, form->source, 2*sizeof(float));
-      pos+=2*sizeof(float);      
-    }
+    str = dt_masks_group_get_hash_buffer(grp,str+pos);
     
     // assume process_cl is ready, commit_params can overwrite this.
     if(module->process_cl) piece->process_cl_ready = 1;
