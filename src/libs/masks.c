@@ -298,67 +298,79 @@ static int _tree_button_pressed (GtkWidget *treeview, GdkEventButton *event, dt_
     g_signal_connect(item, "activate",(GCallback) _tree_add_curve, module);
     gtk_menu_append(menu, item);
     
-    if (from_group)
+    if (nb==1)
     {
-      item = gtk_menu_item_new_with_label(_("add existing shape"));
-      gtk_menu_append(menu, item);
-      //existing forms
-      GtkWidget *menu0 = gtk_menu_new();
-      gtk_menu_item_set_submenu(GTK_MENU_ITEM(item), menu0);
-      GList *forms = g_list_first(darktable.develop->forms);
-      while (forms)
+      //we check if the form is a group or not
+      int grpid = 0;
+      if (gtk_tree_model_get_iter (model,&iter,it0))
       {
-        dt_masks_form_t *form = (dt_masks_form_t *)forms->data;
-        if (form->type & DT_MASKS_CLONE)
+        GValue gv = {0,};
+        gtk_tree_model_get_value (model,&iter,3,&gv);
+        grpid = g_value_get_int(&gv);
+      }
+      dt_masks_form_t *grp = dt_masks_get_from_id(darktable.develop,grpid);
+      if (grp && (grp->type & DT_MASKS_GROUP))
+      {
+        item = gtk_menu_item_new_with_label(_("add existing shape"));
+        gtk_menu_append(menu, item);
+        //existing forms
+        GtkWidget *menu0 = gtk_menu_new();
+        gtk_menu_item_set_submenu(GTK_MENU_ITEM(item), menu0);
+        GList *forms = g_list_first(darktable.develop->forms);
+        while (forms)
         {
-          forms = g_list_next(forms);
-          continue;
-        }
-        char str[10000] = "";
-        strcat(str,form->name);
-        int nbuse = 0;
-        
-        //we search were this form is used
-        GList *modules = g_list_first(darktable.develop->iop);
-        while (modules)
-        {
-          dt_iop_module_t *m = (dt_iop_module_t *)modules->data;
-          dt_masks_form_t *grp = dt_masks_get_from_id(darktable.develop,m->blend_params->mask_id);
-          if (grp && (grp->type & DT_MASKS_GROUP))
+          dt_masks_form_t *form = (dt_masks_form_t *)forms->data;
+          if (form->type & DT_MASKS_CLONE)
           {
-            GList *pts = g_list_first(grp->points);
-            while(pts)
-            {
-              dt_masks_point_group_t *pt = (dt_masks_point_group_t *)pts->data;
-              if (pt->formid == form->formid)
-              {
-                if (m == module)
-                {
-                  nbuse = -1;
-                  break;
-                }
-                if (nbuse==0) strcat(str," (");
-                strcat(str," ");
-                strcat(str,m->name());
-                nbuse++;
-              }
-              pts = g_list_next(pts);
-            }
+            forms = g_list_next(forms);
+            continue;
           }
-          modules = g_list_next(modules);
-        }
-        if (nbuse != -1)
-        {
-          if (nbuse>0) strcat(str," )");
+          char str[10000] = "";
+          strcat(str,form->name);
+          int nbuse = 0;
           
-          //we add the menu entry
-          item = gtk_menu_item_new_with_label(str);
-          g_object_set_data(G_OBJECT(item), "formid", GUINT_TO_POINTER(form->formid));
-          g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (_tree_add_exist), module);
-          gtk_menu_append(menu0, item);
+          //we search were this form is used
+          GList *modules = g_list_first(darktable.develop->iop);
+          while (modules)
+          {
+            dt_iop_module_t *m = (dt_iop_module_t *)modules->data;
+            dt_masks_form_t *grp = dt_masks_get_from_id(darktable.develop,m->blend_params->mask_id);
+            if (grp && (grp->type & DT_MASKS_GROUP))
+            {
+              GList *pts = g_list_first(grp->points);
+              while(pts)
+              {
+                dt_masks_point_group_t *pt = (dt_masks_point_group_t *)pts->data;
+                if (pt->formid == form->formid)
+                {
+                  if (m == module)
+                  {
+                    nbuse = -1;
+                    break;
+                  }
+                  if (nbuse==0) strcat(str," (");
+                  strcat(str," ");
+                  strcat(str,m->name());
+                  nbuse++;
+                }
+                pts = g_list_next(pts);
+              }
+            }
+            modules = g_list_next(modules);
+          }
+          if (nbuse != -1)
+          {
+            if (nbuse>0) strcat(str," )");
+            
+            //we add the menu entry
+            item = gtk_menu_item_new_with_label(str);
+            g_object_set_data(G_OBJECT(item), "formid", GUINT_TO_POINTER(form->formid));
+            g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (_tree_add_exist), module);
+            gtk_menu_append(menu0, item);
+          }
+      
+          forms = g_list_next(forms);
         }
-    
-        forms = g_list_next(forms);
       }
     }
     
