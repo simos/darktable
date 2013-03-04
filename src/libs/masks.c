@@ -323,7 +323,7 @@ static int _tree_button_pressed (GtkWidget *treeview, GdkEventButton *event, dt_
         while (modules)
         {
           dt_iop_module_t *m = (dt_iop_module_t *)modules->data;
-          dt_masks_form_t *grp = dt_masks_get_from_id(darktable.develop,module->blend_params->mask_id);
+          dt_masks_form_t *grp = dt_masks_get_from_id(darktable.develop,m->blend_params->mask_id);
           if (grp && (grp->type & DT_MASKS_GROUP))
           {
             GList *pts = g_list_first(grp->points);
@@ -503,19 +503,24 @@ static void _lib_masks_recreate_list(dt_lib_module_t *self)
   //dt_iop_module_t *iop = darktable.develop->gui_module;
   
   GtkTreeStore *treestore;
-  GtkTreeIter toplevel;
   //we store : text ; *module ; groupid ; formid
   treestore = gtk_tree_store_new(4, G_TYPE_STRING, G_TYPE_POINTER, G_TYPE_INT, G_TYPE_INT);
-  
-  //first, we display the "all shapes" entry
-  gtk_tree_store_append(treestore, &toplevel, NULL);
-  gtk_tree_store_set(treestore, &toplevel,0, _("all created shapes"),1,NULL,2,0,-1);
 
+  //we first add all groups
   GList *forms = g_list_first(darktable.develop->forms);
   while (forms)
   {
     dt_masks_form_t *form = (dt_masks_form_t *)forms->data;
-    _lib_masks_list_recurs(treestore, &toplevel, form, 0);
+    if (form->type & DT_MASKS_GROUP) _lib_masks_list_recurs(treestore, NULL, form, 0);
+    forms = g_list_next(forms);
+  }
+  
+  //and we add all forms
+  forms = g_list_first(darktable.develop->forms);
+  while (forms)
+  {
+    dt_masks_form_t *form = (dt_masks_form_t *)forms->data;
+    if (!(form->type & DT_MASKS_GROUP)) _lib_masks_list_recurs(treestore, NULL, form, 0);
     forms = g_list_next(forms);
   }
   
@@ -531,9 +536,6 @@ static void _lib_masks_recreate_list(dt_lib_module_t *self)
   gtk_tree_view_set_model(GTK_TREE_VIEW(lm->treeview), GTK_TREE_MODEL(treestore));
   g_object_unref(treestore);
   
-  //we expand the "all" entry and the actual module one
-  gtk_tree_view_expand_row (GTK_TREE_VIEW(lm->treeview),gtk_tree_path_new_from_indices (0,-1),FALSE);
-
   GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(lm->treeview));
   gtk_tree_selection_set_mode(selection,GTK_SELECTION_MULTIPLE);
   gtk_tree_selection_set_select_function(selection,_tree_restrict_select,lm,NULL);

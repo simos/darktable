@@ -1036,7 +1036,7 @@ char *dt_masks_group_get_hash_buffer(dt_masks_form_t *form, char *str)
         memcpy(str+pos, &grpt->opacity, sizeof(float));
         pos += sizeof(float);
         //the form itself
-        str = dt_masks_group_get_hash_buffer(f,str+pos);
+        str = dt_masks_group_get_hash_buffer(f,str+pos)-pos;
       }
     }
     else if (form->type & DT_MASKS_CIRCLE)

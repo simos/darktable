@@ -1554,7 +1554,7 @@ void dt_iop_commit_params(dt_iop_module_t *module, dt_iop_params_t *params, dt_d
       memcpy(module->blend_params, blendop_params, sizeof(dt_develop_blend_params_t));
     }
     /* and we add masks */
-    str = dt_masks_group_get_hash_buffer(grp,str+pos);
+    dt_masks_group_get_hash_buffer(grp,str+pos);
     
     // assume process_cl is ready, commit_params can overwrite this.
     if(module->process_cl) piece->process_cl_ready = 1;
