@@ -1053,6 +1053,17 @@ char *dt_masks_group_get_hash_buffer(dt_masks_form_t *form, char *str)
   }
   return str+pos;
 }
+
+void dt_masks_update_image(dt_develop_t *dev)
+{
+  /* invalidate image data*/
+  //dt_similarity_image_dirty(dev->image_storage.id);
+
+  // invalidate buffers and force redraw of darkroom
+  dev->pipe->changed |= DT_DEV_PIPE_SYNCH;
+  dev->preview_pipe->changed |= DT_DEV_PIPE_SYNCH;
+  dt_dev_invalidate_all(dev);
+}
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
 // vim: shiftwidth=2 expandtab tabstop=2 cindent
 // kate: tab-indents: off; indent-width 2; replace-tabs on; indent-mode cstyle; remove-trailing-space on;

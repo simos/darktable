@@ -829,7 +829,7 @@ static int dt_curve_events_mouse_scrolled(struct dt_iop_module_t *module, float 
       dt_masks_gui_form_create(form,gui,index);
       
       //we save the move
-      if (module) dt_dev_add_history_item(darktable.develop, module, TRUE);
+      dt_masks_update_image(darktable.develop);
     }
     return 1;
   }
@@ -1084,7 +1084,7 @@ static int dt_curve_events_button_released(struct dt_iop_module_t *module,float 
     dt_masks_gui_form_create(form,gui,index);
     
     //we save the move
-    if (module) dt_dev_add_history_item(darktable.develop, module, TRUE);
+    dt_masks_update_image(darktable.develop);
     
     return 1;
   }
@@ -1107,7 +1107,7 @@ static int dt_curve_events_button_released(struct dt_iop_module_t *module,float 
     dt_masks_gui_form_create(form,gui,index);
     
     //we save the move
-    if (module) dt_dev_add_history_item(darktable.develop, module, TRUE);
+    dt_masks_update_image(darktable.develop);
     
     return 1;
   }
@@ -1116,7 +1116,7 @@ static int dt_curve_events_button_released(struct dt_iop_module_t *module,float 
     gui->seg_dragging = -1;
     gpt->clockwise = _curve_is_clockwise(form);
     dt_masks_write_form(form,darktable.develop);
-    if (module) dt_dev_add_history_item(darktable.develop, module, TRUE);
+    dt_masks_update_image(darktable.develop);
     return 1;
   }
   else if (gui->point_dragging >= 0)
@@ -1146,7 +1146,7 @@ static int dt_curve_events_button_released(struct dt_iop_module_t *module,float 
     dt_masks_gui_form_create(form,gui,index);
     gpt->clockwise = _curve_is_clockwise(form);
     //we save the move
-    if (module) dt_dev_add_history_item(darktable.develop, module, TRUE);
+    dt_masks_update_image(darktable.develop);
     
     return 1;
   }
@@ -1178,7 +1178,7 @@ static int dt_curve_events_button_released(struct dt_iop_module_t *module,float 
     dt_masks_gui_form_create(form,gui,index);
     gpt->clockwise = _curve_is_clockwise(form);
     //we save the move
-    if (module) dt_dev_add_history_item(darktable.develop, module, TRUE);
+    dt_masks_update_image(darktable.develop);
     
     return 1;
   }
@@ -1188,7 +1188,7 @@ static int dt_curve_events_button_released(struct dt_iop_module_t *module,float 
     
     //we save the move
     dt_masks_write_form(form,darktable.develop);
-    if (module) dt_dev_add_history_item(darktable.develop, module, TRUE);
+    dt_masks_update_image(darktable.develop);
     dt_control_queue_redraw_center();
     return 1;
   }
@@ -1233,7 +1233,7 @@ static int dt_curve_events_button_released(struct dt_iop_module_t *module,float 
     dt_masks_gui_form_create(form,gui,index);
     gpt->clockwise = _curve_is_clockwise(form);
     //we save the move
-    if (module) dt_dev_add_history_item(darktable.develop, module, TRUE);
+    dt_masks_update_image(darktable.develop);
     
     return 1;
   }
@@ -1252,7 +1252,7 @@ static int dt_curve_events_button_released(struct dt_iop_module_t *module,float 
       dt_masks_gui_form_create(form,gui,index);
       gpt->clockwise = _curve_is_clockwise(form);
       //we save the move
-      if (module) dt_dev_add_history_item(darktable.develop, module, TRUE);
+      dt_masks_update_image(darktable.develop);
     }
     return 1;
   }

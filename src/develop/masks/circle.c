@@ -243,7 +243,7 @@ static int dt_circle_events_button_released(struct dt_iop_module_t *module,float
     dt_masks_gui_form_create(form,gui,index);
     
     //we save the move
-    if (module) dt_dev_add_history_item(darktable.develop, module, TRUE);
+    dt_masks_update_image(darktable.develop);
     
     return 1;
   }
@@ -266,7 +266,7 @@ static int dt_circle_events_button_released(struct dt_iop_module_t *module,float
     dt_masks_gui_form_create(form,gui,index);
     
     //we save the move
-    if (module) dt_dev_add_history_item(darktable.develop, module, TRUE);
+    dt_masks_update_image(darktable.develop);
     
     return 1;
   }
