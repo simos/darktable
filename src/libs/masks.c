@@ -302,7 +302,6 @@ static int _tree_button_pressed (GtkWidget *treeview, GdkEventButton *event, dt_
         gtk_tree_path_free(mouse_path);
       }
     }
-    else return 0;
     
     //and we display the context-menu
     GtkWidget *menu, *item;
@@ -310,20 +309,27 @@ static int _tree_button_pressed (GtkWidget *treeview, GdkEventButton *event, dt_
     
     //we get all infos from selection
     int nb = gtk_tree_selection_count_selected_rows(selection);
-    if (nb==0) return 0;
     int from_group = 0;
     
-    GtkTreePath *it0 = (GtkTreePath *)g_list_nth_data(gtk_tree_selection_get_selected_rows(selection,NULL),0);
-    int depth = gtk_tree_path_get_depth (it0);
+    GtkTreePath *it0 = NULL;
+    int depth=0;
+    if (nb>0)
+    {
+      it0 = (GtkTreePath *)g_list_nth_data(gtk_tree_selection_get_selected_rows(selection,NULL),0);
+      depth = gtk_tree_path_get_depth (it0);
+    }
     if (depth > 1) from_group = 1;
     
-    item = gtk_menu_item_new_with_label(_("add circle shape"));
-    g_signal_connect(item, "activate",(GCallback) _tree_add_circle, module);
-    gtk_menu_append(menu, item);
-    
-    item = gtk_menu_item_new_with_label(_("add curve shape"));
-    g_signal_connect(item, "activate",(GCallback) _tree_add_curve, module);
-    gtk_menu_append(menu, item);
+    if (nb==0)
+    {
+      item = gtk_menu_item_new_with_label(_("add circle shape"));
+      g_signal_connect(item, "activate",(GCallback) _tree_add_circle, module);
+      gtk_menu_append(menu, item);
+      
+      item = gtk_menu_item_new_with_label(_("add curve shape"));
+      g_signal_connect(item, "activate",(GCallback) _tree_add_curve, module);
+      gtk_menu_append(menu, item);
+    }
     
     if (nb==1)
     {
@@ -338,6 +344,14 @@ static int _tree_button_pressed (GtkWidget *treeview, GdkEventButton *event, dt_
       dt_masks_form_t *grp = dt_masks_get_from_id(darktable.develop,grpid);
       if (grp && (grp->type & DT_MASKS_GROUP))
       {
+        item = gtk_menu_item_new_with_label(_("add circle shape"));
+        g_signal_connect(item, "activate",(GCallback) _tree_add_circle, module);
+        gtk_menu_append(menu, item);
+        
+        item = gtk_menu_item_new_with_label(_("add curve shape"));
+        g_signal_connect(item, "activate",(GCallback) _tree_add_curve, module);
+        gtk_menu_append(menu, item);
+        
         item = gtk_menu_item_new_with_label(_("add existing shape"));
         gtk_menu_append(menu, item);
         //existing forms
@@ -401,14 +415,14 @@ static int _tree_button_pressed (GtkWidget *treeview, GdkEventButton *event, dt_
       }
     }
     
-    gtk_menu_append(menu, gtk_separator_menu_item_new());
-    if (!from_group)
+    if (nb>0) gtk_menu_append(menu, gtk_separator_menu_item_new());
+    if (!from_group && nb>0)
     {
       item = gtk_menu_item_new_with_label(_("delete this shape"));
       g_signal_connect(item, "activate",(GCallback) _tree_delete_shape, self);
       gtk_menu_append(menu, item);
     }
-    else
+    else if (nb>0)
     {
       item = gtk_menu_item_new_with_label(_("remove from module"));
       g_signal_connect(item, "activate",(GCallback) _tree_delete_shape, self);
