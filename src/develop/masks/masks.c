@@ -571,8 +571,6 @@ void dt_masks_change_form_gui(dt_masks_form_t *newform)
 {
   dt_masks_init_formgui(darktable.develop);
   darktable.develop->form_visible = newform;
-  //and we say to masks manager that the selection has changed
-  dt_dev_masks_selection_change(darktable.develop);
 }
 
 void dt_masks_set_edit_mode(struct dt_iop_module_t *module,gboolean value)
@@ -590,6 +588,8 @@ void dt_masks_set_edit_mode(struct dt_iop_module_t *module,gboolean value)
   }
   if (!(module->flags()&IOP_FLAGS_NO_MASKS)) gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(bd->masks_edit),value);
   dt_masks_change_form_gui(grp);
+  if (value) dt_dev_masks_selection_change(darktable.develop,form->formid);
+  else dt_dev_masks_selection_change(darktable.develop,0);
   dt_control_queue_redraw_center();
 }
 
@@ -602,8 +602,7 @@ void dt_masks_iop_edit_toggle_callback(GtkWidget *widget, dt_iop_module_t *modul
   }
 
   //reset the gui
-  dt_masks_change_form_gui(dt_masks_get_from_id(darktable.develop,module->blend_params->mask_id));
-  dt_control_queue_redraw_center();
+  dt_masks_set_edit_mode(module,gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(widget)));
 }
 
 static void _menu_position(GtkMenu *menu, int *x, int *y, gboolean *push_in, gpointer user_data)

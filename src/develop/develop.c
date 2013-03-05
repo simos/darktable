@@ -1182,10 +1182,10 @@ void dt_dev_masks_list_change(dt_develop_t *dev)
   if (dev->proxy.masks.module && dev->proxy.masks.list_change)
     dev->proxy.masks.list_change(dev->proxy.masks.module);
 }
-void dt_dev_masks_selection_change(dt_develop_t *dev)
+void dt_dev_masks_selection_change(dt_develop_t *dev, int selectid)
 {
   if (dev->proxy.masks.module && dev->proxy.masks.selection_change)
-    dev->proxy.masks.selection_change(dev->proxy.masks.module);
+    dev->proxy.masks.selection_change(dev->proxy.masks.module, selectid);
 }
 
 void dt_dev_snapshot_request(dt_develop_t *dev, const char *filename)
