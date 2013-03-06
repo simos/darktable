@@ -159,6 +159,68 @@ static void _tree_group(GtkButton *button, dt_lib_module_t *self)
   //dt_masks_change_form_gui(grp);
 }
 
+static void _tree_inverse(GtkButton *button, dt_lib_module_t *self)
+{
+  dt_lib_masks_t *lm = (dt_lib_masks_t *)self->data;
+  
+  //now we go throught all selected nodes
+  GtkTreeModel *model = gtk_tree_view_get_model(GTK_TREE_VIEW(lm->treeview));
+  GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(lm->treeview));
+  int change = 0;
+  GList *items = g_list_first(gtk_tree_selection_get_selected_rows(selection,NULL));
+  while(items)
+  {
+    GtkTreePath *item = (GtkTreePath *)items->data;
+    GtkTreeIter iter;
+    if (gtk_tree_model_get_iter (model,&iter,item))
+    {
+      GValue gv = {0,};
+      gtk_tree_model_get_value (model,&iter,2,&gv);
+      int grid = g_value_get_int(&gv);
+      GValue gv3 = {0,};
+      gtk_tree_model_get_value (model,&iter,3,&gv3);
+      int id = g_value_get_int(&gv3);
+      dt_masks_form_t *grp = dt_masks_get_from_id(darktable.develop,grid);
+      if (grp && (grp->type & DT_MASKS_GROUP))
+      {
+        //we search the entry to inverse
+        GList *pts = g_list_first(grp->points);
+        while(pts)
+        {
+          dt_masks_point_group_t *pt = (dt_masks_point_group_t *)pts->data;
+          if (pt->formid == id)
+          {
+            if (pt->state & DT_MASKS_STATE_INVERSE) pt->state -= DT_MASKS_STATE_INVERSE;
+            else pt->state += DT_MASKS_STATE_INVERSE;
+            change = 1;
+            break;
+          }
+          pts = g_list_next(pts);
+        }
+      }
+    }
+    items = g_list_next(items);
+  }
+  
+  if (change)
+  {
+    dt_masks_write_forms(darktable.develop);
+    dt_masks_update_image(darktable.develop);
+    dt_control_queue_redraw_center();
+  }
+}
+
+static void _tree_moveup(GtkButton *button, dt_lib_module_t *self)
+{
+  //dt_lib_masks_t *lm = (dt_lib_masks_t *)self->data;
+  
+}
+
+static void _tree_movedown(GtkButton *button, dt_lib_module_t *self)
+{
+  //dt_lib_masks_t *lm = (dt_lib_masks_t *)self->data;
+  
+}
 static void _tree_delete_shape(GtkButton *button, dt_lib_module_t *self)
 {
   dt_lib_masks_t *lm = (dt_lib_masks_t *)self->data;
@@ -451,13 +513,13 @@ static int _tree_button_pressed (GtkWidget *treeview, GdkEventButton *event, dt_
     {
       gtk_menu_append(menu, gtk_separator_menu_item_new());
       item = gtk_menu_item_new_with_label(_("use inversed shape"));
-      //g_signal_connect(item, "activate",(GCallback) view_popup_menu_onDoSomething, treeview);
+      g_signal_connect(item, "activate",(GCallback) _tree_inverse, self);
       gtk_menu_append(menu, item);
       item = gtk_menu_item_new_with_label(_("move up"));
-      //g_signal_connect(item, "activate",(GCallback) view_popup_menu_onDoSomething, treeview);
+      g_signal_connect(item, "activate",(GCallback) _tree_moveup, self);
       gtk_menu_append(menu, item);
       item = gtk_menu_item_new_with_label(_("move down"));
-      //g_signal_connect(item, "activate",(GCallback) view_popup_menu_onDoSomething, treeview);
+      g_signal_connect(item, "activate",(GCallback) _tree_movedown, self);
       gtk_menu_append(menu, item);
     }
     gtk_widget_show_all(menu);

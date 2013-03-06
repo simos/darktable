@@ -257,14 +257,55 @@ int dt_masks_group_render(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece
     if (fxx<roi[0]) fww += fxx-roi[0], fxx=roi[0];
     if (fww+fxx>=roi[0]+roi[2]) fww = roi[0]+roi[2]-fxx-1;
     //we apply the mask row by row
-    for (int yy=fyy; yy<fyy+fhh; yy++)
+    if (grpt->state & DT_MASKS_STATE_INVERSE)
     {
-      if (yy<roi[1] || yy>=roi[1]+roi[3]) continue;
-      for (int xx=fxx; xx<fxx+fww; xx++)
+      //zone upper the shape
+      for (int yy=roi[1]; yy<fyy; yy++)
       {
-        int a = (yy/scale-fy);
-        int b = (xx/scale);
-        mask[(yy-roi[1])*roi[2]+xx-roi[0]] = fmaxf(mask[(yy-roi[1])*roi[2]+xx-roi[0]],fm[a*fw+b-fx]*grpt->opacity);
+        for (int xx=0; xx<roi[2]; xx++)
+        {
+          mask[(yy-roi[1])*roi[2]+xx] = fmaxf(mask[(yy-roi[1])*roi[2]+xx],grpt->opacity);
+        }
+      }
+      //shape zone
+      for (int yy=fyy; yy<fyy+fhh; yy++)
+      {
+        if (yy<roi[1] || yy>=roi[1]+roi[3]) continue;
+        for (int xx=roi[0]; xx<fxx; xx++)
+        {
+          mask[(yy-roi[1])*roi[2]+xx-roi[0]] = fmaxf(mask[(yy-roi[1])*roi[2]+xx-roi[0]],grpt->opacity);
+        }
+        for (int xx=fxx; xx<fxx+fww; xx++)
+        {
+          int a = (yy/scale-fy);
+          int b = (xx/scale);
+          mask[(yy-roi[1])*roi[2]+xx-roi[0]] = 1.0f-fm[a*fw+b-fx]*grpt->opacity;
+        }
+        for (int xx=fxx+fww; xx<roi[0]+roi[2]; xx++)
+        {
+          mask[(yy-roi[1])*roi[2]+xx-roi[0]] = fmaxf(mask[(yy-roi[1])*roi[2]+xx-roi[0]],grpt->opacity);
+        }
+      }
+      //zone under the shape
+      for (int yy=fyy+fhh; yy<roi[1]+roi[3]; yy++)
+      {
+        for (int xx=0; xx<roi[2]; xx++)
+        {
+          mask[(yy-roi[1])*roi[2]+xx] = fmaxf(mask[(yy-roi[1])*roi[2]+xx],grpt->opacity);
+        }
+      }
+    }
+    else
+    {
+      for (int yy=fyy; yy<fyy+fhh; yy++)
+      {
+        if (yy<roi[1] || yy>=roi[1]+roi[3]) continue;
+        for (int xx=fxx; xx<fxx+fww; xx++)
+        {
+          int a = (yy/scale-fy);
+          int b = (xx/scale);
+          mask[(yy-roi[1])*roi[2]+xx-roi[0]] = fmaxf(mask[(yy-roi[1])*roi[2]+xx-roi[0]],fm[a*fw+b-fx]*grpt->opacity);
+        }
       }
     }
     
