@@ -128,7 +128,8 @@ void dt_masks_gui_form_save_creation(dt_iop_module_t *module, dt_masks_form_t *f
     if (!grp)
     {
       //we create a new group
-      grp = dt_masks_create(DT_MASKS_GROUP);
+      if (form->type & DT_MASKS_CLONE) grp = dt_masks_create(DT_MASKS_GROUP | DT_MASKS_CLONE);
+      else grp = dt_masks_create(DT_MASKS_GROUP);
       snprintf(grp->name,128,"grp %s",module->name());
       _check_id(grp);
       darktable.develop->forms = g_list_append(darktable.develop->forms,grp);
@@ -588,7 +589,7 @@ void dt_masks_set_edit_mode(struct dt_iop_module_t *module,gboolean value)
   }
   if (!(module->flags()&IOP_FLAGS_NO_MASKS)) gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(bd->masks_edit),value);
   dt_masks_change_form_gui(grp);
-  if (value) dt_dev_masks_selection_change(darktable.develop,form->formid);
+  if (value && form) dt_dev_masks_selection_change(darktable.develop,form->formid);
   else dt_dev_masks_selection_change(darktable.develop,0);
   dt_control_queue_redraw_center();
 }
@@ -723,7 +724,7 @@ void dt_masks_iop_dropdown_callback(GtkWidget *widget, struct dt_iop_module_t *m
   while (forms)
   {
     dt_masks_form_t *form = (dt_masks_form_t *)forms->data;
-    if (form->type & DT_MASKS_CLONE)
+    if ((form->type & DT_MASKS_CLONE) || form->formid == module->blend_params->mask_id)
     {
       forms = g_list_next(forms);
       continue;
@@ -737,7 +738,7 @@ void dt_masks_iop_dropdown_callback(GtkWidget *widget, struct dt_iop_module_t *m
     while (modules)
     {
       dt_iop_module_t *m = (dt_iop_module_t *)modules->data;
-      dt_masks_form_t *grp = dt_masks_get_from_id(darktable.develop,module->blend_params->mask_id);
+      dt_masks_form_t *grp = dt_masks_get_from_id(darktable.develop,m->blend_params->mask_id);
       if (grp && (grp->type & DT_MASKS_GROUP))
       {
         GList *pts = g_list_first(grp->points);
@@ -853,30 +854,40 @@ void dt_masks_form_remove(struct dt_iop_module_t *module, dt_masks_form_t *grp, 
     if (m->flags() & IOP_FLAGS_SUPPORTS_BLENDING)
     {
       int ok = 0;
-      dt_masks_form_t *iopgrp = dt_masks_get_from_id(darktable.develop,m->blend_params->mask_id);
-      if (iopgrp && (iopgrp->type & DT_MASKS_GROUP))
+      //is the form the base group of the iop ?
+      if (id == m->blend_params->mask_id)
       {
-        GList *forms = g_list_first(iopgrp->points);
-        while(forms)
+        m->blend_params->mask_id = 0;
+        dt_masks_iop_update(m);
+        dt_dev_add_history_item(darktable.develop, m, TRUE);
+      }
+      else
+      {
+        dt_masks_form_t *iopgrp = dt_masks_get_from_id(darktable.develop,m->blend_params->mask_id);
+        if (iopgrp && (iopgrp->type & DT_MASKS_GROUP))
         {
-          dt_masks_point_group_t *grpt = (dt_masks_point_group_t *)forms->data;
-          if (grpt->formid == id)
+          GList *forms = g_list_first(iopgrp->points);
+          while(forms)
           {
-            ok = 1;
-            iopgrp->points = g_list_remove(iopgrp->points,grpt);
-            forms = g_list_first(iopgrp->points);
-            continue;
+            dt_masks_point_group_t *grpt = (dt_masks_point_group_t *)forms->data;
+            if (grpt->formid == id)
+            {
+              ok = 1;
+              iopgrp->points = g_list_remove(iopgrp->points,grpt);
+              forms = g_list_first(iopgrp->points);
+              continue;
+            }
+            forms = g_list_next(forms);
           }
-          forms = g_list_next(forms);
+          if (ok)
+          {
+            dt_masks_write_form(iopgrp,darktable.develop);
+            dt_masks_iop_update(m);
+            dt_dev_add_history_item(darktable.develop, m, TRUE);
+            if (g_list_length(iopgrp->points)==0) dt_masks_form_remove(m,NULL,iopgrp);
+          }
         }
-        if (ok)
-        {
-          dt_masks_write_form(iopgrp,darktable.develop);
-          dt_masks_iop_update(m);
-          dt_dev_add_history_item(darktable.develop, m, TRUE);
-          if (g_list_length(iopgrp->points)==0) dt_masks_form_remove(m,NULL,iopgrp);
-        }
-      }      
+      }           
     }
     iops = g_list_next(iops);
   }
