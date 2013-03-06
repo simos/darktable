@@ -274,33 +274,42 @@ static void _tree_selection_change (GtkTreeSelection *selection,dt_lib_masks_t *
 static int _tree_button_pressed (GtkWidget *treeview, GdkEventButton *event, dt_lib_module_t *self)
 {
   //dt_lib_masks_t *lm = (dt_lib_masks_t *)self->data;
+  //we first need to adjust selection
+  GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(treeview));
+  GtkTreeModel *model = gtk_tree_view_get_model(GTK_TREE_VIEW(treeview));
   
-  /* single click with the right mouse button? */
-  if (event->type == GDK_BUTTON_PRESS  &&  event->button == 3)
+  GtkTreePath *mouse_path = NULL;
+  GtkTreeIter iter;
+  dt_iop_module_t *module = NULL;
+  int on_row = 0;
+  if (gtk_tree_view_get_path_at_pos(GTK_TREE_VIEW(treeview), (gint) event->x, (gint) event->y, &mouse_path, NULL, NULL, NULL))
   {
-    //we first need to adjust selection
-    GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(treeview));
-    GtkTreeModel *model = gtk_tree_view_get_model(GTK_TREE_VIEW(treeview));
-    
-    GtkTreePath *mouse_path = NULL;
-    GtkTreeIter iter;
-    dt_iop_module_t *module = NULL;
-    if (gtk_tree_view_get_path_at_pos(GTK_TREE_VIEW(treeview), (gint) event->x, (gint) event->y, &mouse_path, NULL, NULL, NULL))
+    on_row = 1;
+    //we retrive the iter and module from path
+    if (gtk_tree_model_get_iter (model,&iter,mouse_path))
     {
-      //we retrive the iter and module from path
-      if (gtk_tree_model_get_iter (model,&iter,mouse_path))
-      {
-        GValue gv = {0,};
-        gtk_tree_model_get_value (model,&iter,1,&gv);
-        module = g_value_peek_pointer(&gv);
-      }
-      //if we are already inside the selection, no change
-      if (!gtk_tree_selection_path_is_selected(selection,mouse_path))
-      {
-        if (!(event->state & GDK_CONTROL_MASK)) gtk_tree_selection_unselect_all(selection);
-        gtk_tree_selection_select_path(selection, mouse_path);
-        gtk_tree_path_free(mouse_path);
-      }
+      GValue gv = {0,};
+      gtk_tree_model_get_value (model,&iter,1,&gv);
+      module = g_value_peek_pointer(&gv);
+    }
+  }
+  /* single click with the right mouse button? */
+  if (event->type == GDK_BUTTON_PRESS  &&  event->button == 1)
+  {
+    //if click on a blank space, then deselect all
+    if (!on_row)
+    {
+      gtk_tree_selection_unselect_all(selection);
+    }
+  }
+  else if (event->type == GDK_BUTTON_PRESS  &&  event->button == 3)
+  {
+    //if we are already inside the selection, no change
+    if (on_row && !gtk_tree_selection_path_is_selected(selection,mouse_path))
+    {
+      if (!(event->state & GDK_CONTROL_MASK)) gtk_tree_selection_unselect_all(selection);
+      gtk_tree_selection_select_path(selection, mouse_path);
+      gtk_tree_path_free(mouse_path);
     }
     
     //and we display the context-menu

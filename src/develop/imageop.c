@@ -1705,6 +1705,13 @@ void dt_iop_request_focus(dt_iop_module_t *module)
     /*reset mask view */
     darktable.develop->form_visible = NULL;
     dt_masks_init_formgui(darktable.develop);
+    dt_iop_module_t *m = darktable.develop->gui_module;
+    if ((m->flags() & IOP_FLAGS_SUPPORTS_BLENDING) && !(m->flags() & IOP_FLAGS_NO_MASKS))
+    {
+      dt_iop_gui_blend_data_t *bd = (dt_iop_gui_blend_data_t*)m->blend_data;
+      GTK_TOGGLE_BUTTON(bd->masks_edit)->active = FALSE;
+      dt_dev_masks_selection_change(darktable.develop,0);
+    }
   }
 
   darktable.develop->gui_module = module;
