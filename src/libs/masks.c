@@ -137,7 +137,7 @@ static void _tree_group(GtkButton *button, dt_lib_module_t *self)
     if (gtk_tree_model_get_iter (model,&iter,item))
     {
       GValue gv = {0,};
-      gtk_tree_model_get_value (model,&iter,2,&gv);
+      gtk_tree_model_get_value (model,&iter,3,&gv);
       int id = g_value_get_int(&gv);
       if (id > 0)
       {
@@ -370,7 +370,7 @@ static int _tree_button_pressed (GtkWidget *treeview, GdkEventButton *event, dt_
         while (forms)
         {
           dt_masks_form_t *form = (dt_masks_form_t *)forms->data;
-          if ((form->type & DT_MASKS_CLONE) || form->formid == module->blend_params->mask_id)
+          if ((form->type & DT_MASKS_CLONE) || form->formid == grpid)
           {
             forms = g_list_next(forms);
             continue;
