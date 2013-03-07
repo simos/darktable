@@ -139,6 +139,7 @@ void dt_masks_gui_form_save_creation(dt_iop_module_t *module, dt_masks_form_t *f
     dt_masks_point_group_t *grpt = malloc(sizeof(dt_masks_point_group_t));
     grpt->formid = form->formid;
     grpt->state = DT_MASKS_STATE_SHOW | DT_MASKS_STATE_USE;
+    if (g_list_length(grp->points)>0) grpt->state |= DT_MASKS_STATE_UNION;
     grpt->opacity = 1.0f;
     grp->points = g_list_append(grp->points,grpt);
     //we save the group
@@ -678,6 +679,7 @@ static void _menu_add_exist(GtkButton *button, dt_masks_form_t *form)
   dt_masks_point_group_t *grpt = malloc(sizeof(dt_masks_point_group_t));
   grpt->formid = form->formid;
   grpt->state = DT_MASKS_STATE_SHOW | DT_MASKS_STATE_USE;
+  if (g_list_length(grp->points)>0) grpt->state |= DT_MASKS_STATE_UNION;
   grpt->opacity = 1.0f;
   grp->points = g_list_append(grp->points,grpt);
   //we save the group

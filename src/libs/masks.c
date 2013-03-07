@@ -106,6 +106,7 @@ static void _tree_add_exist(GtkButton *button, dt_iop_module_t *module)
   dt_masks_point_group_t *grpt = malloc(sizeof(dt_masks_point_group_t));
   grpt->formid = id;
   grpt->state = DT_MASKS_STATE_SHOW | DT_MASKS_STATE_USE;
+  if (g_list_length(grp->points)>0) grpt->state |= DT_MASKS_STATE_UNION;
   grpt->opacity = 1.0f;
   grp->points = g_list_append(grp->points,grpt);
   //we save the group
@@ -193,6 +194,274 @@ static void _tree_inverse(GtkButton *button, dt_lib_module_t *self)
             if (pt->state & DT_MASKS_STATE_INVERSE) pt->state -= DT_MASKS_STATE_INVERSE;
             else pt->state += DT_MASKS_STATE_INVERSE;
             change = 1;
+            break;
+          }
+          pts = g_list_next(pts);
+        }
+      }
+    }
+    items = g_list_next(items);
+  }
+  
+  if (change)
+  {
+    dt_masks_write_forms(darktable.develop);
+    dt_masks_update_image(darktable.develop);
+    dt_control_queue_redraw_center();
+  }
+}
+
+static void _tree_intersection(GtkButton *button, dt_lib_module_t *self)
+{
+  dt_lib_masks_t *lm = (dt_lib_masks_t *)self->data;
+  
+  //now we go throught all selected nodes
+  GtkTreeModel *model = gtk_tree_view_get_model(GTK_TREE_VIEW(lm->treeview));
+  GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(lm->treeview));
+  int change = 0;
+  GList *items = g_list_first(gtk_tree_selection_get_selected_rows(selection,NULL));
+  while(items)
+  {
+    GtkTreePath *item = (GtkTreePath *)items->data;
+    GtkTreeIter iter;
+    if (gtk_tree_model_get_iter (model,&iter,item))
+    {
+      GValue gv = {0,};
+      gtk_tree_model_get_value (model,&iter,2,&gv);
+      int grid = g_value_get_int(&gv);
+      GValue gv3 = {0,};
+      gtk_tree_model_get_value (model,&iter,3,&gv3);
+      int id = g_value_get_int(&gv3);
+      dt_masks_form_t *grp = dt_masks_get_from_id(darktable.develop,grid);
+      if (grp && (grp->type & DT_MASKS_GROUP))
+      {
+        //we search the entry to inverse
+        GList *pts = g_list_first(grp->points);
+        while(pts)
+        {
+          dt_masks_point_group_t *pt = (dt_masks_point_group_t *)pts->data;
+          if (pt->formid == id)
+          {
+            if (!(pt->state & DT_MASKS_STATE_INTERSECTION))
+            {
+              if (pt->state & DT_MASKS_STATE_DIFFERENCE) pt->state &= DT_MASKS_STATE_DIFFERENCE;
+              else if (pt->state & DT_MASKS_STATE_UNION) pt->state &= DT_MASKS_STATE_UNION;
+              else if (pt->state & DT_MASKS_STATE_EXCLUSION) pt->state &= DT_MASKS_STATE_EXCLUSION;
+              pt->state |= DT_MASKS_STATE_INTERSECTION;
+              dt_masks_form_t *f = dt_masks_get_from_id(darktable.develop,id);
+              if (f)
+              {
+                char str[256] = "";
+                strcat(str,"∩ ");
+                strcat(str,f->name);
+                GValue gv4 = {0,};
+                g_value_init(&gv4,G_TYPE_STRING);
+                g_value_set_string(&gv4,str);
+                gtk_tree_store_set_value(GTK_TREE_STORE(model),&iter,0,&gv4);
+              }
+              change = 1;
+            }
+            break;
+          }
+          pts = g_list_next(pts);
+        }
+      }
+    }
+    items = g_list_next(items);
+  }
+  
+  if (change)
+  {
+    dt_masks_write_forms(darktable.develop);
+    dt_masks_update_image(darktable.develop);
+    dt_control_queue_redraw_center();
+  }
+}
+
+static void _tree_difference(GtkButton *button, dt_lib_module_t *self)
+{
+  dt_lib_masks_t *lm = (dt_lib_masks_t *)self->data;
+  
+  //now we go throught all selected nodes
+  GtkTreeModel *model = gtk_tree_view_get_model(GTK_TREE_VIEW(lm->treeview));
+  GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(lm->treeview));
+  int change = 0;
+  GList *items = g_list_first(gtk_tree_selection_get_selected_rows(selection,NULL));
+  while(items)
+  {
+    GtkTreePath *item = (GtkTreePath *)items->data;
+    GtkTreeIter iter;
+    if (gtk_tree_model_get_iter (model,&iter,item))
+    {
+      GValue gv = {0,};
+      gtk_tree_model_get_value (model,&iter,2,&gv);
+      int grid = g_value_get_int(&gv);
+      GValue gv3 = {0,};
+      gtk_tree_model_get_value (model,&iter,3,&gv3);
+      int id = g_value_get_int(&gv3);
+      dt_masks_form_t *grp = dt_masks_get_from_id(darktable.develop,grid);
+      if (grp && (grp->type & DT_MASKS_GROUP))
+      {
+        //we search the entry to inverse
+        GList *pts = g_list_first(grp->points);
+        while(pts)
+        {
+          dt_masks_point_group_t *pt = (dt_masks_point_group_t *)pts->data;
+          if (pt->formid == id)
+          {
+            if (!(pt->state & DT_MASKS_STATE_DIFFERENCE))
+            {
+              if (pt->state & DT_MASKS_STATE_UNION) pt->state &= DT_MASKS_STATE_UNION;
+              else if (pt->state & DT_MASKS_STATE_INTERSECTION) pt->state &= DT_MASKS_STATE_INTERSECTION;
+              else if (pt->state & DT_MASKS_STATE_EXCLUSION) pt->state &= DT_MASKS_STATE_EXCLUSION;
+              pt->state |= DT_MASKS_STATE_DIFFERENCE;
+              dt_masks_form_t *f = dt_masks_get_from_id(darktable.develop,id);
+              if (f)
+              {
+                char str[256] = "";
+                strcat(str,"≠ ");
+                strcat(str,f->name);
+                GValue gv4 = {0,};
+                g_value_init(&gv4,G_TYPE_STRING);
+                g_value_set_string(&gv4,str);
+                gtk_tree_store_set_value(GTK_TREE_STORE(model),&iter,0,&gv4);
+              }
+              change = 1;
+            }
+            break;
+          }
+          pts = g_list_next(pts);
+        }
+      }
+    }
+    items = g_list_next(items);
+  }
+  
+  if (change)
+  {
+    dt_masks_write_forms(darktable.develop);
+    dt_masks_update_image(darktable.develop);
+    dt_control_queue_redraw_center();
+  }
+}
+
+static void _tree_exclusion(GtkButton *button, dt_lib_module_t *self)
+{
+  dt_lib_masks_t *lm = (dt_lib_masks_t *)self->data;
+  
+  //now we go throught all selected nodes
+  GtkTreeModel *model = gtk_tree_view_get_model(GTK_TREE_VIEW(lm->treeview));
+  GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(lm->treeview));
+  int change = 0;
+  GList *items = g_list_first(gtk_tree_selection_get_selected_rows(selection,NULL));
+  while(items)
+  {
+    GtkTreePath *item = (GtkTreePath *)items->data;
+    GtkTreeIter iter;
+    if (gtk_tree_model_get_iter (model,&iter,item))
+    {
+      GValue gv = {0,};
+      gtk_tree_model_get_value (model,&iter,2,&gv);
+      int grid = g_value_get_int(&gv);
+      GValue gv3 = {0,};
+      gtk_tree_model_get_value (model,&iter,3,&gv3);
+      int id = g_value_get_int(&gv3);
+      dt_masks_form_t *grp = dt_masks_get_from_id(darktable.develop,grid);
+      if (grp && (grp->type & DT_MASKS_GROUP))
+      {
+        //we search the entry to inverse
+        GList *pts = g_list_first(grp->points);
+        while(pts)
+        {
+          dt_masks_point_group_t *pt = (dt_masks_point_group_t *)pts->data;
+          if (pt->formid == id)
+          {
+            if (!(pt->state & DT_MASKS_STATE_EXCLUSION))
+            {
+              if (pt->state & DT_MASKS_STATE_DIFFERENCE) pt->state &= DT_MASKS_STATE_DIFFERENCE;
+              else if (pt->state & DT_MASKS_STATE_INTERSECTION) pt->state &= DT_MASKS_STATE_INTERSECTION;
+              else if (pt->state & DT_MASKS_STATE_UNION) pt->state &= DT_MASKS_STATE_UNION;
+              pt->state |= DT_MASKS_STATE_EXCLUSION;
+              dt_masks_form_t *f = dt_masks_get_from_id(darktable.develop,id);
+              if (f)
+              {
+                char str[256] = "";
+                strcat(str,"x ");
+                strcat(str,f->name);
+                GValue gv4 = {0,};
+                g_value_init(&gv4,G_TYPE_STRING);
+                g_value_set_string(&gv4,str);
+                gtk_tree_store_set_value(GTK_TREE_STORE(model),&iter,0,&gv4);
+              }
+              change = 1;
+            }
+            break;
+          }
+          pts = g_list_next(pts);
+        }
+      }
+    }
+    items = g_list_next(items);
+  }
+  
+  if (change)
+  {
+    dt_masks_write_forms(darktable.develop);
+    dt_masks_update_image(darktable.develop);
+    dt_control_queue_redraw_center();
+  }
+}
+
+static void _tree_union(GtkButton *button, dt_lib_module_t *self)
+{
+  dt_lib_masks_t *lm = (dt_lib_masks_t *)self->data;
+  
+  //now we go throught all selected nodes
+  GtkTreeModel *model = gtk_tree_view_get_model(GTK_TREE_VIEW(lm->treeview));
+  GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(lm->treeview));
+  int change = 0;
+  GList *items = g_list_first(gtk_tree_selection_get_selected_rows(selection,NULL));
+  while(items)
+  {
+    GtkTreePath *item = (GtkTreePath *)items->data;
+    GtkTreeIter iter;
+    if (gtk_tree_model_get_iter (model,&iter,item))
+    {
+      GValue gv = {0,};
+      gtk_tree_model_get_value (model,&iter,2,&gv);
+      int grid = g_value_get_int(&gv);
+      GValue gv3 = {0,};
+      gtk_tree_model_get_value (model,&iter,3,&gv3);
+      int id = g_value_get_int(&gv3);
+      dt_masks_form_t *grp = dt_masks_get_from_id(darktable.develop,grid);
+      if (grp && (grp->type & DT_MASKS_GROUP))
+      {
+        //we search the entry to inverse
+        GList *pts = g_list_first(grp->points);
+        while(pts)
+        {
+          dt_masks_point_group_t *pt = (dt_masks_point_group_t *)pts->data;
+          if (pt->formid == id)
+          {
+            if (!(pt->state & DT_MASKS_STATE_UNION))
+            {
+              if (pt->state & DT_MASKS_STATE_DIFFERENCE) pt->state &= DT_MASKS_STATE_DIFFERENCE;
+              else if (pt->state & DT_MASKS_STATE_INTERSECTION) pt->state &= DT_MASKS_STATE_INTERSECTION;
+              else if (pt->state & DT_MASKS_STATE_EXCLUSION) pt->state &= DT_MASKS_STATE_EXCLUSION;
+              pt->state |= DT_MASKS_STATE_UNION;
+              dt_masks_form_t *f = dt_masks_get_from_id(darktable.develop,id);
+              if (f)
+              {
+                char str[256] = "";
+                strcat(str,"u ");
+                strcat(str,f->name);
+                GValue gv4 = {0,};
+                g_value_init(&gv4,G_TYPE_STRING);
+                g_value_set_string(&gv4,str);
+                gtk_tree_store_set_value(GTK_TREE_STORE(model),&iter,0,&gv4);
+              }
+              change = 1;
+            }
             break;
           }
           pts = g_list_next(pts);
@@ -400,6 +669,7 @@ static int _tree_button_pressed (GtkWidget *treeview, GdkEventButton *event, dt_
       item = gtk_menu_item_new_with_label(_("add curve shape"));
       g_signal_connect(item, "activate",(GCallback) _tree_add_curve, module);
       gtk_menu_append(menu, item);
+      gtk_menu_append(menu, gtk_separator_menu_item_new());
     }
     
     if (nb==1)
@@ -425,6 +695,7 @@ static int _tree_button_pressed (GtkWidget *treeview, GdkEventButton *event, dt_
         
         item = gtk_menu_item_new_with_label(_("add existing shape"));
         gtk_menu_append(menu, item);
+        gtk_menu_append(menu, gtk_separator_menu_item_new());
         //existing forms
         GtkWidget *menu0 = gtk_menu_new();
         gtk_menu_item_set_submenu(GTK_MENU_ITEM(item), menu0);
@@ -486,7 +757,6 @@ static int _tree_button_pressed (GtkWidget *treeview, GdkEventButton *event, dt_
       }
     }
     
-    if (nb>0) gtk_menu_append(menu, gtk_separator_menu_item_new());
     if (!from_group && nb>0)
     {
       item = gtk_menu_item_new_with_label(_("delete this shape"));
@@ -515,6 +785,23 @@ static int _tree_button_pressed (GtkWidget *treeview, GdkEventButton *event, dt_
       item = gtk_menu_item_new_with_label(_("use inversed shape"));
       g_signal_connect(item, "activate",(GCallback) _tree_inverse, self);
       gtk_menu_append(menu, item);
+      if (nb==1)
+      {
+        gtk_menu_append(menu, gtk_separator_menu_item_new());
+        item = gtk_menu_item_new_with_label(_("mode : union"));
+        g_signal_connect(item, "activate",(GCallback) _tree_union, self);
+        gtk_menu_append(menu, item);
+        item = gtk_menu_item_new_with_label(_("mode : inteersection"));
+        g_signal_connect(item, "activate",(GCallback) _tree_intersection, self);
+        gtk_menu_append(menu, item);
+        item = gtk_menu_item_new_with_label(_("mode : difference"));
+        g_signal_connect(item, "activate",(GCallback) _tree_difference, self);
+        gtk_menu_append(menu, item);
+        item = gtk_menu_item_new_with_label(_("mode : exclusion"));
+        g_signal_connect(item, "activate",(GCallback) _tree_exclusion, self);
+        gtk_menu_append(menu, item);
+      }
+      gtk_menu_append(menu, gtk_separator_menu_item_new());
       item = gtk_menu_item_new_with_label(_("move up"));
       g_signal_connect(item, "activate",(GCallback) _tree_moveup, self);
       gtk_menu_append(menu, item);
@@ -568,15 +855,26 @@ static gboolean _tree_restrict_select (GtkTreeSelection *selection, GtkTreeModel
   return TRUE;
 }
 
-static void _lib_masks_list_recurs(GtkTreeStore *treestore, GtkTreeIter *toplevel, dt_masks_form_t *form, int grp_id)
+static void _lib_masks_list_recurs(GtkTreeStore *treestore, GtkTreeIter *toplevel, dt_masks_form_t *form, int grp_id, dt_masks_states_t gstate)
 {
   if (form->type & DT_MASKS_CLONE) return;
+  //we create the text entry
+  char str[256] = "";
+  if (toplevel)
+  {
+    if (gstate & DT_MASKS_STATE_UNION) strcat(str,"u ");
+    else if (gstate & DT_MASKS_STATE_INTERSECTION) strcat(str,"∩ ");
+    else if (gstate & DT_MASKS_STATE_DIFFERENCE) strcat(str,"≠ ");
+    else if (gstate & DT_MASKS_STATE_EXCLUSION) strcat(str,"x ");
+    else strcat(str,"  ");
+  }
+  strcat(str,form->name);
   if (!(form->type & DT_MASKS_GROUP))
   {
     //we just add it to the tree
     GtkTreeIter child;
     gtk_tree_store_append(treestore, &child, toplevel);
-    gtk_tree_store_set(treestore, &child, 0, form->name,1,NULL,2,grp_id, 3, form->formid, -1);
+    gtk_tree_store_set(treestore, &child, 0, str,1,NULL,2,grp_id, 3, form->formid, -1);
   }
   else
   {
@@ -600,14 +898,14 @@ static void _lib_masks_list_recurs(GtkTreeStore *treestore, GtkTreeIter *topleve
     //we add the group node to the tree
     GtkTreeIter child;
     gtk_tree_store_append(treestore, &child, toplevel);
-    gtk_tree_store_set(treestore, &child, 0, form->name,1,module,2,grp_id, 3, form->formid, -1);
+    gtk_tree_store_set(treestore, &child, 0, str,1,module,2,grp_id, 3, form->formid, -1);
     //we add all nodes to the tree
     GList *forms = g_list_first(form->points);
     while (forms)
     {
       dt_masks_point_group_t *grpt = (dt_masks_point_group_t *)forms->data;
       dt_masks_form_t *f = dt_masks_get_from_id(darktable.develop,grpt->formid);
-      if (f) _lib_masks_list_recurs(treestore,&child,f,form->formid);
+      if (f) _lib_masks_list_recurs(treestore,&child,f,form->formid,grpt->state);
       forms = g_list_next(forms);
     }
   }
@@ -635,7 +933,7 @@ static void _lib_masks_recreate_list(dt_lib_module_t *self)
   while (forms)
   {
     dt_masks_form_t *form = (dt_masks_form_t *)forms->data;
-    if (form->type & DT_MASKS_GROUP) _lib_masks_list_recurs(treestore, NULL, form, 0);
+    if (form->type & DT_MASKS_GROUP) _lib_masks_list_recurs(treestore, NULL, form, 0,0);
     forms = g_list_next(forms);
   }
   
@@ -644,7 +942,7 @@ static void _lib_masks_recreate_list(dt_lib_module_t *self)
   while (forms)
   {
     dt_masks_form_t *form = (dt_masks_form_t *)forms->data;
-    if (!(form->type & DT_MASKS_GROUP)) _lib_masks_list_recurs(treestore, NULL, form, 0);
+    if (!(form->type & DT_MASKS_GROUP)) _lib_masks_list_recurs(treestore, NULL, form, 0,0);
     forms = g_list_next(forms);
   }
   
