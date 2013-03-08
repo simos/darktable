@@ -191,8 +191,8 @@ static void _tree_inverse(GtkButton *button, dt_lib_module_t *self)
           dt_masks_point_group_t *pt = (dt_masks_point_group_t *)pts->data;
           if (pt->formid == id)
           {
-            if (pt->state & DT_MASKS_STATE_INVERSE) pt->state -= DT_MASKS_STATE_INVERSE;
-            else pt->state += DT_MASKS_STATE_INVERSE;
+            if (pt->state & DT_MASKS_STATE_INVERSE) pt->state &= ~DT_MASKS_STATE_INVERSE;
+            else pt->state |= DT_MASKS_STATE_INVERSE;
             change = 1;
             break;
           }
@@ -244,9 +244,9 @@ static void _tree_intersection(GtkButton *button, dt_lib_module_t *self)
           {
             if (!(pt->state & DT_MASKS_STATE_INTERSECTION))
             {
-              if (pt->state & DT_MASKS_STATE_DIFFERENCE) pt->state &= DT_MASKS_STATE_DIFFERENCE;
-              else if (pt->state & DT_MASKS_STATE_UNION) pt->state &= DT_MASKS_STATE_UNION;
-              else if (pt->state & DT_MASKS_STATE_EXCLUSION) pt->state &= DT_MASKS_STATE_EXCLUSION;
+              if (pt->state & DT_MASKS_STATE_DIFFERENCE) pt->state &= ~DT_MASKS_STATE_DIFFERENCE;
+              else if (pt->state & DT_MASKS_STATE_UNION) pt->state &= ~DT_MASKS_STATE_UNION;
+              else if (pt->state & DT_MASKS_STATE_EXCLUSION) pt->state &= ~DT_MASKS_STATE_EXCLUSION;
               pt->state |= DT_MASKS_STATE_INTERSECTION;
               dt_masks_form_t *f = dt_masks_get_from_id(darktable.develop,id);
               if (f)
@@ -311,9 +311,9 @@ static void _tree_difference(GtkButton *button, dt_lib_module_t *self)
           {
             if (!(pt->state & DT_MASKS_STATE_DIFFERENCE))
             {
-              if (pt->state & DT_MASKS_STATE_UNION) pt->state &= DT_MASKS_STATE_UNION;
-              else if (pt->state & DT_MASKS_STATE_INTERSECTION) pt->state &= DT_MASKS_STATE_INTERSECTION;
-              else if (pt->state & DT_MASKS_STATE_EXCLUSION) pt->state &= DT_MASKS_STATE_EXCLUSION;
+              if (pt->state & DT_MASKS_STATE_UNION) pt->state &= ~DT_MASKS_STATE_UNION;
+              else if (pt->state & DT_MASKS_STATE_INTERSECTION) pt->state &= ~DT_MASKS_STATE_INTERSECTION;
+              else if (pt->state & DT_MASKS_STATE_EXCLUSION) pt->state &= ~DT_MASKS_STATE_EXCLUSION;
               pt->state |= DT_MASKS_STATE_DIFFERENCE;
               dt_masks_form_t *f = dt_masks_get_from_id(darktable.develop,id);
               if (f)
@@ -336,7 +336,7 @@ static void _tree_difference(GtkButton *button, dt_lib_module_t *self)
     }
     items = g_list_next(items);
   }
-  
+
   if (change)
   {
     dt_masks_write_forms(darktable.develop);
@@ -378,9 +378,9 @@ static void _tree_exclusion(GtkButton *button, dt_lib_module_t *self)
           {
             if (!(pt->state & DT_MASKS_STATE_EXCLUSION))
             {
-              if (pt->state & DT_MASKS_STATE_DIFFERENCE) pt->state &= DT_MASKS_STATE_DIFFERENCE;
-              else if (pt->state & DT_MASKS_STATE_INTERSECTION) pt->state &= DT_MASKS_STATE_INTERSECTION;
-              else if (pt->state & DT_MASKS_STATE_UNION) pt->state &= DT_MASKS_STATE_UNION;
+              if (pt->state & DT_MASKS_STATE_DIFFERENCE) pt->state &= ~DT_MASKS_STATE_DIFFERENCE;
+              else if (pt->state & DT_MASKS_STATE_INTERSECTION) pt->state &= ~DT_MASKS_STATE_INTERSECTION;
+              else if (pt->state & DT_MASKS_STATE_UNION) pt->state &= ~DT_MASKS_STATE_UNION;
               pt->state |= DT_MASKS_STATE_EXCLUSION;
               dt_masks_form_t *f = dt_masks_get_from_id(darktable.develop,id);
               if (f)
@@ -445,9 +445,9 @@ static void _tree_union(GtkButton *button, dt_lib_module_t *self)
           {
             if (!(pt->state & DT_MASKS_STATE_UNION))
             {
-              if (pt->state & DT_MASKS_STATE_DIFFERENCE) pt->state &= DT_MASKS_STATE_DIFFERENCE;
-              else if (pt->state & DT_MASKS_STATE_INTERSECTION) pt->state &= DT_MASKS_STATE_INTERSECTION;
-              else if (pt->state & DT_MASKS_STATE_EXCLUSION) pt->state &= DT_MASKS_STATE_EXCLUSION;
+              if (pt->state & DT_MASKS_STATE_DIFFERENCE) pt->state &= ~DT_MASKS_STATE_DIFFERENCE;
+              else if (pt->state & DT_MASKS_STATE_INTERSECTION) pt->state &= ~DT_MASKS_STATE_INTERSECTION;
+              else if (pt->state & DT_MASKS_STATE_EXCLUSION) pt->state &= ~DT_MASKS_STATE_EXCLUSION;
               pt->state |= DT_MASKS_STATE_UNION;
               dt_masks_form_t *f = dt_masks_get_from_id(darktable.develop,id);
               if (f)
@@ -791,7 +791,7 @@ static int _tree_button_pressed (GtkWidget *treeview, GdkEventButton *event, dt_
         item = gtk_menu_item_new_with_label(_("mode : union"));
         g_signal_connect(item, "activate",(GCallback) _tree_union, self);
         gtk_menu_append(menu, item);
-        item = gtk_menu_item_new_with_label(_("mode : inteersection"));
+        item = gtk_menu_item_new_with_label(_("mode : intersection"));
         g_signal_connect(item, "activate",(GCallback) _tree_intersection, self);
         gtk_menu_append(menu, item);
         item = gtk_menu_item_new_with_label(_("mode : difference"));
@@ -855,7 +855,7 @@ static gboolean _tree_restrict_select (GtkTreeSelection *selection, GtkTreeModel
   return TRUE;
 }
 
-static void _lib_masks_list_recurs(GtkTreeStore *treestore, GtkTreeIter *toplevel, dt_masks_form_t *form, int grp_id, dt_masks_states_t gstate)
+static void _lib_masks_list_recurs(GtkTreeStore *treestore, GtkTreeIter *toplevel, dt_masks_form_t *form, int grp_id, int gstate)
 {
   if (form->type & DT_MASKS_CLONE) return;
   //we create the text entry

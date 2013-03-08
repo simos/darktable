@@ -36,22 +36,17 @@ typedef enum dt_masks_type_t
   DT_MASKS_CURVE = 2,
   DT_MASKS_GROUP = 4,
   DT_MASKS_CLONE = 8
-
 }
 dt_masks_type_t;
 
-typedef enum dt_masks_states_t
-{
-  DT_MASKS_STATE_NONE  = 0,
-  DT_MASKS_STATE_USE   = 1,
-  DT_MASKS_STATE_SHOW  = 2,
-  DT_MASKS_STATE_INVERSE = 4,
-  DT_MASKS_STATE_UNION = 8,
-  DT_MASKS_STATE_INTERSECTION = 16,
-  DT_MASKS_STATE_DIFFERENCE = 32,
-  DT_MASKS_STATE_EXCLUSION = 64
-}
-dt_masks_states_t;
+#define	DT_MASKS_STATE_NONE 0
+#define	DT_MASKS_STATE_USE 1
+#define	DT_MASKS_STATE_SHOW 2
+#define	DT_MASKS_STATE_INVERSE 4
+#define	DT_MASKS_STATE_UNION 8
+#define	DT_MASKS_STATE_INTERSECTION 16
+#define	DT_MASKS_STATE_DIFFERENCE 32
+#define	DT_MASKS_STATE_EXCLUSION 64
 
 typedef enum dt_masks_points_states_t
 {
@@ -84,7 +79,7 @@ dt_masks_point_curve_t;
 typedef struct dt_masks_point_group_t
 {
   int formid;
-  dt_masks_states_t state;
+  int state;
   float opacity;
 }
 dt_masks_point_group_t;

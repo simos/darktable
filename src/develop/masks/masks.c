@@ -1000,7 +1000,7 @@ int dt_masks_group_get_hash_buffer_length(dt_masks_form_t *form)
       if (f)
       {
         //state & opacity
-        pos += sizeof(dt_masks_states_t);
+        pos += sizeof(int);
         pos += sizeof(float);
         //the form itself
         pos += dt_masks_group_get_hash_buffer_length(f);
@@ -1043,8 +1043,8 @@ char *dt_masks_group_get_hash_buffer(dt_masks_form_t *form, char *str)
       if (f)
       {
         //state & opacity
-        memcpy(str+pos, &grpt->state, sizeof(dt_masks_states_t));
-        pos += sizeof(dt_masks_states_t);
+        memcpy(str+pos, &grpt->state, sizeof(int));
+        pos += sizeof(int);
         memcpy(str+pos, &grpt->opacity, sizeof(float));
         pos += sizeof(float);
         //the form itself

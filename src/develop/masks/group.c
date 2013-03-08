@@ -162,6 +162,7 @@ static int dt_group_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *pi
   int px[nb];
   int py[nb];
   int ok[nb];
+  int states[nb];
   float op[nb];
   
   //and we get all masks
@@ -176,6 +177,7 @@ static int dt_group_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *pi
     {
       ok[pos] = dt_masks_get_mask(module,piece,sel,&bufs[pos],&w[pos],&h[pos],&px[pos],&py[pos]);
       op[pos] = fpt->opacity;
+      states[pos] = fpt->state;
       if (ok[pos]) nb_ok++;
     }
     fpts = g_list_next(fpts);
@@ -205,11 +207,65 @@ static int dt_group_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *pi
   //and we copy each buffer inside, row by row
   for (int i=0; i<nb; i++)
   {
-    for (int y=0; y<h[i]; y++)
+    if (states[i] & DT_MASKS_STATE_UNION)
     {
-      for (int x=0; x<w[i]; x++)
+      for (int y=0; y<h[i]; y++)
       {
-        (*buffer)[(py[i]+y-t)*(r-l)+px[i]+x-l] = fmaxf((*buffer)[(py[i]+y-t)*(r-l)+px[i]+x-l],bufs[i][y*w[i]+x]*op[i]);
+        for (int x=0; x<w[i]; x++)
+        {
+          (*buffer)[(py[i]+y-t)*(r-l)+px[i]+x-l] = fmaxf((*buffer)[(py[i]+y-t)*(r-l)+px[i]+x-l],bufs[i][y*w[i]+x]*op[i]);
+        }
+      }
+    }
+    else if (states[i] & DT_MASKS_STATE_INTERSECTION)
+    {
+      for (int y=0; y<b-t; y++)
+      {
+        for (int x=0; x<r-l; x++)
+        {
+          float b1 = (*buffer)[y*(r-l)+x];
+          float b2 = 0.0f;
+          if (y+t-py[i]>=0 && y+t-py[i]<h[i] && x+l-px[i]>=0 && x+l-px[i]<w[i]) b2 = bufs[i][(y+t-py[i])*w[i]+x+l-px[i]];
+          if (b1>0.0f && b2>0.0f) (*buffer)[y*(r-l)+x] = fminf(b1,b2*op[i]);
+          else (*buffer)[y*(r-l)+x] = 0.0f;
+        }
+      }
+    }
+    else if (states[i] & DT_MASKS_STATE_DIFFERENCE)
+    {
+      for (int y=0; y<h[i]; y++)
+      {
+        for (int x=0; x<w[i]; x++)
+        {
+          float b1 = (*buffer)[(py[i]+y-t)*(r-l)+px[i]+x-l];
+          float b2 = bufs[i][y*w[i]+x]*op[i];
+          if (b1>0.0f && b2>0.0f) (*buffer)[(py[i]+y-t)*(r-l)+px[i]+x-l] = b1*(1.0f-b2);
+        }
+      }
+    }
+    else if (states[i] & DT_MASKS_STATE_EXCLUSION)
+    {
+      for (int y=0; y<h[i]; y++)
+      {
+        for (int x=0; x<w[i]; x++)
+        {
+          float b1 = (*buffer)[(py[i]+y-t)*(r-l)+px[i]+x-l];
+          float b2 = bufs[i][y*w[i]+x]*op[i];
+          if (b1>0.0f && b2>0.0f) (*buffer)[(py[i]+y-t)*(r-l)+px[i]+x-l] = fmaxf((1.0f-b1)*b2,b1*(1.0f-b2));
+          else (*buffer)[(py[i]+y-t)*(r-l)+px[i]+x-l] = fmaxf((*buffer)[(py[i]+y-t)*(r-l)+px[i]+x-l],bufs[i][y*w[i]+x]*op[i]);
+        }
+      }
+    }
+    else //if we are here, this mean that we just have to copy the shape and null other parts
+    {
+      for (int y=0; y<b-t; y++)
+      {
+        for (int x=0; x<r-l; x++)
+        {
+          float b2 = 0.0f;
+          if (y+t-py[i]>=0 && y+t-py[i]<h[i] && x+l-px[i]>=0 && x+l-px[i]<w[i]) b2 = bufs[i][(y+t-py[i])*w[i]+x+l-px[i]];
+          (*buffer)[y*(r-l)+x] = b2*op[i];
+        }
       }
     }
   }
@@ -217,102 +273,46 @@ static int dt_group_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *pi
   return 1;
 }
 
-int dt_masks_group_render(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *grp, float **buffer, int *roi, float scale)
+int dt_masks_group_render(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, float **buffer, int *roi, float scale)
 {
-  if (!grp || !(grp->type&DT_MASKS_GROUP)) return 0;
+  if (!form) return 0;
   float *mask = *buffer;
   //we first reset the buffer to 0
   memset(mask,0,roi[2]*roi[3]*sizeof(float));
   
-  //and we apply all the masks
-  GList *forms = g_list_first(grp->points);
-  while (forms)
+  //we get the mask
+  float *fm = NULL;
+  int fx,fy,fw,fh;
+  if (!dt_masks_get_mask(module,piece,form,&fm,&fw,&fh,&fx,&fy))
   {
-    dt_masks_point_group_t *grpt = (dt_masks_point_group_t *)forms->data;
-    dt_masks_form_t *form = dt_masks_get_from_id(darktable.develop,grpt->formid);
-    if (!form || !(grpt->state & DT_MASKS_STATE_USE) || grpt->opacity <= 0.0f)
-    {
-      forms = g_list_next(forms);
-      continue;
-    }
-      
-    //we get the mask
-    float *fm = NULL;
-    int fx,fy,fw,fh;
-    if (!dt_masks_get_mask(module,piece,form,&fm,&fw,&fh,&fx,&fy))
-    {
-      forms = g_list_next(forms);
-      continue;
-    }
-    //we don't want row which are outisde the roi_out
-    int fxx = fx*scale+1;
-    int fww = fw*scale-1;
-    int fyy = fy*scale+1;
-    int fhh = fh*scale-1;
-    if (fxx>roi[0]+roi[2])
-    {
-      forms = g_list_next(forms);
-      continue;
-    }
-    if (fxx<roi[0]) fww += fxx-roi[0], fxx=roi[0];
-    if (fww+fxx>=roi[0]+roi[2]) fww = roi[0]+roi[2]-fxx-1;
-    //we apply the mask row by row
-    if (grpt->state & DT_MASKS_STATE_INVERSE)
-    {
-      //zone upper the shape
-      for (int yy=roi[1]; yy<fyy; yy++)
-      {
-        for (int xx=0; xx<roi[2]; xx++)
-        {
-          mask[(yy-roi[1])*roi[2]+xx] = fmaxf(mask[(yy-roi[1])*roi[2]+xx],grpt->opacity);
-        }
-      }
-      //shape zone
-      for (int yy=fyy; yy<fyy+fhh; yy++)
-      {
-        if (yy<roi[1] || yy>=roi[1]+roi[3]) continue;
-        for (int xx=roi[0]; xx<fxx; xx++)
-        {
-          mask[(yy-roi[1])*roi[2]+xx-roi[0]] = fmaxf(mask[(yy-roi[1])*roi[2]+xx-roi[0]],grpt->opacity);
-        }
-        for (int xx=fxx; xx<fxx+fww; xx++)
-        {
-          int a = (yy/scale-fy);
-          int b = (xx/scale);
-          mask[(yy-roi[1])*roi[2]+xx-roi[0]] = 1.0f-fm[a*fw+b-fx]*grpt->opacity;
-        }
-        for (int xx=fxx+fww; xx<roi[0]+roi[2]; xx++)
-        {
-          mask[(yy-roi[1])*roi[2]+xx-roi[0]] = fmaxf(mask[(yy-roi[1])*roi[2]+xx-roi[0]],grpt->opacity);
-        }
-      }
-      //zone under the shape
-      for (int yy=fyy+fhh; yy<roi[1]+roi[3]; yy++)
-      {
-        for (int xx=0; xx<roi[2]; xx++)
-        {
-          mask[(yy-roi[1])*roi[2]+xx] = fmaxf(mask[(yy-roi[1])*roi[2]+xx],grpt->opacity);
-        }
-      }
-    }
-    else
-    {
-      for (int yy=fyy; yy<fyy+fhh; yy++)
-      {
-        if (yy<roi[1] || yy>=roi[1]+roi[3]) continue;
-        for (int xx=fxx; xx<fxx+fww; xx++)
-        {
-          int a = (yy/scale-fy);
-          int b = (xx/scale);
-          mask[(yy-roi[1])*roi[2]+xx-roi[0]] = fmaxf(mask[(yy-roi[1])*roi[2]+xx-roi[0]],fm[a*fw+b-fx]*grpt->opacity);
-        }
-      }
-    }
-    
-    //we free the mask
-    free(fm);
-    forms = g_list_next(forms);
+    return 0;
   }
+  //we don't want row which are outisde the roi_out
+  int fxx = fx*scale+1;
+  int fww = fw*scale-1;
+  int fyy = fy*scale+1;
+  int fhh = fh*scale-1;
+  if (fxx>roi[0]+roi[2])
+  {
+    return 1;
+  }
+  if (fxx<roi[0]) fww += fxx-roi[0], fxx=roi[0];
+  if (fww+fxx>=roi[0]+roi[2]) fww = roi[0]+roi[2]-fxx-1;
+  //we apply the mask row by row
+    for (int yy=fyy; yy<fyy+fhh; yy++)
+    {
+      if (yy<roi[1] || yy>=roi[1]+roi[3]) continue;
+      for (int xx=fxx; xx<fxx+fww; xx++)
+      {
+        int a = (yy/scale-fy);
+        int b = (xx/scale);
+        mask[(yy-roi[1])*roi[2]+xx-roi[0]] = fmaxf(mask[(yy-roi[1])*roi[2]+xx-roi[0]],fm[a*fw+b-fx]);
+      }
+    }
+  
+  //we free the mask
+  free(fm);
+
   return 1;
 }
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
