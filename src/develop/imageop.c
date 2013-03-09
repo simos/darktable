@@ -665,7 +665,7 @@ int dt_iop_load_module_so(dt_iop_module_so_t *module, const char *libname, const
   if(!g_module_symbol(module->module, "process_tiling_cl",      (gpointer)&(module->process_tiling_cl)))      module->process_tiling_cl = darktable.opencl->inited ? default_process_tiling_cl : NULL;
   if(!g_module_symbol(module->module, "distort_transform",      (gpointer)&(module->distort_transform)))      module->distort_transform = default_distort_transform;
   if(!g_module_symbol(module->module, "distort_backtransform",  (gpointer)&(module->distort_backtransform)))  module->distort_backtransform = default_distort_backtransform;
-  
+
   if(!g_module_symbol(module->module, "modify_roi_in",          (gpointer)&(module->modify_roi_in)))          module->modify_roi_in = dt_iop_modify_roi_in;
   if(!g_module_symbol(module->module, "modify_roi_out",         (gpointer)&(module->modify_roi_out)))         module->modify_roi_out = dt_iop_modify_roi_out;
   if(!g_module_symbol(module->module, "legacy_params",          (gpointer)&(module->legacy_params)))          module->legacy_params = NULL;
@@ -790,6 +790,11 @@ dt_iop_load_module_by_so(dt_iop_module_t *module, dt_iop_module_so_t *so, dt_dev
   {
     fprintf(stderr, "[iop_load_module] `%s' needs to set priority!\n", so->op);
     return 1;      // this needs to be set
+  }
+  if(module->params_size == 0)
+  {
+    fprintf(stderr, "[iop_load_module] `%s' needs to have a params size > 0!\n", so->op);
+    return 1;      // empty params hurt us in many places, just add a dummy value
   }
   module->enabled = module->default_enabled; // apply (possibly new) default.
   return 0;
@@ -1074,7 +1079,7 @@ dt_iop_gui_duplicate_callback(GtkButton *button, gpointer user_data)
   {
     module->gui_init(module);
     dt_iop_reload_defaults(module);
-    
+
     /* update ui to default params*/
     dt_iop_gui_update(module);
     /* add module to right panel */
@@ -1087,7 +1092,7 @@ dt_iop_gui_duplicate_callback(GtkButton *button, gpointer user_data)
     gtk_box_reorder_child (dt_ui_get_container(darktable.gui->ui, DT_UI_CONTAINER_PANEL_RIGHT_CENTER),expander,g_value_get_int(&gv)+pos_base-pos_module);
     dt_iop_gui_set_expanded(module, TRUE);
     dt_iop_gui_update_blending(module);
-    
+
   }
 
   /* setup key accelerators */
@@ -1102,15 +1107,13 @@ dt_iop_gui_duplicate_callback(GtkButton *button, gpointer user_data)
 
   //and we refresh the pipe
   dt_iop_request_focus(module);
-  
+
   if(module->dev->gui_attached)
   {
     module->dev->pipe->changed |= DT_DEV_PIPE_REMOVE;
     module->dev->preview_pipe->changed |= DT_DEV_PIPE_REMOVE;
     module->dev->pipe->cache_obsolete = 1;
     module->dev->preview_pipe->cache_obsolete = 1;
-
-    //dt_similarity_image_dirty(dev->image_storage.id);
 
     // invalidate buffers and force redraw of darkroom
     dt_dev_invalidate_all(module->dev);
@@ -1292,6 +1295,12 @@ init_presets(dt_iop_module_so_t *module_so)
       }
 
       module->init(module);
+      if(module->params_size == 0)
+      {
+        dt_iop_cleanup_module(module);
+        free(module);
+        continue;
+      }
       int32_t new_params_size = module->params_size;
       void *new_params = malloc(new_params_size);
 
@@ -1341,6 +1350,12 @@ init_presets(dt_iop_module_so_t *module_so)
       }
 
       module->init(module);
+      if(module->params_size == 0)
+      {
+        dt_iop_cleanup_module(module);
+        free(module);
+        continue;
+      }
       void *new_blend_params = malloc(sizeof(dt_develop_blend_params_t));
 
       // convert the old blend params to new
@@ -1549,10 +1564,10 @@ void dt_iop_commit_params(dt_iop_module_t *module, dt_iop_params_t *params, dt_d
     {
       memcpy(str+module->params_size, blendop_params, sizeof(dt_develop_blend_params_t));
       pos += sizeof(dt_develop_blend_params_t);
-      memcpy(piece->blendop_data, blendop_params, sizeof(dt_develop_blend_params_t));
-      // this should be redundant! (but is not)
-      memcpy(module->blend_params, blendop_params, sizeof(dt_develop_blend_params_t));
     }
+    memcpy(piece->blendop_data, blendop_params, sizeof(dt_develop_blend_params_t));
+    // this should be redundant! (but is not)
+    memcpy(module->blend_params, blendop_params, sizeof(dt_develop_blend_params_t));
     /* and we add masks */
     dt_masks_group_get_hash_buffer(grp,str+pos);
     
@@ -1967,6 +1982,7 @@ GtkWidget *dt_iop_gui_get_expander(dt_iop_module_t *module)
   char label[128];
   g_snprintf(label,128,"<span size=\"larger\">%s</span> %s",module->name(),module->multi_name);
   hw[idx] = gtk_label_new("");
+  gtk_widget_set_name(hw[idx], "panel_label");
   gtk_label_set_markup(GTK_LABEL(hw[idx++]),label);
 
   /* add multi instaces menu button */

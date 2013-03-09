@@ -19,6 +19,7 @@
 #include "common/darktable.h"
 #include "develop/develop.h"
 #include "control/control.h"
+#include "common/history.h"
 #include "common/imageio.h"
 #include "common/image_cache.h"
 #include "common/file_location.h"
@@ -102,8 +103,49 @@ dt_styles_create_style_header(const char *name, const char *description)
   return TRUE;
 }
 
+static void _dt_style_update_from_image(int id, int imgid, GList *filter, GList *update)
+{
+  if (update && imgid!=-1)
+  {
+    GList *list=filter;
+    GList *upd=update;
+    char query[4096] = {0};
+    char tmp[500];
+    char *fields[] = {"op_params", "module", "enabled", "blendop_params", "blendop_version", "multi_priority", "multi_name", 0};
+    do
+    {
+      query[0] = '\0';
+
+      // included and update set, we then need to update the corresponding style item
+      if ((glong)upd->data!=-1 && (glong)list->data!=-1)
+      {
+        strcpy(query, "update style_items set ");
+
+        for (int k=0; fields[k]; k++)
+        {
+          if (k!=0) strcat(query, ",");
+          sprintf(tmp, "%s=(select %s from history where imgid=%d and num=%ld)", fields[k], fields[k], imgid, (glong)upd->data);
+          strcat(query, tmp);
+        }
+        sprintf(tmp, " where styleid=%d and style_items.num=%ld", id, (glong)list->data);
+        strcat(query, tmp);
+      }
+      // update only, so we want to insert the new style item
+      else if ((glong)upd->data!=-1)
+        sprintf(query,"insert into style_items (styleid,num,module,operation,op_params,enabled,blendop_params,blendop_version,multi_priority,multi_name) select %d,(select num+1 from style_items where styleid=%d order by num desc limit 1),module,operation,op_params,enabled,blendop_params,blendop_version,multi_priority,multi_name from history where imgid=%d and num=%ld",id,id,imgid,(glong)upd->data);
+
+      if (*query)
+        DT_DEBUG_SQLITE3_EXEC(dt_database_get(darktable.db), query, NULL, NULL, NULL);
+
+      list=g_list_next(list);
+      upd=g_list_next(upd);
+    }
+    while (list);
+  }
+}
+
 void
-dt_styles_update (const char *name, const char *newname, const char *newdescription, GList *filter)
+dt_styles_update (const char *name, const char *newname, const char *newdescription, GList *filter, int imgid, GList *update)
 {
   sqlite3_stmt *stmt;
   int id=0;
@@ -134,7 +176,7 @@ dt_styles_update (const char *name, const char *newname, const char *newdescript
     {
       if(list!=g_list_first(list))
         g_strlcat(include, ",", 2048);
-      sprintf(tmp, "%ld", (long int)list->data);
+      sprintf(tmp, "%ld", (glong)list->data);
       g_strlcat(include, tmp, 2048);
     }
     while ((list=g_list_next(list)));
@@ -147,6 +189,8 @@ dt_styles_update (const char *name, const char *newname, const char *newdescript
     sqlite3_step(stmt);
     sqlite3_finalize(stmt);
   }
+
+  _dt_style_update_from_image(id,imgid,filter,update);
 
   /* backup style to disk */
   char stylesdir[1024];
@@ -179,7 +223,7 @@ dt_styles_update (const char *name, const char *newname, const char *newdescript
 
 
 void
-dt_styles_create_from_style (const char *name, const char *newname, const char *description, GList *filter)
+dt_styles_create_from_style (const char *name, const char *newname, const char *description, GList *filter, int imgid, GList *update)
 {
   sqlite3_stmt *stmt;
   int id=0;
@@ -203,7 +247,7 @@ dt_styles_create_from_style (const char *name, const char *newname, const char *
       {
         if(list!=g_list_first(list))
           g_strlcat(include,",", 2048);
-        sprintf(tmp,"%ld",(long int)list->data);
+        sprintf(tmp,"%ld",(glong)list->data);
         g_strlcat(include,tmp, 2048);
       }
       while ((list=g_list_next(list)));
@@ -219,6 +263,10 @@ dt_styles_create_from_style (const char *name, const char *newname, const char *
     DT_DEBUG_SQLITE3_BIND_INT(stmt, 2, oldid);
     sqlite3_step (stmt);
     sqlite3_finalize (stmt);
+
+    /* insert items from imgid if defined */
+
+    _dt_style_update_from_image(id,imgid,filter,update);
 
     /* backup style to disk */
     char stylesdir[1024];
@@ -263,7 +311,7 @@ dt_styles_create_from_image (const char *name,const char *description,int32_t im
       {
         if(list!=g_list_first(list))
           g_strlcat(include,",", 2048);
-        sprintf(tmp,"%ld",(long int)list->data);
+        sprintf(tmp,"%ld",(glong)list->data);
         g_strlcat(include,tmp, 2048);
       }
       while ((list=g_list_next(list)));
@@ -343,12 +391,18 @@ dt_styles_apply_to_image(const char *name,gboolean duplicate, int32_t imgid)
 {
   int id=0;
   sqlite3_stmt *stmt;
+  int32_t newimgid;
 
   if ((id=dt_styles_get_id_by_name(name)) != 0)
   {
     /* check if we should make a duplicate before applying style */
     if (duplicate)
-      imgid = dt_image_duplicate (imgid);
+    {
+      newimgid = dt_image_duplicate (imgid);
+      if(newimgid != -1) dt_history_copy_and_paste_on_image(imgid, newimgid, FALSE, NULL);
+    }
+    else
+      newimgid = imgid;
 
     /* if merge onto history stack, lets find history offest in destination image */
     int32_t offs = 0;
@@ -356,7 +410,7 @@ dt_styles_apply_to_image(const char *name,gboolean duplicate, int32_t imgid)
     {
       /* apply on top of history stack */
       DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db), "select count(num) from history where imgid = ?1", -1, &stmt, NULL);
-      DT_DEBUG_SQLITE3_BIND_INT(stmt, 1, imgid);
+      DT_DEBUG_SQLITE3_BIND_INT(stmt, 1, newimgid);
       if (sqlite3_step (stmt) == SQLITE_ROW) offs = sqlite3_column_int (stmt, 0);
     }
 #else
@@ -371,7 +425,7 @@ dt_styles_apply_to_image(const char *name,gboolean duplicate, int32_t imgid)
 
     /* copy history items from styles onto image */
     DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db), "insert into history (imgid,num,module,operation,op_params,enabled,blendop_params,blendop_version,multi_priority,multi_name) select ?1, num+?2,module,operation,op_params,enabled,blendop_params,blendop_version,multi_priority,multi_name from style_items where styleid=?3", -1, &stmt, NULL);
-    DT_DEBUG_SQLITE3_BIND_INT(stmt, 1, imgid);
+    DT_DEBUG_SQLITE3_BIND_INT(stmt, 1, newimgid);
     DT_DEBUG_SQLITE3_BIND_INT(stmt, 2, offs);
     DT_DEBUG_SQLITE3_BIND_INT(stmt, 3, id);
     sqlite3_step (stmt);
@@ -382,20 +436,20 @@ dt_styles_apply_to_image(const char *name,gboolean duplicate, int32_t imgid)
     gchar ntag[512]= {0};
     g_snprintf(ntag,512,"darktable|style|%s",name);
     if (dt_tag_new(ntag,&tagid))
-      dt_tag_attach(tagid,imgid);
+      dt_tag_attach(tagid,newimgid);
 
     /* if current image in develop reload history */
-    if (dt_dev_is_current_image(darktable.develop, imgid))
+    if (dt_dev_is_current_image(darktable.develop, newimgid))
     {
       dt_dev_reload_history_items (darktable.develop);
       dt_dev_modulegroups_set(darktable.develop, dt_dev_modulegroups_get(darktable.develop));
     }
 
     /* update xmp file */
-    dt_image_synch_xmp(imgid);
+    dt_image_synch_xmp(newimgid);
 
     /* remove old obsolete thumbnails */
-    dt_mipmap_cache_remove(darktable.mipmap_cache, imgid);
+    dt_mipmap_cache_remove(darktable.mipmap_cache, newimgid);
 
     /* redraw center view to update visible mipmaps */
     dt_control_queue_redraw_center();
@@ -428,7 +482,7 @@ dt_styles_delete_by_name(const char *name)
 }
 
 GList *
-dt_styles_get_item_list (const char *name, gboolean params)
+dt_styles_get_item_list (const char *name, gboolean params, int imgid)
 {
   GList *result=NULL;
   sqlite3_stmt *stmt;
@@ -437,6 +491,14 @@ dt_styles_get_item_list (const char *name, gboolean params)
   {
     if (params)
       DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db), "select num, operation, enabled, op_params, blendop_params from style_items where styleid=?1 order by num desc", -1, &stmt, NULL);
+    else if (imgid != -1)
+    {
+      // get all items from the style
+      //    UNION
+      // get all items from history, not in the style : select only the last operation, that is max(num)
+      DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db), "select num, operation, enabled, (select num from history where imgid=?2 and operation=style_items.operation order by num desc limit 1) from style_items where styleid=?1 UNION select -1,history.operation,history.enabled,history.num from history where imgid=?2 and history.enabled=1 and history.operation not in (select operation from style_items where styleid=?1) group by operation having max(num) order by num desc", -1, &stmt, NULL);
+      DT_DEBUG_SQLITE3_BIND_INT(stmt, 2, imgid);
+    }
     else
       DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db), "select num, operation, enabled from style_items where styleid=?1 order by num desc", -1, &stmt, NULL);
 
@@ -445,7 +507,13 @@ dt_styles_get_item_list (const char *name, gboolean params)
     {
       char name[512]= {0};
       dt_style_item_t *item=g_malloc (sizeof (dt_style_item_t));
-      item->num = sqlite3_column_int (stmt, 0);
+
+      if (sqlite3_column_type(stmt,0)==SQLITE_NULL)
+        item->num = -1;
+      else
+        item->num = sqlite3_column_int (stmt, 0);
+
+      item->selimg_num = -1;
 
       if (params)
       {
@@ -469,6 +537,8 @@ dt_styles_get_item_list (const char *name, gboolean params)
         g_snprintf(name,512,"%s (%s)",dt_iop_get_localized_name((gchar *)sqlite3_column_text (stmt, 1)),(sqlite3_column_int (stmt, 2)!=0)?_("on"):_("off"));
         item->params = NULL;
         item->blendop_params = NULL;
+        if (imgid != -1 && sqlite3_column_type(stmt,3)!=SQLITE_NULL)
+          item->selimg_num = sqlite3_column_int (stmt, 3);
       }
       item->name = g_strdup (name);
       result = g_list_append (result,item);
@@ -481,7 +551,7 @@ dt_styles_get_item_list (const char *name, gboolean params)
 char *
 dt_styles_get_item_list_as_string(const char *name)
 {
-  GList *items = dt_styles_get_item_list(name, FALSE);
+  GList *items = dt_styles_get_item_list(name, FALSE, -1);
   if (items)
   {
     GList* names = NULL;
