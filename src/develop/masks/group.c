@@ -151,6 +151,41 @@ static void dt_group_events_post_expose(cairo_t *cr,float zoom_scale,dt_masks_fo
   }
 }
 
+static void _inverse_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, float **buffer, int *width, int *height, int *posx, int *posy)
+{
+  //we create a new buffer
+  int wt = piece->iwidth;
+  int ht = piece->iheight;
+  float *buf = malloc(ht*wt*sizeof(float));
+  
+  //we fill this buffer
+  for (int yy=0; yy<*posy; yy++)
+  {
+    for (int xx=0; xx<wt; xx++) buf[yy*wt+xx] = 1.0f;
+  }
+  
+  for (int yy=*posy; yy<(*posy)+(*height); yy++)
+  {
+    for (int xx=0; xx<(*posx); xx++) buf[yy*wt+xx] = 1.0f;
+    for (int xx=(*posx); xx<(*posx)+(*width); xx++) buf[yy*wt+xx] = 1.0f-(*buffer)[(yy-(*posy))*(*width)+xx-(*posx)];
+    for (int xx=(*posx)+(*width); xx<wt; xx++) buf[yy*wt+xx] = 1.0f;
+  }
+  
+  for (int yy=(*posy)+(*height); yy<ht; yy++)
+  {
+    for (int xx=0; xx<wt; xx++) buf[yy*wt+xx] = 1.0f;
+  }
+  
+  //we free the old buffer
+  free(*buffer);
+  (*buffer) = buf;
+  
+  //we return correct values for positions;
+  *posx = *posy = 0;
+  *width = wt;
+  *height = ht;
+}
+
 static int dt_group_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, float **buffer, int *width, int *height, int *posx, int *posy)
 {
   //we allocate buffers and values
@@ -176,6 +211,7 @@ static int dt_group_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *pi
     if (sel)
     {
       ok[pos] = dt_masks_get_mask(module,piece,sel,&bufs[pos],&w[pos],&h[pos],&px[pos],&py[pos]);
+      if (fpt->state & DT_MASKS_STATE_INVERSE) _inverse_mask(module,piece,sel,&bufs[pos],&w[pos],&h[pos],&px[pos],&py[pos]);
       op[pos] = fpt->opacity;
       states[pos] = fpt->state;
       if (ok[pos]) nb_ok++;
