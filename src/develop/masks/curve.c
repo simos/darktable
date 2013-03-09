@@ -1799,9 +1799,9 @@ static void _curve_falloff(float **buffer, int *p0, int *p1, int posx, int posy,
     int x = (int)((float)i*lx/(float)l) + p0[0] - posx;
     int y = (int)((float)i*ly/(float)l) + p0[1] - posy;
     float op = 1.0-(float)i/(float)l;
-    (*buffer)[y*bw+x] = op;
-    if (x > 0) (*buffer)[y*bw+x-1] = op; //this one is to avoid gap due to int rounding
-    if (y > 0) (*buffer)[(y-1)*bw+x] = op;
+    (*buffer)[y*bw+x] = fmaxf((*buffer)[y*bw+x],op);
+    if (x > 0) (*buffer)[y*bw+x-1] = fmaxf((*buffer)[y*bw+x-1],op); //this one is to avoid gap due to int rounding
+    if (y > 0) (*buffer)[(y-1)*bw+x] = fmaxf((*buffer)[(y-1)*bw+x],op);
   }
 }
 
