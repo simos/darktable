@@ -31,8 +31,8 @@ static int dt_group_events_mouse_scrolled(struct dt_iop_module_t *module, float 
     dt_masks_point_group_t *fpt = (dt_masks_point_group_t *)g_list_nth_data(form->points,gui->group_edited);
     dt_masks_form_t *sel = dt_masks_get_from_id(darktable.develop,fpt->formid);
     if (!sel) return 0;
-    if (sel->type & DT_MASKS_CIRCLE) return dt_circle_events_mouse_scrolled(module,pzx,pzy,up,state,sel,gui,gui->group_edited);
-    else if (sel->type & DT_MASKS_CURVE) return dt_curve_events_mouse_scrolled(module,pzx,pzy,up,state,sel,gui,gui->group_edited);
+    if (sel->type & DT_MASKS_CIRCLE) return dt_circle_events_mouse_scrolled(module,pzx,pzy,up,state,sel,fpt->parentid,gui,gui->group_edited);
+    else if (sel->type & DT_MASKS_CURVE) return dt_curve_events_mouse_scrolled(module,pzx,pzy,up,state,sel,fpt->parentid,gui,gui->group_edited);
   }
   return 0;
 }
@@ -59,8 +59,8 @@ static int dt_group_events_button_pressed(struct dt_iop_module_t *module,float p
     dt_masks_point_group_t *fpt = (dt_masks_point_group_t *)g_list_nth_data(form->points,gui->group_edited);
     dt_masks_form_t *sel = dt_masks_get_from_id(darktable.develop,fpt->formid);
     if (!sel) return 0;
-    if (sel->type & DT_MASKS_CIRCLE) return dt_circle_events_button_pressed(module,pzx,pzy,which,type,state,sel,gui,gui->group_edited);
-    else if (sel->type & DT_MASKS_CURVE) return dt_curve_events_button_pressed(module,pzx,pzy,which,type,state,sel,gui,gui->group_edited);
+    if (sel->type & DT_MASKS_CIRCLE) return dt_circle_events_button_pressed(module,pzx,pzy,which,type,state,sel,fpt->parentid,gui,gui->group_edited);
+    else if (sel->type & DT_MASKS_CURVE) return dt_curve_events_button_pressed(module,pzx,pzy,which,type,state,sel,fpt->parentid,gui,gui->group_edited);
   }
   return 0;
 }
@@ -74,8 +74,8 @@ static int dt_group_events_button_released(struct dt_iop_module_t *module,float 
     dt_masks_point_group_t *fpt = (dt_masks_point_group_t *)g_list_nth_data(form->points,gui->group_edited);
     dt_masks_form_t *sel = dt_masks_get_from_id(darktable.develop,fpt->formid);
     if (!sel) return 0;
-    if (sel->type & DT_MASKS_CIRCLE) return dt_circle_events_button_released(module,pzx,pzy,which,state,sel,gui,gui->group_edited);
-    else if (sel->type & DT_MASKS_CURVE) return dt_curve_events_button_released(module,pzx,pzy,which,state,sel,gui,gui->group_edited);
+    if (sel->type & DT_MASKS_CIRCLE) return dt_circle_events_button_released(module,pzx,pzy,which,state,sel,fpt->parentid,gui,gui->group_edited);
+    else if (sel->type & DT_MASKS_CURVE) return dt_curve_events_button_released(module,pzx,pzy,which,state,sel,fpt->parentid,gui,gui->group_edited);
   }
   return 0;
 }
@@ -96,8 +96,8 @@ static int dt_group_events_mouse_moved(struct dt_iop_module_t *module,float pzx,
     dt_masks_form_t *sel = dt_masks_get_from_id(darktable.develop,fpt->formid);
     if (!sel) return 0;
     int rep = 0;
-    if (sel->type & DT_MASKS_CIRCLE) rep = dt_circle_events_mouse_moved(module,pzx,pzy,which,sel,gui,gui->group_edited);
-    else if (sel->type & DT_MASKS_CURVE) rep = dt_curve_events_mouse_moved(module,pzx,pzy,which,sel,gui,gui->group_edited);
+    if (sel->type & DT_MASKS_CIRCLE) rep = dt_circle_events_mouse_moved(module,pzx,pzy,which,sel,fpt->parentid,gui,gui->group_edited);
+    else if (sel->type & DT_MASKS_CURVE) rep = dt_curve_events_mouse_moved(module,pzx,pzy,which,sel,fpt->parentid,gui,gui->group_edited);
     if (rep) return 1;
     //if a point is in state editing, then we don't want that another form can be selected
     if (gui->point_edited >= 0) return 0;
@@ -126,8 +126,8 @@ static int dt_group_events_mouse_moved(struct dt_iop_module_t *module,float pzx,
     if (inside || inside_border || near>=0 || inside_source)
     {
       gui->group_edited = gui->group_selected = pos;
-      if (sel->type & DT_MASKS_CIRCLE) return dt_circle_events_mouse_moved(module,pzx,pzy,which,sel,gui,pos);
-      else if (sel->type & DT_MASKS_CURVE) return dt_curve_events_mouse_moved(module,pzx,pzy,which,sel,gui,pos);
+      if (sel->type & DT_MASKS_CIRCLE) return dt_circle_events_mouse_moved(module,pzx,pzy,which,sel,fpt->parentid,gui,pos);
+      else if (sel->type & DT_MASKS_CURVE) return dt_curve_events_mouse_moved(module,pzx,pzy,which,sel,fpt->parentid,gui,pos);
     }
     fpts = g_list_next(fpts);
     pos++;

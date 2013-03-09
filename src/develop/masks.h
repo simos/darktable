@@ -79,6 +79,7 @@ dt_masks_point_curve_t;
 typedef struct dt_masks_point_group_t
 {
   int formid;
+  int parentid;
   int state;
   float opacity;
 }
@@ -199,7 +200,7 @@ int dt_masks_group_get_hash_buffer_length(dt_masks_form_t *form);
 char *dt_masks_group_get_hash_buffer(dt_masks_form_t *form, char *str);
 
 void dt_masks_form_remove(struct dt_iop_module_t *module, dt_masks_form_t *grp, dt_masks_form_t *form);
-void dt_masks_form_change_opacity(struct dt_iop_module_t *module, dt_masks_form_t *form, int up);
+void dt_masks_form_change_opacity(dt_masks_form_t *form, int parentid, int up);
 #endif
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
 // vim: shiftwidth=2 expandtab tabstop=2 cindent

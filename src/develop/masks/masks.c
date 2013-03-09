@@ -138,6 +138,7 @@ void dt_masks_gui_form_save_creation(dt_iop_module_t *module, dt_masks_form_t *f
     //we add the form in this group
     dt_masks_point_group_t *grpt = malloc(sizeof(dt_masks_point_group_t));
     grpt->formid = form->formid;
+    grpt->parentid = grpid;
     grpt->state = DT_MASKS_STATE_SHOW | DT_MASKS_STATE_USE;
     if (g_list_length(grp->points)>0) grpt->state |= DT_MASKS_STATE_UNION;
     grpt->opacity = 1.0f;
@@ -461,8 +462,8 @@ int dt_masks_events_mouse_moved (struct dt_iop_module_t *module, double x, doubl
   pzx += 0.5f;
   pzy += 0.5f;
   
-  if (form->type & DT_MASKS_CIRCLE) return dt_circle_events_mouse_moved(module,pzx,pzy,which,form,gui,0);
-  else if (form->type & DT_MASKS_CURVE) return dt_curve_events_mouse_moved(module,pzx,pzy,which,form,gui,0);
+  if (form->type & DT_MASKS_CIRCLE) return dt_circle_events_mouse_moved(module,pzx,pzy,which,form,0,gui,0);
+  else if (form->type & DT_MASKS_CURVE) return dt_curve_events_mouse_moved(module,pzx,pzy,which,form,0,gui,0);
   else if (form->type & DT_MASKS_GROUP) return dt_group_events_mouse_moved(module,pzx,pzy,which,form,gui);
   
   return 0;
@@ -476,8 +477,8 @@ int dt_masks_events_button_released (struct dt_iop_module_t *module, double x, d
   pzx += 0.5f;
   pzy += 0.5f;
   
-  if (form->type & DT_MASKS_CIRCLE) return dt_circle_events_button_released(module,pzx,pzy,which,state,form,gui,0);
-  else if (form->type & DT_MASKS_CURVE) return dt_curve_events_button_released(module,pzx,pzy,which,state,form,gui,0);
+  if (form->type & DT_MASKS_CIRCLE) return dt_circle_events_button_released(module,pzx,pzy,which,state,form,0,gui,0);
+  else if (form->type & DT_MASKS_CURVE) return dt_curve_events_button_released(module,pzx,pzy,which,state,form,0,gui,0);
   else if (form->type & DT_MASKS_GROUP) return dt_group_events_button_released(module,pzx,pzy,which,state,form,gui);
   
   return 0;
@@ -492,8 +493,8 @@ int dt_masks_events_button_pressed (struct dt_iop_module_t *module, double x, do
   pzx += 0.5f;
   pzy += 0.5f;
       
-  if (form->type & DT_MASKS_CIRCLE) return dt_circle_events_button_pressed(module,pzx,pzy,which,type,state,form,gui,0);
-  else if (form->type & DT_MASKS_CURVE) return dt_curve_events_button_pressed(module,pzx,pzy,which,type,state,form,gui,0);
+  if (form->type & DT_MASKS_CIRCLE) return dt_circle_events_button_pressed(module,pzx,pzy,which,type,state,form,0,gui,0);
+  else if (form->type & DT_MASKS_CURVE) return dt_curve_events_button_pressed(module,pzx,pzy,which,type,state,form,0,gui,0);
   else if (form->type & DT_MASKS_GROUP) return dt_group_events_button_pressed(module,pzx,pzy,which,type,state,form,gui);
   
   return 0;
@@ -504,8 +505,8 @@ int dt_masks_events_mouse_scrolled (struct dt_iop_module_t *module, double x, do
   dt_masks_form_t *form = darktable.develop->form_visible;
   dt_masks_form_gui_t *gui = darktable.develop->form_gui;
   
-  if (form->type & DT_MASKS_CIRCLE) return dt_circle_events_mouse_scrolled(module,0.0,0.0,up,state,form,gui,0);
-  else if (form->type & DT_MASKS_CURVE) return dt_curve_events_mouse_scrolled(module,0.0,0.0,up,state,form,gui,0);
+  if (form->type & DT_MASKS_CIRCLE) return dt_circle_events_mouse_scrolled(module,0.0,0.0,up,state,form,0,gui,0);
+  else if (form->type & DT_MASKS_CURVE) return dt_curve_events_mouse_scrolled(module,0.0,0.0,up,state,form,0,gui,0);
   else if (form->type & DT_MASKS_GROUP) return dt_group_events_mouse_scrolled(module,0.0,0.0,up,state,form,gui);
   
   return 0;
@@ -678,6 +679,7 @@ static void _menu_add_exist(GtkButton *button, dt_masks_form_t *form)
   //we add the form in this group
   dt_masks_point_group_t *grpt = malloc(sizeof(dt_masks_point_group_t));
   grpt->formid = form->formid;
+  grpt->parentid = grpid;
   grpt->state = DT_MASKS_STATE_SHOW | DT_MASKS_STATE_USE;
   if (g_list_length(grp->points)>0) grpt->state |= DT_MASKS_STATE_UNION;
   grpt->opacity = 1.0f;
@@ -908,32 +910,20 @@ void dt_masks_form_remove(struct dt_iop_module_t *module, dt_masks_form_t *grp, 
   }
 }
 
-void dt_masks_form_change_opacity(struct dt_iop_module_t *module, dt_masks_form_t *form, int up)
+void dt_masks_form_change_opacity(dt_masks_form_t *form, int parentid, int up)
 {
+  if (!form) return;
+  dt_masks_form_t *grp = dt_masks_get_from_id(darktable.develop,parentid);
+  if (!grp || !(grp->type & DT_MASKS_GROUP)) return;
+  
   //we first need to test if the opacity can be set to the form
   if (form->type & DT_MASKS_GROUP) return;
   int id = form->formid;
   float amount = 0.05f;
   if (!up) amount = -amount;
-
-  //is the visible form a group ?
-  dt_masks_form_t *vf = darktable.develop->form_visible;
-  if (!vf) return;
-  if (!(vf->type & DT_MASKS_GROUP)) return;
-  
-  //is this group a registered one ?
-  GList *forms = g_list_first(darktable.develop->forms);
-  int ok=0;
-  while(forms)
-  {
-    dt_masks_form_t *f = (dt_masks_form_t *)forms->data;
-    if (f->formid == vf->formid) ok=1;
-    forms = g_list_next(forms);
-  }
-  if (!ok) return;
   
   //so we change the value inside the group
-  GList *fpts = g_list_first(vf->points);
+  GList *fpts = g_list_first(grp->points);
   while(fpts)
   {
     dt_masks_point_group_t *fpt = (dt_masks_point_group_t *) fpts->data;
@@ -943,9 +933,11 @@ void dt_masks_form_change_opacity(struct dt_iop_module_t *module, dt_masks_form_
       if (nv<=1.0f && nv>=0.0f)
       {
         fpt->opacity = nv;
-        dt_masks_write_form(vf,darktable.develop);
-        if (module) dt_dev_add_history_item(darktable.develop, module, TRUE);
+        dt_masks_write_form(grp,darktable.develop);
+        dt_masks_update_image(darktable.develop);
+        dt_dev_masks_list_update(darktable.develop);
       }
+      break;
     }
     fpts = g_list_next(fpts);
   }
@@ -971,6 +963,7 @@ void dt_masks_group_ungroup(dt_masks_form_t *dest_grp, dt_masks_form_t *grp)
       {
         dt_masks_point_group_t *fpt = (dt_masks_point_group_t *) malloc(sizeof(dt_masks_point_group_t));
         fpt->formid = grpt->formid;
+        fpt->parentid = grpt->parentid;
         fpt->state = grpt->state;
         fpt->opacity = grpt->opacity;
         dest_grp->points = g_list_append(dest_grp->points,fpt);
