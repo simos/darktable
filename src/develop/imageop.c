@@ -1725,7 +1725,7 @@ void dt_iop_request_focus(dt_iop_module_t *module)
     {
       dt_iop_gui_blend_data_t *bd = (dt_iop_gui_blend_data_t*)m->blend_data;
       GTK_TOGGLE_BUTTON(bd->masks_edit)->active = FALSE;
-      dt_dev_masks_selection_change(darktable.develop,0);
+      dt_dev_masks_selection_change(darktable.develop,0,FALSE);
     }
   }
 

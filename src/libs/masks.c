@@ -36,8 +36,10 @@ static void _lib_masks_recreate_list(dt_lib_module_t *self);
 typedef struct dt_lib_masks_t
 {
   /* vbox with managed history items */
-  GtkWidget *vbox;
+  GtkWidget *hbox;
+  GtkWidget *bt_circle, *bt_curve;
   GtkWidget *treeview;
+  GtkWidget *scroll_window;
   int gui_reset;
 }
 dt_lib_masks_t;
@@ -65,6 +67,7 @@ int position()
 
 static void _tree_add_circle(GtkButton *button, dt_iop_module_t *module)
 {
+  printf("add circle %p\n",module);
   //we create the new form
   dt_masks_form_t *spot = dt_masks_create(DT_MASKS_CIRCLE);
   dt_masks_change_form_gui(spot);
@@ -73,7 +76,10 @@ static void _tree_add_circle(GtkButton *button, dt_iop_module_t *module)
   darktable.develop->form_gui->group_selected = 0;
   dt_control_queue_redraw_center();
 }
-
+static void _bt_add_circle (GtkWidget *widget, GdkEventButton *e, dt_iop_module_t *module)
+{
+  _tree_add_circle(NULL,NULL);
+}
 static void _tree_add_curve(GtkButton *button, dt_iop_module_t *module)
 {
   //we create the new form
@@ -84,7 +90,10 @@ static void _tree_add_curve(GtkButton *button, dt_iop_module_t *module)
   darktable.develop->form_gui->group_selected = 0;
   dt_control_queue_redraw_center();
 }
-
+static void _bt_add_curve (GtkWidget *widget, GdkEventButton *e, dt_iop_module_t *module)
+{
+  _tree_add_curve(NULL,NULL);
+}
 static void _tree_add_exist(GtkButton *button, dt_iop_module_t *module)
 {
   if (!module) return;
@@ -711,7 +720,7 @@ static int _tree_button_pressed (GtkWidget *treeview, GdkEventButton *event, dt_
           while (modules)
           {
             dt_iop_module_t *m = (dt_iop_module_t *)modules->data;
-            dt_masks_form_t *grp = dt_masks_get_from_id(darktable.develop,m->blend_params->mask_id);
+            dt_masks_form_t *grp = dt_masks_get_from_id(m->dev,m->blend_params->mask_id);
             if (grp && (grp->type & DT_MASKS_GROUP))
             {
               GList *pts = g_list_first(grp->points);
@@ -901,16 +910,14 @@ static void _lib_masks_list_recurs(GtkTreeStore *treestore, GtkTreeIter *topleve
 
 static void _lib_masks_recreate_list(dt_lib_module_t *self)
 {
-  //const int bs = 12;
-  //dt_lib_masks_t *d = (dt_lib_masks_t *)self->data;
-
   /* first destroy all buttons in list */
   dt_lib_masks_t *lm = (dt_lib_masks_t *)self->data;
   if (lm->gui_reset) return;
   
-  gtk_container_foreach(GTK_CONTAINER(self->widget),(GtkCallback)gtk_widget_destroy,0);
-  
-  //dt_iop_module_t *iop = darktable.develop->gui_module;
+  //if (lm->treeview) gtk_widget_destroy(lm->treeview);
+  //we set the add shape icons inactive
+  GTK_TOGGLE_BUTTON(lm->bt_circle)->active = FALSE;
+  GTK_TOGGLE_BUTTON(lm->bt_curve)->active = FALSE;
   
   GtkTreeStore *treestore;
   //we store : text ; *module ; groupid ; formid
@@ -933,38 +940,9 @@ static void _lib_masks_recreate_list(dt_lib_module_t *self)
     if (!(form->type & DT_MASKS_GROUP)) _lib_masks_list_recurs(treestore, NULL, form, 0,0,1.0);
     forms = g_list_next(forms);
   }
-  
-  lm->treeview = gtk_tree_view_new();
-  GtkTreeViewColumn *col = gtk_tree_view_column_new();
-  gtk_tree_view_column_set_title(col, "shapes");
-  gtk_tree_view_append_column(GTK_TREE_VIEW(lm->treeview), col);
-  
-  GtkCellRenderer *renderer = gtk_cell_renderer_text_new();
-  gtk_tree_view_column_pack_start(col, renderer, TRUE);
-  gtk_tree_view_column_add_attribute(col, renderer, "text", 0);
 
   gtk_tree_view_set_model(GTK_TREE_VIEW(lm->treeview), GTK_TREE_MODEL(treestore));
   g_object_unref(treestore);
-  
-  GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(lm->treeview));
-  gtk_tree_selection_set_mode(selection,GTK_SELECTION_MULTIPLE);
-  gtk_tree_selection_set_select_function(selection,_tree_restrict_select,lm,NULL);
-  GtkWidget *sw = gtk_scrolled_window_new(NULL, NULL);
-  gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(sw), GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
-  gtk_tree_view_set_headers_visible(GTK_TREE_VIEW(lm->treeview), FALSE);
-  gtk_widget_set_size_request(lm->treeview, -1, 300);
-  gtk_container_add(GTK_CONTAINER(sw), lm->treeview);
-  
-  gtk_box_pack_start(GTK_BOX(self->widget), sw, TRUE, TRUE, 1);
-
-  //set selection
-  //dt_dev_masks_selection_change(darktable.develop);
-  
-  g_signal_connect(selection, "changed", G_CALLBACK(_tree_selection_change), lm);
-  g_signal_connect(lm->treeview, "button-press-event", (GCallback) _tree_button_pressed, self);
-    
-  /* show all widgets */
-  gtk_widget_show_all(sw);
 }
 
 static gboolean _update_foreach(GtkTreeModel *model, GtkTreePath *path, GtkTreeIter *iter, gpointer data)
@@ -1022,7 +1000,7 @@ static void _lib_history_change_callback(gpointer instance, gpointer user_data)
   //_lib_masks_recreate_list(self);
 }
 
-static void _lib_masks_selection_change(dt_lib_module_t *self, int selectid)
+static void _lib_masks_selection_change(dt_lib_module_t *self, int selectid, int throw_event)
 {
   dt_lib_masks_t *lm = (dt_lib_masks_t *)self->data;
   if (!lm->treeview) return;
@@ -1034,7 +1012,7 @@ static void _lib_masks_selection_change(dt_lib_module_t *self, int selectid)
   lm->gui_reset = 0;
 
   //we go throught all nodes
-  lm->gui_reset = 1;
+  lm->gui_reset = 1-throw_event;
   GtkTreeIter  iter;
   GtkTreeModel *model = gtk_tree_view_get_model(GTK_TREE_VIEW(lm->treeview));
   gboolean valid = gtk_tree_model_get_iter_first(model, &iter);
@@ -1056,19 +1034,59 @@ static void _lib_masks_selection_change(dt_lib_module_t *self, int selectid)
 
 void gui_init(dt_lib_module_t *self)
 {
+  const int bs = 14;
+    
   /* initialize ui widgets */
   dt_lib_masks_t *d = (dt_lib_masks_t *)g_malloc(sizeof(dt_lib_masks_t));
   self->data = (void *)d;
   memset(d,0,sizeof(dt_lib_masks_t));
   d->gui_reset = 0;
-  
-  //dt_iop_module_t *iop = darktable.develop->gui_module;
 
   self->widget =  gtk_vbox_new (FALSE,2);
+  GtkWidget *hbox = gtk_hbox_new(FALSE,0);
   
-  //d->vbox = gtk_vbox_new(FALSE,0);
-  //gtk_box_pack_start (GTK_BOX (self->widget),d->vbox,FALSE,FALSE,0);
+  GtkWidget *label = gtk_label_new(_("created shapes"));
+  gtk_box_pack_start(GTK_BOX(hbox), label, FALSE, TRUE, 0);
+  
+  d->bt_curve = dtgtk_togglebutton_new(dtgtk_cairo_paint_masks_curve, CPF_STYLE_FLAT|CPF_DO_NOT_USE_BORDER);
+  g_signal_connect(G_OBJECT(d->bt_curve), "button-press-event", G_CALLBACK(_bt_add_curve), NULL);
+  g_object_set(G_OBJECT(d->bt_curve), "tooltip-text", _("add curve shape"), (char *)NULL);
+  gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(d->bt_curve), FALSE);
+  gtk_widget_set_size_request(GTK_WIDGET(d->bt_curve),bs,bs);
+  gtk_box_pack_end (GTK_BOX (hbox),d->bt_curve,FALSE,FALSE,0);
+  
+  d->bt_circle = dtgtk_togglebutton_new(dtgtk_cairo_paint_masks_circle, CPF_STYLE_FLAT|CPF_DO_NOT_USE_BORDER);
+  g_signal_connect(G_OBJECT(d->bt_circle), "button-press-event", G_CALLBACK(_bt_add_circle), NULL);
+  g_object_set(G_OBJECT(d->bt_circle), "tooltip-text", _("add circular shape"), (char *)NULL);
+  gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(d->bt_circle), FALSE);
+  gtk_widget_set_size_request(GTK_WIDGET(d->bt_circle),bs,bs);
+  gtk_box_pack_end (GTK_BOX (hbox),d->bt_circle,FALSE,FALSE,0);
+  
+  gtk_box_pack_start (GTK_BOX (self->widget),hbox,TRUE,TRUE,0);
 
+  d->scroll_window = gtk_scrolled_window_new(NULL, NULL);
+  gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(d->scroll_window), GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
+  gtk_box_pack_start (GTK_BOX (self->widget),d->scroll_window,TRUE,TRUE,0);
+  
+  d->treeview = gtk_tree_view_new();
+  GtkTreeViewColumn *col = gtk_tree_view_column_new();
+  gtk_tree_view_column_set_title(col, "shapes");
+  gtk_tree_view_append_column(GTK_TREE_VIEW(d->treeview), col);
+  
+  GtkCellRenderer *renderer = gtk_cell_renderer_text_new();
+  gtk_tree_view_column_pack_start(col, renderer, TRUE);
+  gtk_tree_view_column_add_attribute(col, renderer, "text", 0);
+  
+  GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(d->treeview));
+  gtk_tree_selection_set_mode(selection,GTK_SELECTION_MULTIPLE);
+  gtk_tree_selection_set_select_function(selection,_tree_restrict_select,d,NULL);
+  gtk_tree_view_set_headers_visible(GTK_TREE_VIEW(d->treeview), FALSE);
+  gtk_widget_set_size_request(d->treeview, -1, 300);
+  gtk_container_add(GTK_CONTAINER(d->scroll_window), d->treeview);
+  
+  g_signal_connect(selection, "changed", G_CALLBACK(_tree_selection_change), d);
+  g_signal_connect(d->treeview, "button-press-event", (GCallback) _tree_button_pressed, self);
+  
   gtk_widget_show_all (self->widget);
 
   /* connect to history change signal for updating the history view */

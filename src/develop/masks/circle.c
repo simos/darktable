@@ -185,6 +185,11 @@ static int dt_circle_events_button_pressed(struct dt_iop_module_t *module,float 
       dt_masks_iop_update(crea_module);
       gui->creation_module = NULL;
     }
+    else
+    {
+      //we select the new form
+      dt_dev_masks_selection_change(darktable.develop,form->formid,TRUE);     
+    }
     return 1;
   }
   return 0;

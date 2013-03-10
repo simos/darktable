@@ -145,7 +145,7 @@ typedef struct dt_develop_t
       void (*list_change)(struct dt_lib_module_t *self);
       void (*list_update)(struct dt_lib_module_t *self);
       /* selected forms change */
-      void (*selection_change)(struct dt_lib_module_t *self, int selectid);
+      void (*selection_change)(struct dt_lib_module_t *self, int selectid, int throw_event);
     }
     masks;
     
@@ -247,7 +247,7 @@ void dt_dev_average_delay_update(const dt_times_t *start, uint32_t *average_dela
  */
 void dt_dev_masks_list_change(dt_develop_t *dev);
 void dt_dev_masks_list_update(dt_develop_t *dev);
-void dt_dev_masks_selection_change(dt_develop_t *dev, int selectid);
+void dt_dev_masks_selection_change(dt_develop_t *dev, int selectid, int throw_event);
  
 /*
  * multi instances

@@ -592,8 +592,8 @@ void dt_masks_set_edit_mode(struct dt_iop_module_t *module,gboolean value)
   }
   if (!(module->flags()&IOP_FLAGS_NO_MASKS)) gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(bd->masks_edit),value);
   dt_masks_change_form_gui(grp);
-  if (value && form) dt_dev_masks_selection_change(darktable.develop,form->formid);
-  else dt_dev_masks_selection_change(darktable.develop,0);
+  if (value && form) dt_dev_masks_selection_change(darktable.develop,form->formid,FALSE);
+  else dt_dev_masks_selection_change(darktable.develop,0,FALSE);
   dt_control_queue_redraw_center();
 }
 

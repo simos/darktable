@@ -878,8 +878,7 @@ static int dt_curve_events_button_pressed(struct dt_iop_module_t *module,float p
       }
       else
       {
-        dt_masks_gui_form_remove(form,gui,index);
-        dt_masks_gui_form_create(form,gui,index);
+        dt_dev_masks_selection_change(darktable.develop,form->formid, TRUE);
       }
       dt_control_queue_redraw_center();
     }
