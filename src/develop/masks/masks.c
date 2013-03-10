@@ -21,6 +21,7 @@
 #include "control/conf.h"
 #include "develop/masks.h"
 #include "common/debug.h"
+#include "common/mipmap_cache.h"
 
 #include "develop/masks/circle.c"
 #include "develop/masks/curve.c"
@@ -1068,6 +1069,8 @@ void dt_masks_update_image(dt_develop_t *dev)
   dev->pipe->changed |= DT_DEV_PIPE_SYNCH;
   dev->preview_pipe->changed |= DT_DEV_PIPE_SYNCH;
   dt_dev_invalidate_all(dev);
+  
+  dt_mipmap_cache_remove(darktable.mipmap_cache, dev->image_storage.id);
 }
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
 // vim: shiftwidth=2 expandtab tabstop=2 cindent

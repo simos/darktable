@@ -207,7 +207,7 @@ static int dt_group_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *pi
   while(fpts)
   {
     dt_masks_point_group_t *fpt = (dt_masks_point_group_t *) fpts->data;
-    dt_masks_form_t *sel = dt_masks_get_from_id(darktable.develop,fpt->formid);
+    dt_masks_form_t *sel = dt_masks_get_from_id(module->dev,fpt->formid);
     if (sel)
     {
       ok[pos] = dt_masks_get_mask(module,piece,sel,&bufs[pos],&w[pos],&h[pos],&px[pos],&py[pos]);
@@ -319,10 +319,8 @@ int dt_masks_group_render(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece
   //we get the mask
   float *fm = NULL;
   int fx,fy,fw,fh;
-  if (!dt_masks_get_mask(module,piece,form,&fm,&fw,&fh,&fx,&fy))
-  {
-    return 0;
-  }
+  if (!dt_masks_get_mask(module,piece,form,&fm,&fw,&fh,&fx,&fy)) return 0;
+  
   //we don't want row which are outisde the roi_out
   int fxx = fx*scale+1;
   int fww = fw*scale-1;

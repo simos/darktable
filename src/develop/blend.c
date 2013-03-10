@@ -1601,7 +1601,6 @@ static void _blend_inverse(dt_iop_colorspace_type_t cst,const float *a, float *b
 
 void dt_develop_blend_process (struct dt_iop_module_t *self, struct dt_dev_pixelpipe_iop_t *piece, void *i, void *o, const struct dt_iop_roi_t *roi_in, const struct dt_iop_roi_t *roi_out)
 {
-
   int ch = piece->colors;
   _blend_row_func *blend = NULL;
   dt_develop_blend_params_t *d = (dt_develop_blend_params_t *)piece->blendop_data;
@@ -1610,7 +1609,7 @@ void dt_develop_blend_process (struct dt_iop_module_t *self, struct dt_dev_pixel
   int mode = d->mode;
   if (mode == 0 && (!(self->flags()&IOP_FLAGS_NO_MASKS)))
   {
-    dt_masks_form_t *grp = dt_masks_get_from_id(darktable.develop,d->mask_id);
+    dt_masks_form_t *grp = dt_masks_get_from_id(self->dev,d->mask_id);
     if (grp && (grp->type & DT_MASKS_GROUP)) mode = DEVELOP_BLEND_NORMAL;
   }
   
@@ -1700,7 +1699,8 @@ void dt_develop_blend_process (struct dt_iop_module_t *self, struct dt_dev_pixel
   }
   
   /* apply masks if there's some */
-  dt_masks_form_t *form = dt_masks_get_from_id(darktable.develop,self->blend_params->mask_id);
+  dt_masks_form_t *form = dt_masks_get_from_id(self->dev,d->mask_id);
+  
   if (form && (!(self->flags()&IOP_FLAGS_NO_MASKS)))
   {
     int roi[4] = {roi_out->x,roi_out->y,roi_out->width,roi_out->height};
@@ -1851,7 +1851,7 @@ dt_develop_blend_process_cl (struct dt_iop_module_t *self, struct dt_dev_pixelpi
   int mode = d->mode;
   if (mode == 0 && (!(self->flags()&IOP_FLAGS_NO_MASKS)))
   {
-    dt_masks_form_t *grp = dt_masks_get_from_id(darktable.develop,d->mask_id);
+    dt_masks_form_t *grp = dt_masks_get_from_id(self->dev,d->mask_id);
     if (grp && (grp->type & DT_MASKS_GROUP)) mode = DEVELOP_BLEND_NORMAL;
   }
   
@@ -1902,7 +1902,7 @@ dt_develop_blend_process_cl (struct dt_iop_module_t *self, struct dt_dev_pixelpi
   }
   
   /* apply masks if there's some */
-  dt_masks_form_t *form = dt_masks_get_from_id(darktable.develop,self->blend_params->mask_id);
+  dt_masks_form_t *form = dt_masks_get_from_id(self->dev,d->mask_id);
   if (form && (!(self->flags()&IOP_FLAGS_NO_MASKS)))
   {
     int roi[4] = {roi_out->x,roi_out->y,roi_out->width,roi_out->height};

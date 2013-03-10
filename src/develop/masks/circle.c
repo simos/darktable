@@ -523,7 +523,7 @@ static int dt_circle_get_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *p
   }
   
   //and we transform them with all distorted modules
-  if (!dt_dev_distort_transform_plus(darktable.develop,piece->pipe,0,module->priority,points,l+1))
+  if (!dt_dev_distort_transform_plus(module->dev,piece->pipe,0,module->priority,points,l+1))
   {
     free(points);
     return 0;
@@ -569,7 +569,7 @@ static int dt_circle_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *p
     }
     
   //we back transform all this points
-  if (!dt_dev_distort_backtransform_plus(darktable.develop,piece->pipe,0,module->priority,points,w*h)) return 0;
+  if (!dt_dev_distort_backtransform_plus(module->dev,piece->pipe,0,module->priority,points,w*h)) return 0;
   
   //we allocate the buffer
   *buffer = malloc(w*h*sizeof(float));
