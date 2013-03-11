@@ -153,6 +153,16 @@ static void _resynch_params(struct dt_iop_module_t *self)
 
 static void _add_curve(GtkWidget *widget, GdkEventButton *e, dt_iop_module_t *self)
 {
+  if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(widget)))
+  {
+    //we unset the creation mode
+    dt_masks_form_t *form = darktable.develop->form_visible;
+    if (form) dt_masks_free_form(form);
+    dt_masks_change_form_gui(NULL);
+    dt_masks_init_formgui(darktable.develop);
+    GTK_TOGGLE_BUTTON(widget)->active = FALSE;
+    return;
+  }
   //we want to be sure that the iop has focus
   dt_iop_request_focus(self);
   //we create the new form
@@ -164,6 +174,16 @@ static void _add_curve(GtkWidget *widget, GdkEventButton *e, dt_iop_module_t *se
 }
 static void _add_circle(GtkWidget *widget, GdkEventButton *e, dt_iop_module_t *self)
 {
+  if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(widget)))
+  {
+    //we unset the creation mode
+    dt_masks_form_t *form = darktable.develop->form_visible;
+    if (form) dt_masks_free_form(form);
+    dt_masks_change_form_gui(NULL);
+    dt_masks_init_formgui(darktable.develop);
+    GTK_TOGGLE_BUTTON(widget)->active = FALSE;
+    return;
+  }
   //we want to be sure that the iop has focus
   dt_iop_request_focus(self);
   //we create the new form

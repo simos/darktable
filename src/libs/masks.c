@@ -67,7 +67,6 @@ int position()
 
 static void _tree_add_circle(GtkButton *button, dt_iop_module_t *module)
 {
-  printf("add circle %p\n",module);
   //we create the new form
   dt_masks_form_t *spot = dt_masks_create(DT_MASKS_CIRCLE);
   dt_masks_change_form_gui(spot);
@@ -78,7 +77,16 @@ static void _tree_add_circle(GtkButton *button, dt_iop_module_t *module)
 }
 static void _bt_add_circle (GtkWidget *widget, GdkEventButton *e, dt_iop_module_t *module)
 {
-  _tree_add_circle(NULL,NULL);
+  if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(widget)))
+  {
+    //we unset the creation mode
+    dt_masks_form_t *form = darktable.develop->form_visible;
+    if (form) dt_masks_free_form(form);
+    dt_masks_change_form_gui(NULL);
+    dt_masks_init_formgui(darktable.develop);
+    GTK_TOGGLE_BUTTON(widget)->active = FALSE;
+  }
+  else _tree_add_circle(NULL,NULL);
 }
 static void _tree_add_curve(GtkButton *button, dt_iop_module_t *module)
 {
@@ -92,7 +100,16 @@ static void _tree_add_curve(GtkButton *button, dt_iop_module_t *module)
 }
 static void _bt_add_curve (GtkWidget *widget, GdkEventButton *e, dt_iop_module_t *module)
 {
-  _tree_add_curve(NULL,NULL);
+  if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(widget)))
+  {
+    //we unset the creation mode
+    dt_masks_form_t *form = darktable.develop->form_visible;
+    if (form) dt_masks_free_form(form);
+    dt_masks_change_form_gui(NULL);
+    dt_masks_init_formgui(darktable.develop);
+    GTK_TOGGLE_BUTTON(widget)->active = FALSE;
+  }
+  else _tree_add_curve(NULL,NULL);
 }
 static void _tree_add_exist(GtkButton *button, dt_iop_module_t *module)
 {
