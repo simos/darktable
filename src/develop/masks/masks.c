@@ -944,6 +944,40 @@ void dt_masks_form_change_opacity(dt_masks_form_t *form, int parentid, int up)
   }
 }
 
+void dt_masks_form_move(dt_masks_form_t *grp, int formid, int up)
+{
+  if (!grp || !(grp->type & DT_MASKS_GROUP)) return;
+
+  //we search the form in the group
+  dt_masks_point_group_t *grpt = NULL;
+  int pos=0;
+  GList *fpts = g_list_first(grp->points);
+  while(fpts)
+  {
+    dt_masks_point_group_t *fpt = (dt_masks_point_group_t *) fpts->data;
+    if (fpt->formid == formid)
+    {
+      grpt = fpt;
+      break;
+    }
+    pos++;
+    fpts = g_list_next(fpts);
+  }
+
+  //we remove the form and readd it
+  if (grpt)
+  {
+    if (up && pos==0) return;
+    if (!up && pos == g_list_length(grp->points)-1) return;
+
+    grp->points = g_list_remove(grp->points,grpt);
+    if (up) pos -= 1;
+    else pos += 1;
+    grp->points = g_list_insert(grp->points,grpt,pos);
+    dt_masks_write_form(grp,darktable.develop);  
+  }
+}
+
 void dt_masks_group_ungroup(dt_masks_form_t *dest_grp, dt_masks_form_t *grp)
 {
   if (!grp || !dest_grp) return;

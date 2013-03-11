@@ -497,14 +497,72 @@ static void _tree_union(GtkButton *button, dt_lib_module_t *self)
 
 static void _tree_moveup(GtkButton *button, dt_lib_module_t *self)
 {
-  //dt_lib_masks_t *lm = (dt_lib_masks_t *)self->data;
+  dt_lib_masks_t *lm = (dt_lib_masks_t *)self->data;
   
+  //we first discard all visible shapes
+  dt_masks_init_formgui(darktable.develop);
+  darktable.develop->form_visible = NULL;
+  
+  //now we go throught all selected nodes
+  GtkTreeModel *model = gtk_tree_view_get_model(GTK_TREE_VIEW(lm->treeview));
+  GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(lm->treeview));
+  lm->gui_reset = 1;
+  GList *items = g_list_first(gtk_tree_selection_get_selected_rows(selection,NULL));
+  while(items)
+  {
+    GtkTreePath *item = (GtkTreePath *)items->data;
+    GtkTreeIter iter;
+    if (gtk_tree_model_get_iter (model,&iter,item))
+    {
+      GValue gv = {0,};
+      gtk_tree_model_get_value (model,&iter,2,&gv);
+      int grid = g_value_get_int(&gv);
+      GValue gv3 = {0,};
+      gtk_tree_model_get_value (model,&iter,3,&gv3);
+      int id = g_value_get_int(&gv3);
+
+      dt_masks_form_move(dt_masks_get_from_id(darktable.develop,grid),id,1);
+    }
+    items = g_list_next(items);
+  }
+  lm->gui_reset = 0;
+  _lib_masks_recreate_list(self);
+  dt_masks_update_image(darktable.develop);
 }
 
 static void _tree_movedown(GtkButton *button, dt_lib_module_t *self)
 {
-  //dt_lib_masks_t *lm = (dt_lib_masks_t *)self->data;
+  dt_lib_masks_t *lm = (dt_lib_masks_t *)self->data;
   
+  //we first discard all visible shapes
+  dt_masks_init_formgui(darktable.develop);
+  darktable.develop->form_visible = NULL;
+  
+  //now we go throught all selected nodes
+  GtkTreeModel *model = gtk_tree_view_get_model(GTK_TREE_VIEW(lm->treeview));
+  GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(lm->treeview));
+  lm->gui_reset = 1;
+  GList *items = g_list_first(gtk_tree_selection_get_selected_rows(selection,NULL));
+  while(items)
+  {
+    GtkTreePath *item = (GtkTreePath *)items->data;
+    GtkTreeIter iter;
+    if (gtk_tree_model_get_iter (model,&iter,item))
+    {
+      GValue gv = {0,};
+      gtk_tree_model_get_value (model,&iter,2,&gv);
+      int grid = g_value_get_int(&gv);
+      GValue gv3 = {0,};
+      gtk_tree_model_get_value (model,&iter,3,&gv3);
+      int id = g_value_get_int(&gv3);
+
+      dt_masks_form_move(dt_masks_get_from_id(darktable.develop,grid),id,0);
+    }
+    items = g_list_next(items);
+  }
+  lm->gui_reset = 0;
+  _lib_masks_recreate_list(self);
+  dt_masks_update_image(darktable.develop);  
 }
 static void _tree_delete_shape(GtkButton *button, dt_lib_module_t *self)
 {
