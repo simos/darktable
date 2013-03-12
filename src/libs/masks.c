@@ -603,6 +603,32 @@ static void _tree_delete_shape(GtkButton *button, dt_lib_module_t *self)
   _lib_masks_recreate_list(self);
 }
 
+static void _tree_cell_editing_started (GtkCellRenderer *cell, GtkCellEditable *editable, const gchar *path, gpointer data)
+{
+  dt_control_key_accelerators_off (darktable.control);
+}
+static void _tree_cell_edited (GtkCellRendererText *cell, gchar *path_string, gchar *new_text, dt_lib_module_t *self)
+{
+  dt_control_key_accelerators_on (darktable.control);
+  dt_lib_masks_t *lm = (dt_lib_masks_t *)self->data;
+  GtkTreeModel *model = gtk_tree_view_get_model(GTK_TREE_VIEW(lm->treeview));
+  GtkTreeIter iter;
+  if (!gtk_tree_model_get_iter_from_string(model,&iter,path_string)) return;
+  GValue gv3 = {0,};
+  gtk_tree_model_get_value (model,&iter,3,&gv3);
+  int id = g_value_get_int(&gv3);
+  dt_masks_form_t *form = dt_masks_get_from_id(darktable.develop,id);
+  if (!form) return;
+     
+  //first, we need to update the mask name
+  
+  strncpy(form->name,new_text,128);
+  dt_masks_write_form(form,darktable.develop);
+  
+  //and we update the cell text
+  _set_iter_name(form,0,1.0f,model,&iter);
+}
+
 static void _tree_selection_change (GtkTreeSelection *selection,dt_lib_masks_t *self)
 {
   if (self->gui_reset) return;
@@ -944,7 +970,7 @@ static void _lib_masks_list_recurs(GtkTreeStore *treestore, GtkTreeIter *topleve
     //we just add it to the tree
     GtkTreeIter child;
     gtk_tree_store_append(treestore, &child, toplevel);
-    gtk_tree_store_set(treestore, &child, 0, str,1,NULL,2,grp_id, 3, form->formid, -1);
+    gtk_tree_store_set(treestore, &child, 0, str,1,NULL,2,grp_id, 3, form->formid, 4, (grp_id==0), -1);
     _set_iter_name(form,gstate,opacity,GTK_TREE_MODEL(treestore),&child);
   }
   else
@@ -969,7 +995,7 @@ static void _lib_masks_list_recurs(GtkTreeStore *treestore, GtkTreeIter *topleve
     //we add the group node to the tree
     GtkTreeIter child;
     gtk_tree_store_append(treestore, &child, toplevel);
-    gtk_tree_store_set(treestore, &child, 0, str,1,module,2,grp_id, 3, form->formid, -1);
+    gtk_tree_store_set(treestore, &child, 0, str,1,module,2,grp_id, 3, form->formid, 4, (grp_id==0),-1);
     _set_iter_name(form,gstate,opacity,GTK_TREE_MODEL(treestore),&child);
     //we add all nodes to the tree
     GList *forms = g_list_first(form->points);
@@ -996,7 +1022,7 @@ static void _lib_masks_recreate_list(dt_lib_module_t *self)
   
   GtkTreeStore *treestore;
   //we store : text ; *module ; groupid ; formid
-  treestore = gtk_tree_store_new(4, G_TYPE_STRING, G_TYPE_POINTER, G_TYPE_INT, G_TYPE_INT);
+  treestore = gtk_tree_store_new(5, G_TYPE_STRING, G_TYPE_POINTER, G_TYPE_INT, G_TYPE_INT, G_TYPE_BOOLEAN);
 
   //we first add all groups
   GList *forms = g_list_first(darktable.develop->forms);
@@ -1151,6 +1177,7 @@ void gui_init(dt_lib_module_t *self)
   GtkCellRenderer *renderer = gtk_cell_renderer_text_new();
   gtk_tree_view_column_pack_start(col, renderer, TRUE);
   gtk_tree_view_column_add_attribute(col, renderer, "text", 0);
+  gtk_tree_view_column_add_attribute(col, renderer, "editable", 4);
   
   GtkTreeSelection *selection = gtk_tree_view_get_selection(GTK_TREE_VIEW(d->treeview));
   gtk_tree_selection_set_mode(selection,GTK_SELECTION_MULTIPLE);
@@ -1160,6 +1187,8 @@ void gui_init(dt_lib_module_t *self)
   gtk_container_add(GTK_CONTAINER(d->scroll_window), d->treeview);
   
   g_signal_connect(selection, "changed", G_CALLBACK(_tree_selection_change), d);
+  g_signal_connect(renderer, "editing-started", (GCallback) _tree_cell_editing_started, self);
+  g_signal_connect(renderer, "edited", (GCallback) _tree_cell_edited, self);
   g_signal_connect(d->treeview, "button-press-event", (GCallback) _tree_button_pressed, self);
   
   gtk_widget_show_all (self->widget);
@@ -1177,7 +1206,7 @@ void gui_init(dt_lib_module_t *self)
 void gui_cleanup(dt_lib_module_t *self)
 {
   dt_control_signal_disconnect(darktable.signals, G_CALLBACK(_lib_history_change_callback), self);
-
+  
   g_free(self->data);
   self->data = NULL;
 }
