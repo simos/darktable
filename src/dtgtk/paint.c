@@ -422,6 +422,99 @@ void dtgtk_cairo_paint_masks_multi(cairo_t *cr,gint x,gint y,gint w,gint h,gint 
   cairo_stroke(cr);  
   cairo_identity_matrix(cr);
 }
+void dtgtk_cairo_paint_masks_inverse(cairo_t *cr,gint x,gint y,gint w,gint h,gint flags)
+{
+  gint s=w<h?w:h;
+  cairo_translate(cr, x+(w/2.0)-(s/2.0), y+(h/2.0)-(s/2.0));
+  cairo_scale(cr,s,s);
+  
+  cairo_set_line_cap(cr,CAIRO_LINE_CAP_ROUND);
+  cairo_set_source_rgb(cr, 0.6,0.6,0.6);
+  cairo_rectangle(cr,0.05,0.05,0.9,0.9);
+  cairo_arc_negative (cr, 0.5, 0.5, 0.35, 0, 6.2832);
+  cairo_fill(cr);
+  cairo_identity_matrix(cr);
+}
+void dtgtk_cairo_paint_masks_union(cairo_t *cr,gint x,gint y,gint w,gint h,gint flags)
+{
+    gint s=w<h?w:h;
+  cairo_translate(cr, x+(w/2.0)-(s/2.0), y+(h/2.0)-(s/2.0));
+  cairo_scale(cr,s*1.4,s);
+  
+  cairo_set_line_cap(cr,CAIRO_LINE_CAP_ROUND);
+  cairo_set_source_rgb(cr, 0.6,0.6,0.6);
+  cairo_arc(cr,-0.05,0.5,0.45,0,6.2832);
+  cairo_arc(cr,0.764,0.5,0.45,0,6.2832);
+  cairo_fill(cr);
+  cairo_identity_matrix(cr);
+}
+void dtgtk_cairo_paint_masks_intersection(cairo_t *cr,gint x,gint y,gint w,gint h,gint flags)
+{
+  gint s=w<h?w:h;
+  cairo_translate(cr, x+(w/2.0)-(s/2.0), y+(h/2.0)-(s/2.0));
+  cairo_scale(cr,s*1.4,s);
+  
+  cairo_set_line_cap(cr,CAIRO_LINE_CAP_ROUND);
+  cairo_set_line_width(cr,0.1);
+  cairo_set_source_rgb(cr, 0.4,0.4,0.4);
+  cairo_arc(cr,0.05,0.5,0.45,0,6.3);
+  cairo_new_sub_path(cr);
+  cairo_arc(cr,0.65,0.5,0.45,0,6.3);
+  cairo_stroke(cr);
+  cairo_set_source_rgb(cr, 0.7,0.7,0.7);
+  cairo_new_sub_path(cr);
+  cairo_arc(cr,0.05,0.5,0.45,-1.0416,1.0416);
+  cairo_arc(cr,0.65,0.5,0.45,2.1,4.1832);
+  cairo_close_path(cr);
+  cairo_fill(cr);
+  cairo_identity_matrix(cr);
+}
+void dtgtk_cairo_paint_masks_difference(cairo_t *cr,gint x,gint y,gint w,gint h,gint flags)
+{
+  gint s=w<h?w:h;
+  cairo_translate(cr, x+(w/2.0)-(s/2.0), y+(h/2.0)-(s/2.0));
+  cairo_scale(cr,s*1.4,s);
+  
+  cairo_set_line_cap(cr,CAIRO_LINE_CAP_ROUND);
+  cairo_set_line_width(cr,0.1);
+  cairo_set_source_rgb(cr, 0.4,0.4,0.4);
+  cairo_arc(cr,0.65,0.5,0.45,0,6.3);
+  cairo_stroke(cr);
+  cairo_set_source_rgb(cr, 0.7,0.7,0.7);
+  cairo_new_sub_path(cr);
+  cairo_arc(cr,0.05,0.5,0.45,1.0416,5.2416);
+  cairo_arc_negative(cr,0.65,0.5,0.45,4.1832,2.1);
+  cairo_close_path(cr);
+  cairo_fill(cr);
+  cairo_identity_matrix(cr);
+}
+void dtgtk_cairo_paint_masks_exclusion(cairo_t *cr,gint x,gint y,gint w,gint h,gint flags)
+{
+  gint s=w<h?w:h;
+  cairo_translate(cr, x+(w/2.0)-(s/2.0), y+(h/2.0)-(s/2.0));
+  cairo_scale(cr,s*1.4,s);
+  
+  cairo_set_line_cap(cr,CAIRO_LINE_CAP_ROUND);
+  cairo_set_source_rgb(cr, 0.6,0.6,0.6);
+  cairo_arc(cr,0.0,0.5,0.45,0,6.2832);
+  cairo_arc_negative(cr,0.714,0.5,0.45,0,6.2832);
+  cairo_fill(cr);
+  cairo_identity_matrix(cr);
+}
+void dtgtk_cairo_paint_masks_used(cairo_t *cr,gint x,gint y,gint w,gint h,gint flags)
+{
+  gint s=w<h?w:h;
+  cairo_translate(cr, x+(w/2.0)-(s/2.0), y+(h/2.0)-(s/2.0));
+  cairo_scale(cr,s,s);
+  
+  cairo_set_line_cap(cr,CAIRO_LINE_CAP_ROUND);
+  cairo_set_line_width(cr,0.150);
+  cairo_arc (cr, 0.5, 0.5, 0.35, 0, 6.2832);
+  cairo_move_to(cr,0.5,0.15);
+  cairo_line_to(cr,0.5,0.5);
+  cairo_stroke(cr);
+  cairo_identity_matrix(cr);
+}
 
 void dtgtk_cairo_paint_eye_toggle(cairo_t *cr,gint x,gint y,gint w,gint h,gint flags)
 {
