@@ -682,10 +682,10 @@ static void _tree_selection_change (GtkTreeSelection *selection,dt_lib_masks_t *
     {
       GValue gv = {0,};
       gtk_tree_model_get_value (model,&iter,TREE_GROUPID,&gv);
-      int id = g_value_get_int(&gv);
+      int grid = g_value_get_int(&gv);
       GValue gv2 = {0,};
       gtk_tree_model_get_value (model,&iter,TREE_FORMID,&gv2);
-      int grid = g_value_get_int(&gv2);
+      int id = g_value_get_int(&gv2);
       dt_masks_form_t *form = dt_masks_get_from_id(darktable.develop,id);
       if (form)
       {
