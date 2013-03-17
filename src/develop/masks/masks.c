@@ -689,10 +689,10 @@ static void _menu_add_exist(GtkButton *button, dt_masks_form_t *form)
   dt_masks_write_form(grp,darktable.develop);
   
   //and we ensure that we are in edit mode
-  dt_masks_set_edit_mode(module,TRUE);
   dt_dev_add_history_item(darktable.develop, module, TRUE);
   dt_masks_iop_update(module);
   dt_dev_masks_list_change(darktable.develop);
+  dt_masks_set_edit_mode(module,TRUE);
 }
 
 void dt_masks_iop_dropdown_callback(GtkWidget *widget, struct dt_iop_module_t *module)
@@ -844,7 +844,7 @@ void dt_masks_form_remove(struct dt_iop_module_t *module, dt_masks_form_t *grp, 
     if (ok && module)
     {
       dt_masks_iop_update(module);
-      dt_dev_add_history_item(darktable.develop, module, TRUE);
+      dt_masks_update_image(darktable.develop);
     }
     if (ok && g_list_length(grp->points)==0) dt_masks_form_remove(module,NULL,grp); 
     return;
@@ -888,7 +888,7 @@ void dt_masks_form_remove(struct dt_iop_module_t *module, dt_masks_form_t *grp, 
           {
             dt_masks_write_form(iopgrp,darktable.develop);
             dt_masks_iop_update(m);
-            dt_dev_add_history_item(darktable.develop, m, TRUE);
+            dt_masks_update_image(darktable.develop);
             if (g_list_length(iopgrp->points)==0) dt_masks_form_remove(m,NULL,iopgrp);
           }
         }

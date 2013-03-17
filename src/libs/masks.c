@@ -881,9 +881,9 @@ static int _tree_button_pressed (GtkWidget *treeview, GdkEventButton *event, dt_
       g_signal_connect(item, "activate",(GCallback) _tree_delete_shape, self);
       gtk_menu_append(menu, item);
     }
-    else if (nb>0)
+    else if (nb>0 && depth < 3)
     {
-      item = gtk_menu_item_new_with_label(_("remove from module"));
+      item = gtk_menu_item_new_with_label(_("remove from group"));
       g_signal_connect(item, "activate",(GCallback) _tree_delete_shape, self);
       gtk_menu_append(menu, item);
     }
@@ -897,7 +897,7 @@ static int _tree_button_pressed (GtkWidget *treeview, GdkEventButton *event, dt_
     }
         
     
-    if (from_group)
+    if (from_group && depth < 3)
     {
       gtk_menu_append(menu, gtk_separator_menu_item_new());
       item = gtk_menu_item_new_with_label(_("use inversed shape"));
@@ -1010,7 +1010,8 @@ static int _is_form_used(int formid, dt_masks_form_t *grp, char *text)
   return nb;
 }
 
-static void _lib_masks_list_recurs(GtkTreeStore *treestore, GtkTreeIter *toplevel, dt_masks_form_t *form, int grp_id, int gstate, float opacity,dt_lib_masks_t *lm)
+static void _lib_masks_list_recurs(GtkTreeStore *treestore, GtkTreeIter *toplevel, dt_masks_form_t *form, 
+                                      int grp_id, dt_iop_module_t *module, int gstate, float opacity,dt_lib_masks_t *lm)
 {
   if (form->type & DT_MASKS_CLONE) return;
   //we create the text entry
@@ -1038,7 +1039,7 @@ static void _lib_masks_list_recurs(GtkTreeStore *treestore, GtkTreeIter *topleve
     //we just add it to the tree
     GtkTreeIter child;
     gtk_tree_store_append(treestore, &child, toplevel);
-    gtk_tree_store_set(treestore, &child, TREE_TEXT, str,TREE_MODULE,NULL,TREE_GROUPID,grp_id, TREE_FORMID, form->formid, 
+    gtk_tree_store_set(treestore, &child, TREE_TEXT, str,TREE_MODULE,module,TREE_GROUPID,grp_id, TREE_FORMID, form->formid, 
                       TREE_EDITABLE, (grp_id==0), TREE_IC_OP, icop, TREE_IC_OP_VISIBLE, (icop != NULL), TREE_IC_INVERSE, icinv, 
                       TREE_IC_INVERSE_VISIBLE, (icinv!=NULL), TREE_IC_USED, icuse, TREE_IC_USED_VISIBLE, (nbuse>0), TREE_USED_TEXT, str2, -1);
     _set_iter_name(form,gstate,opacity,GTK_TREE_MODEL(treestore),&child);
@@ -1046,8 +1047,7 @@ static void _lib_masks_list_recurs(GtkTreeStore *treestore, GtkTreeIter *topleve
   else
   {
     //we first check if it's a "module" group or not
-    dt_iop_module_t *module = NULL;
-    if (grp_id==0)
+    if (grp_id==0 && !module)
     {
       GList *iops = g_list_first(darktable.develop->iop);
       while(iops)
@@ -1075,7 +1075,7 @@ static void _lib_masks_list_recurs(GtkTreeStore *treestore, GtkTreeIter *topleve
     {
       dt_masks_point_group_t *grpt = (dt_masks_point_group_t *)forms->data;
       dt_masks_form_t *f = dt_masks_get_from_id(darktable.develop,grpt->formid);
-      if (f) _lib_masks_list_recurs(treestore,&child,f,form->formid,grpt->state,grpt->opacity,lm);
+      if (f) _lib_masks_list_recurs(treestore,&child,f,form->formid,module,grpt->state,grpt->opacity,lm);
       forms = g_list_next(forms);
     }
   }
@@ -1102,7 +1102,7 @@ static void _lib_masks_recreate_list(dt_lib_module_t *self)
   while (forms)
   {
     dt_masks_form_t *form = (dt_masks_form_t *)forms->data;
-    if (form->type & DT_MASKS_GROUP) _lib_masks_list_recurs(treestore, NULL, form, 0,0,1.0,lm);
+    if (form->type & DT_MASKS_GROUP) _lib_masks_list_recurs(treestore, NULL, form, 0,NULL,0,1.0,lm);
     forms = g_list_next(forms);
   }
   
@@ -1111,7 +1111,7 @@ static void _lib_masks_recreate_list(dt_lib_module_t *self)
   while (forms)
   {
     dt_masks_form_t *form = (dt_masks_form_t *)forms->data;
-    if (!(form->type & DT_MASKS_GROUP)) _lib_masks_list_recurs(treestore, NULL, form, 0,0,1.0,lm);
+    if (!(form->type & DT_MASKS_GROUP)) _lib_masks_list_recurs(treestore, NULL, form, 0,NULL,0,1.0,lm);
     forms = g_list_next(forms);
   }
 
