@@ -973,6 +973,33 @@ static gboolean _tree_restrict_select (GtkTreeSelection *selection, GtkTreeModel
   return TRUE;
 }
 
+static gboolean _tree_query_tooltip (GtkWidget *widget, gint x, gint y, gboolean keyboard_tip, GtkTooltip *tooltip, gpointer data)
+{
+  GtkTreeIter iter;
+  GtkTreeView *tree_view = GTK_TREE_VIEW (widget);
+  GtkTreeModel *model = gtk_tree_view_get_model (tree_view);
+  GtkTreePath *path = NULL;
+  gchar *tmp;
+  gboolean show;
+
+  char buffer[512];
+
+  if (!gtk_tree_view_get_tooltip_context (tree_view, &x, &y, keyboard_tip, &model, &path, &iter)) return FALSE;
+  
+  gtk_tree_model_get (model, &iter, TREE_IC_USED_VISIBLE, &show, TREE_USED_TEXT, &tmp, -1);
+  if (!show) return FALSE;
+  
+  g_snprintf (buffer, 511, "%s", tmp);
+  gtk_tooltip_set_markup (tooltip, buffer);
+
+  gtk_tree_view_set_tooltip_row (tree_view, tooltip, path);
+
+  gtk_tree_path_free (path);
+  g_free (tmp);
+
+  return TRUE;
+}
+
 static int _is_form_used(int formid, dt_masks_form_t *grp, char *text)
 {
   int nb = 0;
@@ -1324,8 +1351,10 @@ void gui_init(dt_lib_module_t *self)
   gtk_tree_view_set_headers_visible(GTK_TREE_VIEW(d->treeview), FALSE);
   gtk_widget_set_size_request(d->treeview, -1, 300);
   gtk_container_add(GTK_CONTAINER(d->scroll_window), d->treeview);
-  gtk_tree_view_set_tooltip_column(GTK_TREE_VIEW(d->treeview),TREE_USED_TEXT);
-  
+  //gtk_tree_view_set_tooltip_column(GTK_TREE_VIEW(d->treeview),TREE_USED_TEXT);
+  g_object_set (d->treeview, "has-tooltip", TRUE, NULL);
+  g_signal_connect (d->treeview, "query-tooltip", G_CALLBACK (_tree_query_tooltip), NULL);
+        
   g_signal_connect(selection, "changed", G_CALLBACK(_tree_selection_change), d);
   g_signal_connect(d->treeview, "button-press-event", (GCallback) _tree_button_pressed, self);
   
