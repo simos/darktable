@@ -173,49 +173,6 @@ static gboolean _curve_is_clockwise(dt_masks_form_t *form)
   return TRUE;
 }
 
-static void _curve_points_recurs(float *p1, float *p2, 
-                                  double tmin, double tmax, float *curve_min, float *curve_max, float *border_min, float *border_max, 
-                                  float *rcurve, float *rborder, float *curve, float *border, int *pos_curve, int *pos_border, int withborder)
-{
-  //we calcul points if needed
-  if (curve_min[0] == -99999)
-  {
-    _curve_border_get_XY(p1[0],p1[1],p1[2],p1[3],p2[2],p2[3],p2[0],p2[1],tmin, p1[4]+(p2[4]-p1[4])*tmin*tmin*(3.0-2.0*tmin),
-                          curve_min,curve_min+1,border_min,border_min+1);
-  }
-  if (curve_max[0] == -99999)
-  {
-    _curve_border_get_XY(p1[0],p1[1],p1[2],p1[3],p2[2],p2[3],p2[0],p2[1],tmax, p1[4]+(p2[4]-p1[4])*tmax*tmax*(3.0-2.0*tmax),
-                          curve_max,curve_max+1,border_max,border_max+1);
-  }
-  //are the point near ? (we just test y as it's the value we use for rendering
-  if ((tmax-tmin < 0.000001) || ((int)curve_min[0]-(int)curve_max[0]<2 && (int)curve_min[0]-(int)curve_max[0]>-2 &&
-      (int)curve_min[1]-(int)curve_max[1]<2 && (int)curve_min[1]-(int)curve_max[1]>-2 &&
-      (!withborder || (
-      (int)border_min[0]-(int)border_max[0]<2 && (int)border_min[0]-(int)border_max[0]>-2 &&
-      (int)border_min[1]-(int)border_max[1]<2 && (int)border_min[1]-(int)border_max[1]>-2))))
-  {
-    curve[*pos_curve] = curve_max[0];
-    curve[*pos_curve+1] = curve_max[1];
-    if (withborder) border[*pos_border] = border_max[0];
-    if (withborder) border[*pos_border+1] = border_max[1];
-    *pos_curve += 2;
-    if (withborder) *pos_border += 2;
-    rcurve[0] = curve_max[0];
-    rcurve[1] = curve_max[1];
-    if (withborder) rborder[0] = border_max[0];
-    if (withborder) rborder[1] = border_max[1];;
-    return;
-  }
-  
-  //we split in two part
-  double tx = (tmin+tmax)/2.0;
-  float c[2] = {-99999,-99999}, b[2]= {-99999,-99999};
-  float rc[2], rb[2];
-  _curve_points_recurs(p1,p2,tmin,tx,curve_min,c,border_min,b,rc,rb,curve,border,pos_curve,pos_border,withborder);
-  _curve_points_recurs(p1,p2,tx,tmax,rc,curve_max,rb,border_max,rcurve,rborder,curve,border,pos_curve,pos_border,withborder);
-}
-
 static int _curve_fill_gaps(int lastx, int lasty, int x, int y, int *points, int *pts_count)
 {
   points[0] = x;
@@ -283,6 +240,86 @@ static int _curve_fill_gaps(int lastx, int lasty, int x, int y, int *points, int
   }
   *pts_count = points_count;
   return 1;
+}
+
+//this function is here because we can have gap in border, esp. if the corner is very sharp.
+//it fill the gap with an arc of circle
+static void _curve_points_recurs_border_gaps(float *cmax, float *bmin, float *bmax, float *curve, int *pos_curve, float *border, int *pos_border)
+{
+  //we want to find the start and end angles
+  float a1 = atan2f(bmin[1]-cmax[1],bmin[0]-cmax[0]);
+  float a2 = atan2f(bmax[1]-cmax[1],bmax[0]-cmax[0]);
+  if (a1==a2) return;
+
+  //we dertermine start and end radius too
+  float r1 = sqrtf((bmin[1]-cmax[1])*(bmin[1]-cmax[1])+(bmin[0]-cmax[0])*(bmin[0]-cmax[0]));
+  float r2 = sqrtf((bmax[1]-cmax[1])*(bmax[1]-cmax[1])+(bmax[0]-cmax[0])*(bmax[0]-cmax[0]));
+
+  //and the max length of the circle arc
+  int l;
+  if (a2>a1) l = (a2-a1)*fmaxf(r1,r2);
+  else l = (a1-a2)*fmaxf(r1,r2);
+  if (l<2) return;
+
+  //and now we add the points
+  float incra = (a2-a1)/l;
+  float incrr = (r2-r1)/l;
+  float rr = r1+incrr;
+  float aa = a1+incra;
+  for (int i=1; i<l; i++)
+  {
+    curve[*pos_curve] = cmax[0];
+    curve[*pos_curve+1] = cmax[1];
+    *pos_curve += 2;
+    border[*pos_border] = cmax[0]+rr*cosf(aa);
+    border[*pos_border+1] = cmax[1]+rr*sinf(aa);
+    *pos_border += 2;
+    rr += incrr;
+    aa += incra;
+  }
+}
+
+static void _curve_points_recurs(float *p1, float *p2, 
+                                  double tmin, double tmax, float *curve_min, float *curve_max, float *border_min, float *border_max, 
+                                  float *rcurve, float *rborder, float *curve, float *border, int *pos_curve, int *pos_border, int withborder)
+{
+  //we calcul points if needed
+  if (curve_min[0] == -99999)
+  {
+    _curve_border_get_XY(p1[0],p1[1],p1[2],p1[3],p2[2],p2[3],p2[0],p2[1],tmin, p1[4]+(p2[4]-p1[4])*tmin*tmin*(3.0-2.0*tmin),
+                          curve_min,curve_min+1,border_min,border_min+1);
+  }
+  if (curve_max[0] == -99999)
+  {
+    _curve_border_get_XY(p1[0],p1[1],p1[2],p1[3],p2[2],p2[3],p2[0],p2[1],tmax, p1[4]+(p2[4]-p1[4])*tmax*tmax*(3.0-2.0*tmax),
+                          curve_max,curve_max+1,border_max,border_max+1);
+  }
+  //are the points near ?
+  if ((tmax-tmin < 0.000001) || ((int)curve_min[0]-(int)curve_max[0]<2 && (int)curve_min[0]-(int)curve_max[0]>-2 &&
+      (int)curve_min[1]-(int)curve_max[1]<2 && (int)curve_min[1]-(int)curve_max[1]>-2 &&
+      (!withborder || (
+      (int)border_min[0]-(int)border_max[0]<2 && (int)border_min[0]-(int)border_max[0]>-2 &&
+      (int)border_min[1]-(int)border_max[1]<2 && (int)border_min[1]-(int)border_max[1]>-2))))
+  {
+    curve[*pos_curve] = curve_max[0];
+    curve[*pos_curve+1] = curve_max[1];
+    if (withborder) border[*pos_border] = border_max[0];
+    if (withborder) border[*pos_border+1] = border_max[1];
+    *pos_curve += 2;
+    if (withborder) *pos_border += 2;
+    rcurve[0] = curve_max[0];
+    rcurve[1] = curve_max[1];
+    if (withborder) rborder[0] = border_max[0];
+    if (withborder) rborder[1] = border_max[1];;
+    return;
+  }
+  
+  //we split in two part
+  double tx = (tmin+tmax)/2.0;
+  float c[2] = {-99999,-99999}, b[2]= {-99999,-99999};
+  float rc[2], rb[2];
+  _curve_points_recurs(p1,p2,tmin,tx,curve_min,c,border_min,b,rc,rb,curve,border,pos_curve,pos_border,withborder);
+  _curve_points_recurs(p1,p2,tx,tmax,rc,curve_max,rb,border_max,rcurve,rborder,curve,border,pos_curve,pos_border,withborder);
 }
 
 static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, int prio_max, dt_dev_pixelpipe_t *pipe, 
@@ -353,10 +390,14 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
     int pb = posb;
     border_init[k*6+2] = -posb;
     int k2 = (k+1)%nb;
+    int k3 = (k+2)%nb;
     dt_masks_point_curve_t *point1 = (dt_masks_point_curve_t *)g_list_nth_data(form->points,k);
     dt_masks_point_curve_t *point2 = (dt_masks_point_curve_t *)g_list_nth_data(form->points,k2);
+    dt_masks_point_curve_t *point3 = (dt_masks_point_curve_t *)g_list_nth_data(form->points,k3);
     float p1[5] = {point1->corner[0]*wd-dx, point1->corner[1]*ht-dy, point1->ctrl2[0]*wd-dx, point1->ctrl2[1]*ht-dy, cw*point1->border[1]*MIN(wd,ht)};
     float p2[5] = {point2->corner[0]*wd-dx, point2->corner[1]*ht-dy, point2->ctrl1[0]*wd-dx, point2->ctrl1[1]*ht-dy, cw*point2->border[0]*MIN(wd,ht)};
+    float p3[5] = {point2->corner[0]*wd-dx, point2->corner[1]*ht-dy, point2->ctrl2[0]*wd-dx, point2->ctrl2[1]*ht-dy, cw*point2->border[1]*MIN(wd,ht)};
+    float p4[5] = {point3->corner[0]*wd-dx, point3->corner[1]*ht-dy, point3->ctrl1[0]*wd-dx, point3->ctrl1[1]*ht-dy, cw*point3->border[0]*MIN(wd,ht)};
     
     //and we determine all points by recursion (to be sure the distance between 2 points is <=1)
     float rc[2],rb[2];
@@ -366,6 +407,13 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
     float cmax[2] = {-99999,-99999};
     if (border) _curve_points_recurs(p1,p2,0.0,1.0,cmin,cmax,bmin,bmax,rc,rb,*points,*border,&pos,&posb,(nb>=3));
     else _curve_points_recurs(p1,p2,0.0,1.0,cmin,cmax,bmin,bmax,rc,rb,*points,NULL,&pos,&posb,FALSE);
+    //we check gaps in the border (sharp edges)
+    if (border && ((*border)[posb-2]-rb[0] > 1 || (*border)[posb-2]-rb[0] < -1 || (*border)[posb-1]-rb[1] > 1 || (*border)[posb-1]-rb[1] < -1))
+    {
+      bmin[0] = (*border)[posb-2];
+      bmin[1] = (*border)[posb-1];
+      _curve_points_recurs_border_gaps(rc,bmin,rb,*points,&pos,*border,&posb);
+    }
     (*points)[pos++] = rc[0];
     (*points)[pos++] = rc[1];
     if (border) (*border)[posb++] = rb[0];
@@ -373,6 +421,17 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
     border_init[k*6+4] = -posb;
     if (border) (*border)[k*6] = border_init[k*6] = (*border)[pb];
     if (border) (*border)[k*6+1] = border_init[k*6+1] = (*border)[pb+1];
+    
+    //we first want to be sure that theres's no gaps in broder
+    if (border && nb>=3)
+    {
+      //we get the next point (start of the next segment)
+      _curve_border_get_XY(p3[0],p3[1],p3[2],p3[3],p4[2],p4[3],p4[0],p4[1],0, p3[4],cmin,cmin+1,bmax,bmax+1);
+      if (bmax[0]-rb[0] > 1 || bmax[0]-rb[0] < -1 || bmax[1]-rb[1] > 1 || bmax[1]-rb[1] < -1)
+      {
+        _curve_points_recurs_border_gaps(rc,rb,bmax,*points,&pos,*border,&posb);
+      }
+    }
   }
   *points_count = pos/2;
   if (border) *border_count = posb/2;
@@ -1856,10 +1915,10 @@ static int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *pi
     ymax = fmaxf(yy,ymax);
   }
   //-------------
-  const int hb = *height = ymax-ymin+2;
-  const int wb = *width = xmax-xmin+2;
-  *posx = xmin-1;
-  *posy = ymin-1;
+  const int hb = *height = ymax-ymin+4;
+  const int wb = *width = xmax-xmin+4;
+  *posx = xmin-2;
+  *posy = ymin-2;
   gettimeofday(&tv3,NULL);
   printf("--min-max %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
   tv2 = tv3;
@@ -1880,8 +1939,10 @@ static int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *pi
     lasty = (int) points[(nbp-1)*2+1];
     lasty2 = (int) points[(nbp-2)*2+1];
   
-    for (int i=nb_corner*3; i < nbp; i++)
+    for (int ii=nb_corner*3; ii < nbp+1; ii++)
     {
+      int i = ii;
+      if (ii == nbp) i = nb_corner*3; 
       int xx = (int) points[i*2];
       int yy = (int) points[i*2+1];
       //we don't store the point if it has the same y value as the last one
@@ -1962,6 +2023,8 @@ static int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *pi
     //and we draw the falloff
     if (last0[0] != p0[0] || last0[1] != p0[1] || last1[0] != p1[0] || last1[1] != p1[1])
     {
+      //we have to avoid gap
+      
       _curve_falloff(buffer,p0,p1,*posx,*posy,*width);
       last0[0] = p0[0], last0[1] = p0[1];
       last1[0] = p1[0], last1[1] = p1[1];
