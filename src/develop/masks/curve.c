@@ -1939,10 +1939,10 @@ static int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *pi
     lasty = (int) points[(nbp-1)*2+1];
     lasty2 = (int) points[(nbp-2)*2+1];
   
-    for (int ii=nb_corner*3; ii < nbp+1; ii++)
+    for (int ii=nb_corner*3; ii < 2*nbp; ii++)
     {
       int i = ii;
-      if (ii == nbp) i = nb_corner*3; 
+      if (ii >= nbp) i = ii - nbp + nb_corner*3; 
       int xx = (int) points[i*2];
       int yy = (int) points[i*2+1];
       //we don't store the point if it has the same y value as the last one
@@ -1979,6 +1979,7 @@ static int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *pi
       lasty2 = lasty;
       lasty = yy;
       lastx = xx;
+      if (ii != i) break;
     }
   }
   gettimeofday(&tv3,NULL);
@@ -2013,7 +2014,7 @@ static int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *pi
     
     //now we check p1 value to know if we have to skip a part
     if (next == i) next = 0;
-    if (p1[0] == -999999)
+    while (p1[0] == -999999)
     {
       if (p1[1] == -999999) next = i-1;
       else next = p1[1];
@@ -2023,8 +2024,6 @@ static int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *pi
     //and we draw the falloff
     if (last0[0] != p0[0] || last0[1] != p0[1] || last1[0] != p1[0] || last1[1] != p1[1])
     {
-      //we have to avoid gap
-      
       _curve_falloff(buffer,p0,p1,*posx,*posy,*width);
       last0[0] = p0[0], last0[1] = p0[1];
       last1[0] = p1[0], last1[1] = p1[1];
