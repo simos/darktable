@@ -2789,10 +2789,25 @@ void dt_iop_gui_set_state(dt_iop_module_t *module,dt_iop_module_state_t state)
 {
   char option[1024];
   module->state = state;
+  /* we should apply this to all other instance of the module too */
+  GList *mods = g_list_first(module->dev->iop);
+  while (mods)
+  {
+    dt_iop_module_t *mod = (dt_iop_module_t *)mods->data;
+    if (mod->so == module->so) mod->state = state;      
+    mods = g_list_next(mods);
+  }
   if(state==dt_iop_state_HIDDEN)
   {
     /* module is hidden lets set conf values */
     if(module->expander) gtk_widget_hide(GTK_WIDGET(module->expander));
+    mods = g_list_first(module->dev->iop);
+    while (mods)
+    {
+      dt_iop_module_t *mod = (dt_iop_module_t *)mods->data;
+      if (mod->so == module->so && mod->expander) gtk_widget_hide(GTK_WIDGET(mod->expander));
+      mods = g_list_next(mods);
+    }
     snprintf(option, 512, "plugins/darkroom/%s/visible", module->op);
     dt_conf_set_bool (option, FALSE);
     snprintf(option, 512, "plugins/darkroom/%s/favorite", module->op);
@@ -2803,6 +2818,13 @@ void dt_iop_gui_set_state(dt_iop_module_t *module,dt_iop_module_state_t state)
     /* module is shown lets set conf values */
     dt_dev_modulegroups_switch(darktable.develop,module);
     if(module->expander) gtk_widget_show(GTK_WIDGET(module->expander));
+    mods = g_list_first(module->dev->iop);
+    while (mods)
+    {
+      dt_iop_module_t *mod = (dt_iop_module_t *)mods->data;
+      if (mod->so == module->so && mod->expander) gtk_widget_show(GTK_WIDGET(mod->expander));
+      mods = g_list_next(mods);
+    }
     snprintf(option, 512, "plugins/darkroom/%s/visible", module->op);
     dt_conf_set_bool (option, TRUE);
     snprintf(option, 512, "plugins/darkroom/%s/favorite", module->op);
@@ -2813,6 +2835,13 @@ void dt_iop_gui_set_state(dt_iop_module_t *module,dt_iop_module_state_t state)
     /* module is shown and favorite lets set conf values */
     dt_dev_modulegroups_set(darktable.develop,DT_MODULEGROUP_FAVORITES);
     if(module->expander) gtk_widget_show(GTK_WIDGET(module->expander));
+    mods = g_list_first(module->dev->iop);
+    while (mods)
+    {
+      dt_iop_module_t *mod = (dt_iop_module_t *)mods->data;
+      if (mod->so == module->so && mod->expander) gtk_widget_show(GTK_WIDGET(mod->expander));
+      mods = g_list_next(mods);
+    }
     snprintf(option, 512, "plugins/darkroom/%s/visible", module->op);
     dt_conf_set_bool (option, TRUE);
     snprintf(option, 512, "plugins/darkroom/%s/favorite", module->op);

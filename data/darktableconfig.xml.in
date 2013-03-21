@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<!DOCTYPE dtconfiglist SYSTEM "darktableconfig.dtd">
+<!DOCTYPE dtconfiglist SYSTEM "file://${CMAKE_CURRENT_SOURCE_DIR}/darktableconfig.dtd">
 <dtconfiglist>
   <dtconfig>
     <name>bauhaus/scale</name>
@@ -45,7 +45,7 @@
   </dtconfig>
   <dtconfig prefs="core">
     <name>host_memory_limit</name>
-    <type min="500">int</type>
+    <type>int</type>
     <default>1500</default>
     <shortdescription>host memory limit (in MB) for tiling</shortdescription>
     <longdescription>this variable controls the maximum amount of memory (in MB) a module may use during image processing. lower values will force memory hungry modules to process image with increasing number of tiles. setting this to 0 will omit any limit. values below 500 will be treated as 500. needs a restart.</longdescription>
@@ -123,7 +123,7 @@
   <dtconfig prefs="core" capability="opencl">
     <name>opencl</name>
     <type>bool</type>
-    <default>true</default>
+    <default>${DEFCONFIG_OPENCL}</default>
     <shortdescription>activate opencl support</shortdescription>
     <longdescription>if found, use opencl runtime on your system for improved processing speed. can be switched on and off at any time.</longdescription>
   </dtconfig>
@@ -1910,17 +1910,17 @@
     <longdescription/>
   </dtconfig>
   <dtconfig>
-    <name>plugins/darkroom/clipping/custom_aspect</name>
-    <type>float</type>
-    <default>1.5</default>
-    <shortdescription>last chosen custom aspect ratio</shortdescription>
+    <name>plugins/darkroom/clipping/ratio_d</name>
+    <type>int</type>
+    <default>0</default>
+    <shortdescription>last chosen aspect ratio denominator</shortdescription>
     <longdescription/>
   </dtconfig>
   <dtconfig>
-    <name>plugins/darkroom/clipping/aspect_preset</name>
+    <name>plugins/darkroom/clipping/ratio_n</name>
     <type>int</type>
-    <default>1</default>
-    <shortdescription>last chosen aspect ratio preset</shortdescription>
+    <default>0</default>
+    <shortdescription>last chosen aspect ratio numerator</shortdescription>
     <longdescription/>
   </dtconfig>
   <dtconfig>
