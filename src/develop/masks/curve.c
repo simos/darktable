@@ -1843,6 +1843,7 @@ static int dt_curve_get_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *pi
   return 1;
 }
 
+//we write a falloff segment
 static void _curve_falloff(float **buffer, int *p0, int *p1, int posx, int posy, int bw)
 {
   //segment length
@@ -1901,9 +1902,6 @@ static int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *pi
     ymin = fminf(yy,ymin);
     ymax = fmaxf(yy,ymax);
   }
-  //------------
-  //this part is temporaray need to avoid crash in case of strange curve (self-intersect, loop, etc...)
-  //probably need to be handled differently for performances
   for (int i=nb_corner*3; i < points_count; i++)
   {
     //we look at the curve too
@@ -1914,7 +1912,7 @@ static int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *pi
     ymin = fminf(yy,ymin);
     ymax = fmaxf(yy,ymax);
   }
-  //-------------
+
   const int hb = *height = ymax-ymin+4;
   const int wb = *width = xmax-xmin+4;
   *posx = xmin-2;
@@ -1930,7 +1928,7 @@ static int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *pi
   tv2 = tv3; 
   
   //----------------------------------
-  //we create a new buffer for all the points, sorted by row values
+  //we write all the point around the curve into the buffer
   int nbp = border_count;
   int lastx,lasty,lasty2,nx;
   if (nbp>2)
@@ -1938,13 +1936,17 @@ static int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *pi
     lastx = (int) points[(nbp-1)*2];
     lasty = (int) points[(nbp-1)*2+1];
     lasty2 = (int) points[(nbp-2)*2+1];
-  
+    
+    int just_change_dir = 0;
     for (int ii=nb_corner*3; ii < 2*nbp; ii++)
     {
+      //we are writting more than 1 loop in the case the dir in y change
+      //exactly at start/end point
       int i = ii;
       if (ii >= nbp) i = ii - nbp + nb_corner*3; 
       int xx = (int) points[i*2];
       int yy = (int) points[i*2+1];
+      
       //we don't store the point if it has the same y value as the last one
       if (yy == lasty) continue;
       
@@ -1958,6 +1960,8 @@ static int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *pi
             int nx = (j-yy)*(lastx-xx)/(float)(lasty-yy)+xx;
             (*buffer)[(j-(*posy))*(*width)+nx-(*posx)] = 1.0f;
           }
+          lasty2 = yy+2;
+          lasty = yy+1;
         }
         else
         {
@@ -1966,15 +1970,34 @@ static int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *pi
             nx = (j-lasty)*(xx-lastx)/(float)(yy-lasty)+lastx;
             (*buffer)[(j-(*posy))*(*width)+nx-(*posx)] = 1.0f;
           }
+          lasty2 = yy-2;
+          lasty = yy-1;
         }
       }
       //if we change the direction of the curve (in y), then we add a extra point
       if ((lasty-lasty2)*(lasty-yy)>0)
       {
         (*buffer)[(lasty-(*posy))*(*width)+lastx+1-(*posx)] = 1.0f;
+        just_change_dir = 1;
       }
       //we add the point
-      (*buffer)[(yy-(*posy))*(*width)+xx-(*posx)] = 1.0f;
+      if (just_change_dir)
+      {
+        //if we have changed the direction, we have to be carrefull that point can be at the same place
+        //as the previous one , especially on sharp edges
+        float v = (*buffer)[(yy-(*posy))*(*width)+xx-(*posx)];
+        if (v>0.0)
+        {
+          if (xx-(*posx)>0) (*buffer)[(yy-(*posy))*(*width)+xx-1-(*posx)] = 1.0f;
+          else if (xx-(*posx)<(*width)-1) (*buffer)[(yy-(*posy))*(*width)+xx+1-(*posx)] = 1.0f;
+        }
+        else
+        {
+          (*buffer)[(yy-(*posy))*(*width)+xx-(*posx)] = 1.0f;
+          just_change_dir = 0;
+        }
+      }
+      else (*buffer)[(yy-(*posy))*(*width)+xx-(*posx)] = 1.0f;
       //we change last values
       lasty2 = lasty;
       lasty = yy;
