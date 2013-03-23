@@ -246,6 +246,7 @@ static int _curve_fill_gaps(int lastx, int lasty, int x, int y, int *points, int
 //it fill the gap with an arc of circle
 static void _curve_points_recurs_border_gaps(float *cmax, float *bmin, float *bmax, float *curve, int *pos_curve, float *border, int *pos_border)
 {
+  printf("gaps %f %f  %f %f\n",bmin[0],bmin[1],bmax[0],bmax[1]);
   //we want to find the start and end angles
   float a1 = atan2f(bmin[1]-cmax[1],bmin[0]-cmax[0]);
   float a2 = atan2f(bmax[1]-cmax[1],bmax[0]-cmax[0]);
@@ -295,7 +296,7 @@ static void _curve_points_recurs(float *p1, float *p2,
                           curve_max,curve_max+1,border_max,border_max+1);
   }
   //are the points near ?
-  if ((tmax-tmin < 0.000001) || ((int)curve_min[0]-(int)curve_max[0]<2 && (int)curve_min[0]-(int)curve_max[0]>-2 &&
+  if ((tmax-tmin < 0.00001) || ((int)curve_min[0]-(int)curve_max[0]<2 && (int)curve_min[0]-(int)curve_max[0]>-2 &&
       (int)curve_min[1]-(int)curve_max[1]<2 && (int)curve_min[1]-(int)curve_max[1]>-2 &&
       (!withborder || (
       (int)border_min[0]-(int)border_max[0]<2 && (int)border_min[0]-(int)border_max[0]>-2 &&
@@ -303,14 +304,15 @@ static void _curve_points_recurs(float *p1, float *p2,
   {
     curve[*pos_curve] = curve_max[0];
     curve[*pos_curve+1] = curve_max[1];
-    if (withborder) border[*pos_border] = border_max[0];
-    if (withborder) border[*pos_border+1] = border_max[1];
+    if (withborder) 
+    {
+      rborder[0] = border[*pos_border] = border_max[0];
+      rborder[1] = border[*pos_border+1] = border_max[1];
+      *pos_border += 2;
+    }
     *pos_curve += 2;
-    if (withborder) *pos_border += 2;
     rcurve[0] = curve_max[0];
     rcurve[1] = curve_max[1];
-    if (withborder) rborder[0] = border_max[0];
-    if (withborder) rborder[1] = border_max[1];;
     return;
   }
   
@@ -416,17 +418,36 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
     }
     (*points)[pos++] = rc[0];
     (*points)[pos++] = rc[1];
-    if (border) (*border)[posb++] = rb[0];
-    if (border) (*border)[posb++] = rb[1];
     border_init[k*6+4] = -posb;
-    if (border) (*border)[k*6] = border_init[k*6] = (*border)[pb];
-    if (border) (*border)[k*6+1] = border_init[k*6+1] = (*border)[pb+1];
+    if (border)
+    {
+      
+      if (rb[0] == -9999999.0f)
+      {
+        if ((*border)[posb-2] == -9999999.0f)
+        {
+          (*border)[posb-2] = (*border)[posb-4];
+          (*border)[posb-1] = (*border)[posb-3];
+        }
+        rb[0] = (*border)[posb-2];
+        rb[1] = (*border)[posb-1];
+      }
+      (*border)[posb++] = rb[0];
+      (*border)[posb++] = rb[1];
+    
+      (*border)[k*6] = border_init[k*6] = (*border)[pb];
+      (*border)[k*6+1] = border_init[k*6+1] = (*border)[pb+1];
+    }
     
     //we first want to be sure that theres's no gaps in broder
     if (border && nb>=3)
     {
       //we get the next point (start of the next segment)
       _curve_border_get_XY(p3[0],p3[1],p3[2],p3[3],p4[2],p4[3],p4[0],p4[1],0, p3[4],cmin,cmin+1,bmax,bmax+1);
+      if (bmax[0] == -9999999.0f)
+      {
+        _curve_border_get_XY(p3[0],p3[1],p3[2],p3[3],p4[2],p4[3],p4[0],p4[1],0.00001, p3[4],cmin,cmin+1,bmax,bmax+1);
+      }
       if (bmax[0]-rb[0] > 1 || bmax[0]-rb[0] < -1 || bmax[1]-rb[1] > 1 || bmax[1]-rb[1] < -1)
       {
         _curve_points_recurs_border_gaps(rc,rb,bmax,*points,&pos,*border,&posb);
@@ -451,7 +472,6 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
 
     for (int i=nb*3; i < *border_count; i++)
     {
-      //if (isnanf((*border)[i*2]) || isnanf((*border)[i*2+1]))
       if ((*border)[i*2]<-999999 || (*border)[i*2+1]<-999999)
       {
         (*border)[i*2] = (*border)[i*2-2];
@@ -957,8 +977,9 @@ static int dt_curve_events_button_pressed(struct dt_iop_module_t *module,float p
       bzpt->corner[0] = pts[0]/darktable.develop->preview_pipe->iwidth;
       bzpt->corner[1] = pts[1]/darktable.develop->preview_pipe->iheight;
       bzpt->ctrl1[0] = bzpt->ctrl1[1] = bzpt->ctrl2[0] = bzpt->ctrl2[1] = -1.0;
-      bzpt->border[0] = bzpt->border[1] = 0.05;
       bzpt->state = DT_MASKS_POINT_STATE_NORMAL;
+
+      bzpt->border[0] = bzpt->border[1] = 0.05;
       
       //if that's the first point we should had another one as base point
       if (nb == 0)
@@ -975,6 +996,15 @@ static int dt_curve_events_button_pressed(struct dt_iop_module_t *module,float p
         nb++;
       }
       form->points = g_list_append(form->points,bzpt);
+      
+      //if this is a ctrl click, the last creted point is a sharp one
+      if ((state&GDK_CONTROL_MASK) == GDK_CONTROL_MASK)
+      {
+        dt_masks_point_curve_t *bzpt3 = g_list_nth_data(form->points,nb-1);
+        bzpt3->ctrl1[0] = bzpt3->ctrl2[0] = bzpt3->corner[0];
+        bzpt3->ctrl1[1] = bzpt3->ctrl2[1] = bzpt3->corner[1];
+        bzpt3->state = DT_MASKS_POINT_STATE_USER;
+      }
       
       gui->point_dragging = nb;
       
@@ -1480,13 +1510,17 @@ static int dt_curve_events_mouse_moved(struct dt_iop_module_t *module,float pzx,
   if ((gui->group_selected == index) && gui->point_edited >= 0)
   {
     int k = gui->point_edited;
-    int ffx,ffy;
-    _curve_ctrl2_to_feather(gpt->points[k*6+2],gpt->points[k*6+3],gpt->points[k*6+4],gpt->points[k*6+5],&ffx,&ffy,gpt->clockwise);
-    if (pzx-ffx>-as && pzx-ffx<as && pzy-ffy>-as && pzy-ffy<as)
+    //we only select feather if the point is not "sharp"
+    if (gpt->points[k*6+2]!=gpt->points[k*6+4] && gpt->points[k*6+3]!=gpt->points[k*6+5])
     {
-      gui->feather_selected = k;
-      dt_control_queue_redraw_center();
-      return 1;
+      int ffx,ffy;
+      _curve_ctrl2_to_feather(gpt->points[k*6+2],gpt->points[k*6+3],gpt->points[k*6+4],gpt->points[k*6+5],&ffx,&ffy,gpt->clockwise);
+      if (pzx-ffx>-as && pzx-ffx<as && pzy-ffy>-as && pzy-ffy<as)
+      {
+        gui->feather_selected = k;
+        dt_control_queue_redraw_center();
+        return 1;
+      }
     }
     //corner ??
     if (pzx-gpt->points[k*6+2]>-as && pzx-gpt->points[k*6+2]<as && pzy-gpt->points[k*6+3]>-as && pzy-gpt->points[k*6+3]<as)
@@ -1981,7 +2015,7 @@ static int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *pi
         just_change_dir = 1;
       }
       //we add the point
-      if (just_change_dir)
+      if (just_change_dir && ii==i)
       {
         //if we have changed the direction, we have to be carrefull that point can be at the same place
         //as the previous one , especially on sharp edges
