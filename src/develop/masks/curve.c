@@ -244,14 +244,27 @@ static int _curve_fill_gaps(int lastx, int lasty, int x, int y, int *points, int
 
 //this function is here because we can have gap in border, esp. if the corner is very sharp.
 //it fill the gap with an arc of circle
-static void _curve_points_recurs_border_gaps(float *cmax, float *bmin, float *bmax, float *curve, int *pos_curve, float *border, int *pos_border)
+static void _curve_points_recurs_border_gaps(float *cmax, float *bmin, float *bmin2, float *bmax, float *curve, int *pos_curve, float *border, int *pos_border)
 {
-  printf("gaps %f %f  %f %f\n",bmin[0],bmin[1],bmax[0],bmax[1]);
   //we want to find the start and end angles
-  float a1 = atan2f(bmin[1]-cmax[1],bmin[0]-cmax[0]);
-  float a2 = atan2f(bmax[1]-cmax[1],bmax[0]-cmax[0]);
+  double a1 = atan2(bmin[1]-cmax[1],bmin[0]-cmax[0]);
+  double a2 = atan2(bmax[1]-cmax[1],bmax[0]-cmax[0]);
   if (a1==a2) return;
 
+  //if a1 and a2 are not the same sign, we have to be sure that we turn in the correct direction
+  if (a1*a2 < 0)
+  {
+    double a3 = atan2(bmin2[1]-cmax[1],bmin2[0]-cmax[0]);
+    double d = a1-a3;
+    if ((a2-a1)*d<0)
+    {
+      //changer le signe du négatif
+      if (a1<0) a1 += 2*M_PI;
+      else a2 += 2*M_PI;
+    }
+  }
+  
+  
   //we dertermine start and end radius too
   float r1 = sqrtf((bmin[1]-cmax[1])*(bmin[1]-cmax[1])+(bmin[0]-cmax[0])*(bmin[0]-cmax[0]));
   float r2 = sqrtf((bmax[1]-cmax[1])*(bmax[1]-cmax[1])+(bmax[0]-cmax[0])*(bmax[0]-cmax[0]));
@@ -296,7 +309,7 @@ static void _curve_points_recurs(float *p1, float *p2,
                           curve_max,curve_max+1,border_max,border_max+1);
   }
   //are the points near ?
-  if ((tmax-tmin < 0.00001) || ((int)curve_min[0]-(int)curve_max[0]<2 && (int)curve_min[0]-(int)curve_max[0]>-2 &&
+  if ((tmax-tmin < 0.0001) || ((int)curve_min[0]-(int)curve_max[0]<2 && (int)curve_min[0]-(int)curve_max[0]>-2 &&
       (int)curve_min[1]-(int)curve_max[1]<2 && (int)curve_min[1]-(int)curve_max[1]>-2 &&
       (!withborder || (
       (int)border_min[0]-(int)border_max[0]<2 && (int)border_min[0]-(int)border_max[0]>-2 &&
@@ -414,7 +427,7 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
     {
       bmin[0] = (*border)[posb-2];
       bmin[1] = (*border)[posb-1];
-      _curve_points_recurs_border_gaps(rc,bmin,rb,*points,&pos,*border,&posb);
+      //_curve_points_recurs_border_gaps(rc,bmin,rb,*points,&pos,*border,&posb);
     }
     (*points)[pos++] = rc[0];
     (*points)[pos++] = rc[1];
@@ -446,11 +459,12 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
       _curve_border_get_XY(p3[0],p3[1],p3[2],p3[3],p4[2],p4[3],p4[0],p4[1],0, p3[4],cmin,cmin+1,bmax,bmax+1);
       if (bmax[0] == -9999999.0f)
       {
-        _curve_border_get_XY(p3[0],p3[1],p3[2],p3[3],p4[2],p4[3],p4[0],p4[1],0.00001, p3[4],cmin,cmin+1,bmax,bmax+1);
+        _curve_border_get_XY(p3[0],p3[1],p3[2],p3[3],p4[2],p4[3],p4[0],p4[1],0.0001, p3[4],cmin,cmin+1,bmax,bmax+1);
       }
       if (bmax[0]-rb[0] > 1 || bmax[0]-rb[0] < -1 || bmax[1]-rb[1] > 1 || bmax[1]-rb[1] < -1)
       {
-        _curve_points_recurs_border_gaps(rc,rb,bmax,*points,&pos,*border,&posb);
+        float bmin2[2] = {(*border)[posb-22],(*border)[posb-21]};
+        _curve_points_recurs_border_gaps(rc,rb,bmin2,bmax,*points,&pos,*border,&posb);
       }
     }
   }
