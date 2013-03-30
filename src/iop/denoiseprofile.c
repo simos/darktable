@@ -1383,7 +1383,7 @@ void reload_defaults(dt_iop_module_t *module)
     char name[512];
     g->profile_cnt = dt_noiseprofile_get_matching(&module->dev->image_storage, g->profiles, MAX_PROFILES);
     g->interpolated = dt_noiseprofiles[0]; // default to generic poissonian
-    strncpy(name, g->interpolated.name, 512);
+    strncpy(name, _(g->interpolated.name), 512);
 
     const int iso = module->dev->image_storage.exif_iso;
     for(int i=1;i<g->profile_cnt;i++)
@@ -1556,6 +1556,7 @@ void gui_update(dt_iop_module_t *self)
   dt_bauhaus_slider_set(g->radius,   p->radius);
   dt_bauhaus_slider_set(g->strength, p->strength);
   dt_bauhaus_combobox_set(g->mode,   p->mode);
+  dt_bauhaus_combobox_set(g->profile, -1);
   if(p->mode == MODE_WAVELETS)
     gtk_widget_set_visible(g->radius, FALSE);
   else

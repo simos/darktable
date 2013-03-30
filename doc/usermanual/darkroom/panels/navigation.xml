@@ -1,10 +1,11 @@
-	<sect2 status="draft" id="navigation"><title>Navigation</title>
+	<sect2 status="final" id="navigation"><title>Navigation</title>
 		<informaltable frame="none"><tgroup cols="2" colsep="0" rowsep="0">
 				<colspec colwidth="6*"/>
 				<colspec colwidth="4*"/>
 				<tbody>
 					<row>						
-						<entry>The navigation panels shows a full preview of your image and the current viewport of zoom. Drag the rectangle around to pan the zoomed-in view.
+						<entry>The navigation panels shows a full preview of your image with a rectangle showing the
+                                                currently visible zoom area. Drag the rectangle around to pan the zoomed-in view.
 						</entry>
 						<entry>
 							<graphic fileref="darkroom/images/panel_navigation.png" scalefit="1" width="80%" align="center" />
