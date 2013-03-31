@@ -694,6 +694,51 @@ static void _menu_add_exist(GtkButton *button, dt_masks_form_t *form)
   dt_dev_masks_list_change(darktable.develop);
   dt_masks_set_edit_mode(module,TRUE);
 }
+static void _menu_use_same_as(GtkButton *button, dt_iop_module_t *src)
+{
+  dt_iop_module_t *module = darktable.develop->gui_module;
+  if (!module || !src) return;
+  
+  //we get the source group
+  int srcid = src->blend_params->mask_id;
+  dt_masks_form_t *src_grp = dt_masks_get_from_id(darktable.develop,srcid);
+  if (!src_grp || src_grp->type!=DT_MASKS_GROUP) return;
+  
+  //is there already a masks group for this module ?
+  int grpid = module->blend_params->mask_id;
+  dt_masks_form_t *grp = dt_masks_get_from_id(darktable.develop,grpid);
+  if (!grp)
+  {
+    //we create a new group
+    grp = dt_masks_create(DT_MASKS_GROUP);
+    snprintf(grp->name,128,"grp %s",module->name());
+    _check_id(grp);
+    darktable.develop->forms = g_list_append(darktable.develop->forms,grp);
+    module->blend_params->mask_id = grpid = grp->formid;
+  }
+  //we copy the src group in this group
+  GList *points = g_list_first(src_grp->points);
+  while (points)
+  {
+    dt_masks_point_group_t *pt = (dt_masks_point_group_t *)points->data;
+    dt_masks_point_group_t *grpt = malloc(sizeof(dt_masks_point_group_t));
+    grpt->formid = pt->formid;
+    grpt->parentid = grpid;
+    grpt->state = pt->state;
+    grpt->opacity = pt->opacity;
+    grp->points = g_list_append(grp->points,grpt);
+    points = g_list_next(points);
+  }
+  
+  //we save the group
+  dt_masks_write_form(grp,darktable.develop);
+  
+  //and we ensure that we are in edit mode
+  dt_dev_add_history_item(darktable.develop, module, TRUE);
+  dt_masks_iop_update(module);
+  dt_dev_masks_list_change(darktable.develop);
+  dt_masks_set_edit_mode(module,TRUE);
+}
 
 void dt_masks_iop_dropdown_callback(GtkWidget *widget, struct dt_iop_module_t *module)
 {
@@ -783,6 +828,35 @@ void dt_masks_iop_dropdown_callback(GtkWidget *widget, struct dt_iop_module_t *m
   item = gtk_menu_item_new_with_label(_("add existing shape"));
   gtk_menu_item_set_submenu(GTK_MENU_ITEM(item), menu);
   gtk_menu_append(menu0, item);
+
+  //other masks iops
+  menu = gtk_menu_new();
+  GList *modules = g_list_first(darktable.develop->iop);
+  int nb = 0;
+  while (modules)
+  {
+    dt_iop_module_t *m = (dt_iop_module_t *)modules->data;
+    if ((m->flags() & IOP_FLAGS_SUPPORTS_BLENDING) && !(m->flags() & IOP_FLAGS_NO_MASKS))
+    {
+      dt_masks_form_t *grp = dt_masks_get_from_id(darktable.develop,m->blend_params->mask_id);
+      if (grp)
+      {
+        item = gtk_menu_item_new_with_label(m->name());
+        //g_object_set_data(G_OBJECT(item), "formid", GUINT_TO_POINTER(form->formid));
+        g_signal_connect (G_OBJECT (item), "activate", G_CALLBACK (_menu_use_same_as), m);
+        gtk_menu_append(menu, item);
+        nb++;
+      }
+    }
+    modules = g_list_next(modules);
+  }
+  
+  if (nb > 0)
+  {
+    item = gtk_menu_item_new_with_label(_("use same shapes as"));
+    gtk_menu_item_set_submenu(GTK_MENU_ITEM(item), menu);
+    gtk_menu_append(menu0, item);
+  }
   
   dt_iop_gui_blend_data_t *bd = (dt_iop_gui_blend_data_t *)module->blend_data;
   GtkWidget *hb = bd->masks_hbox;
