@@ -188,6 +188,7 @@ static void _inverse_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece
 
 static int dt_group_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, float **buffer, int *width, int *height, int *posx, int *posy)
 {
+  double start2;
   //we allocate buffers and values
   const int nb = g_list_length(form->points);
   if (nb == 0) return 0;
@@ -211,7 +212,13 @@ static int dt_group_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *pi
     if (sel)
     {
       ok[pos] = dt_masks_get_mask(module,piece,sel,&bufs[pos],&w[pos],&h[pos],&px[pos],&py[pos]);
-      if (fpt->state & DT_MASKS_STATE_INVERSE) _inverse_mask(module,piece,sel,&bufs[pos],&w[pos],&h[pos],&px[pos],&py[pos]);
+      if (fpt->state & DT_MASKS_STATE_INVERSE)
+      {
+        start2 = dt_get_wtime();
+        _inverse_mask(module,piece,sel,&bufs[pos],&w[pos],&h[pos],&px[pos],&py[pos]);
+        if (darktable.unmuted & DT_DEBUG_PERF) dt_print(DT_DEBUG_MASKS, "[masks %s] inverse took %0.04f sec\n", sel->name, dt_get_wtime()-start2);
+        start2 = dt_get_wtime();
+      }
       op[pos] = fpt->opacity;
       states[pos] = fpt->state;
       if (ok[pos]) nb_ok++;
@@ -243,6 +250,7 @@ static int dt_group_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *pi
   //and we copy each buffer inside, row by row
   for (int i=0; i<nb; i++)
   {
+    start2 = dt_get_wtime();
     if (states[i] & DT_MASKS_STATE_UNION)
     {
       for (int y=0; y<h[i]; y++)
@@ -307,6 +315,8 @@ static int dt_group_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *pi
     
     //and we free the buffer
     free(bufs[i]);
+    if (darktable.unmuted & DT_DEBUG_PERF) dt_print(DT_DEBUG_MASKS, "[masks %d] combine took %0.04f sec\n", i, dt_get_wtime()-start2);
+    start2 = dt_get_wtime();
   }
   
   return 1;
@@ -314,6 +324,8 @@ static int dt_group_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *pi
 
 int dt_masks_group_render(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, float **buffer, int *roi, float scale)
 {
+  double start2 = dt_get_wtime();
+  
   if (!form) return 0;
   float *mask = *buffer;
   //we first reset the buffer to 0
@@ -323,6 +335,9 @@ int dt_masks_group_render(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece
   float *fm = NULL;
   int fx,fy,fw,fh;
   if (!dt_masks_get_mask(module,piece,form,&fm,&fw,&fh,&fx,&fy)) return 0;
+  
+  if (darktable.unmuted & DT_DEBUG_PERF) dt_print(DT_DEBUG_MASKS, "[masks] get all masks took %0.04f sec\n", dt_get_wtime()-start2);
+  start2 = dt_get_wtime();
   
   //we don't want row which are outisde the roi_out
   int fxx = fx*scale+1;
@@ -349,7 +364,9 @@ int dt_masks_group_render(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece
   
   //we free the mask
   free(fm);
-
+  
+  if (darktable.unmuted & DT_DEBUG_PERF) dt_print(DT_DEBUG_MASKS, "[masks] scale all masks took %0.04f sec\n", dt_get_wtime()-start2);
+  
   return 1;
 }
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh

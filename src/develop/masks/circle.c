@@ -556,9 +556,13 @@ static int dt_circle_get_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *p
 
 static int dt_circle_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, float **buffer, int *width, int *height, int *posx, int *posy)
 {
+  double start2 = dt_get_wtime();
+  
   //we get the area
   if (!dt_circle_get_area(module,piece,form,width,height,posx,posy)) return 0;
-  //float wd = scale*piece->buf_in.width, ht = scale*piece->buf_in.height;
+  
+  if (darktable.unmuted & DT_DEBUG_PERF) dt_print(DT_DEBUG_MASKS, "[masks %s] circle area took %0.04f sec\n", form->name, dt_get_wtime()-start2);
+  start2 = dt_get_wtime();
   
   //we get the cicle values
   dt_masks_point_circle_t *circle = (dt_masks_point_circle_t *) (g_list_first(form->points)->data);
@@ -572,9 +576,15 @@ static int dt_circle_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *p
       points[(i*w+j)*2] = (j+(*posx));
       points[(i*w+j)*2+1] = (i+(*posy));
     }
-    
+  
+  if (darktable.unmuted & DT_DEBUG_PERF) dt_print(DT_DEBUG_MASKS, "[masks %s] circle draw took %0.04f sec\n", form->name, dt_get_wtime()-start2);
+  start2 = dt_get_wtime();
+  
   //we back transform all this points
   if (!dt_dev_distort_backtransform_plus(module->dev,piece->pipe,0,module->priority,points,w*h)) return 0;
+  
+  if (darktable.unmuted & DT_DEBUG_PERF) dt_print(DT_DEBUG_MASKS, "[masks %s] circle transform took %0.04f sec\n", form->name, dt_get_wtime()-start2);
+  start2 = dt_get_wtime();
   
   //we allocate the buffer
   *buffer = malloc(w*h*sizeof(float));
@@ -599,6 +609,10 @@ static int dt_circle_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *p
       else (*buffer)[i*w+j] = 0.0f;
     }
   free(points);
+  
+  if (darktable.unmuted & DT_DEBUG_PERF) dt_print(DT_DEBUG_MASKS, "[masks %s] circle fill took %0.04f sec\n", form->name, dt_get_wtime()-start2);
+  start2 = dt_get_wtime();
+  
   return 1;
 }
 

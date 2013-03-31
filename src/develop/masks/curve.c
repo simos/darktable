@@ -340,23 +340,16 @@ static void _curve_points_recurs(float *p1, float *p2,
 static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, int prio_max, dt_dev_pixelpipe_t *pipe, 
                                       float **points, int *points_count, float **border, int *border_count, int source)
 {
-  struct timeval tv1,tv2,tv3;
-  //struct timezone tz;
-  //long diff;
-  gettimeofday(&tv1,NULL);
-  gettimeofday(&tv2,NULL);
+  double start2 = dt_get_wtime();
   
   float wd = pipe->iwidth, ht = pipe->iheight;
-  printf("sizes : %f %f\n",wd,ht);
+
   //we allocate buffer (very large) => how to handle this ???
   *points = malloc(600000*sizeof(float));
   memset(*points,0,600000*sizeof(float));
   if (border) *border = malloc(600000*sizeof(float));
   if (border) memset(*border,0,600000*sizeof(float));
   
-  gettimeofday(&tv3,NULL);
-  printf("malloc %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
-  tv2 = tv3;
   //we store all points
   float dx,dy;
   dx=dy=0.0f;
@@ -396,9 +389,10 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
   float *border_init = malloc(sizeof(float)*6*nb);
   int cw = _curve_is_clockwise(form);
   if (cw == 0) cw = -1;
-  gettimeofday(&tv3,NULL);
-  printf("corners %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
-  tv2 = tv3;
+  
+  if (darktable.unmuted & DT_DEBUG_PERF) dt_print(DT_DEBUG_MASKS, "[masks %s] curve_points init took %0.04f sec\n", form->name, dt_get_wtime()-start2);
+  start2 = dt_get_wtime();
+  
   //we render all segments
   for(int k = 0; k < nb; k++)
   {
@@ -470,9 +464,9 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
   }
   *points_count = pos/2;
   if (border) *border_count = posb/2;
-  gettimeofday(&tv3,NULL);
-  printf("points %ld %d\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec), *points_count);
-  tv2 = tv3;
+  
+  if (darktable.unmuted & DT_DEBUG_PERF) dt_print(DT_DEBUG_MASKS, "[masks %s] curve_points point recurs %0.04f sec\n", form->name, dt_get_wtime()-start2);
+  start2 = dt_get_wtime();
 
   //we don't want the border to self-intersect
   int *intersections = NULL;
@@ -653,10 +647,10 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
           lasty = yy;
         }
       }
-      gettimeofday(&tv3,NULL);
-      printf("self-intersect3 %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
-      tv2 = tv3;
       free(binter);
+      
+      if (darktable.unmuted & DT_DEBUG_PERF) dt_print(DT_DEBUG_MASKS, "[masks %s] curve_points self-intersect took %0.04f sec\n", form->name, dt_get_wtime()-start2);
+      start2 = dt_get_wtime();
     }
   }
   //and we transform them with all distorted modules
@@ -664,10 +658,9 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
   {
     if (!border || dt_dev_distort_transform_plus(dev,pipe,0,prio_max,*border,*border_count))
     {
-      gettimeofday(&tv3,NULL);
-    printf("transform %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
-    tv2 = tv3;
-      //memcpy(*border,border_init,sizeof(float)*6*nb);
+      if (darktable.unmuted & DT_DEBUG_PERF) dt_print(DT_DEBUG_MASKS, "[masks %s] curve_points transform took %0.04f sec\n", form->name, dt_get_wtime()-start2);
+      start2 = dt_get_wtime();
+
       //we don't want to copy the falloff points
       if (border)
         for(int k = 0; k < nb; k++)
@@ -677,7 +670,6 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
       {
         int v = intersections[i*2];
         int w = intersections[i*2+1];
-        printf("inter %d %d\n",v,w);
         if (v<=w)
         {
           (*border)[v*2] = -999999;
@@ -695,9 +687,10 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
           (*border)[v*2+1] = -999999;
         }
       }
-      gettimeofday(&tv3,NULL);
-    printf("cpy corners %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
-    tv2 = tv3;
+      
+      if (darktable.unmuted & DT_DEBUG_PERF) dt_print(DT_DEBUG_MASKS, "[masks %s] curve_points end took %0.04f sec\n", form->name, dt_get_wtime()-start2);
+      start2 = dt_get_wtime();
+      
       free(border_init);
       return 1;
     }
@@ -1915,20 +1908,17 @@ static void _curve_falloff(float **buffer, int *p0, int *p1, int posx, int posy,
 static int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *piece, dt_masks_form_t *form, float **buffer, int *width, int *height, int *posx, int *posy)
 {
   if (!module) return 0;
-  struct timeval tv1,tv2,tv3;
-  gettimeofday(&tv1,NULL);
-  gettimeofday(&tv2,NULL);
-  printf("----start mask creation %s\n",form->name);
+  double start = dt_get_wtime();
+  double start2;
   
   //we get buffers for all points
   float *points, *border;
   int points_count,border_count;
   if (!_curve_get_points_border(module->dev,form,module->priority,piece->pipe,&points,&points_count,&border,&border_count,0)) return 0;
 
+  if (darktable.unmuted & DT_DEBUG_PERF) dt_print(DT_DEBUG_MASKS, "[masks %s] curve points took %0.04f sec\n", form->name, dt_get_wtime()-start);
+  start = start2 = dt_get_wtime();
   
-  gettimeofday(&tv3,NULL);
-  printf("--total points %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
-  tv2 = tv3;
   //now we want to find the area, so we search min/max points
   float xmin, xmax, ymin, ymax;
   xmin = ymin = FLT_MAX;
@@ -1965,17 +1955,13 @@ static int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *pi
   const int wb = *width = xmax-xmin+4;
   *posx = xmin-2;
   *posy = ymin-2;
-  gettimeofday(&tv3,NULL);
-  printf("--min-max %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
-  tv2 = tv3;
+  
+  if (darktable.unmuted & DT_DEBUG_PERF) dt_print(DT_DEBUG_MASKS, "[masks %s] curve_fill min max took %0.04f sec\n", form->name, dt_get_wtime()-start2);
+  start2 = dt_get_wtime();
   
    //we allocate the buffer
-  *buffer = malloc((*width)*(*height)*sizeof(float));
-  gettimeofday(&tv3,NULL);
-  printf("--alloc buff %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
-  tv2 = tv3; 
+  *buffer = malloc((*width)*(*height)*sizeof(float)); 
   
-  //----------------------------------
   //we write all the point around the curve into the buffer
   int nbp = border_count;
   int lastx,lasty,lasty2,nx;
@@ -2053,9 +2039,8 @@ static int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *pi
       if (ii != i) break;
     }
   }
-  gettimeofday(&tv3,NULL);
-  printf("--fill buff %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
-  tv2 = tv3;
+  if (darktable.unmuted & DT_DEBUG_PERF) dt_print(DT_DEBUG_MASKS, "[masks %s] curve_fill draw curve took %0.04f sec\n", form->name, dt_get_wtime()-start2);
+  start2 = dt_get_wtime();
 
   for (int yy=0; yy<hb; yy++)
   {
@@ -2067,10 +2052,9 @@ static int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *pi
       if (state) (*buffer)[yy*wb+xx] = 1.0f;
     }
   }
-  gettimeofday(&tv3,NULL);
-  printf("--fill plain %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
-  tv2 = tv3;
-  //-----------------------------------------
+
+  if (darktable.unmuted & DT_DEBUG_PERF) dt_print(DT_DEBUG_MASKS, "[masks %s] curve_fill fill plain took %0.04f sec\n", form->name, dt_get_wtime()-start2);
+  start2 = dt_get_wtime();
 
   //now we fill the falloff
   int p0[2], p1[2];
@@ -2101,13 +2085,13 @@ static int dt_curve_get_mask(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *pi
     }
   }
   
-  gettimeofday(&tv3,NULL);
-  printf("--falloff %ld\n",(tv3.tv_sec-tv2.tv_sec) * 1000000L + (tv3.tv_usec-tv2.tv_usec));
-  tv2 = tv3;
-  gettimeofday(&tv3,NULL);
-  printf("----total masks %s %ld\n",form->name,(tv3.tv_sec-tv1.tv_sec) * 1000000L + (tv3.tv_usec-tv1.tv_usec));
+  if (darktable.unmuted & DT_DEBUG_PERF) dt_print(DT_DEBUG_MASKS, "[masks %s] curve_fill fill falloff took %0.04f sec\n", form->name, dt_get_wtime()-start2);
+  
   free(points);
   free(border);
+  
+  if (darktable.unmuted & DT_DEBUG_PERF) dt_print(DT_DEBUG_MASKS, "[masks %s] curve fill buffer took %0.04f sec\n", form->name, dt_get_wtime()-start);
+  
   return 1;
 }
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
