@@ -337,6 +337,135 @@ static void _curve_points_recurs(float *p1, float *p2,
   _curve_points_recurs(p1,p2,tx,tmax,rc,curve_max,rb,border_max,rcurve,rborder,curve,border,pos_curve,pos_border,withborder);
 }
 
+static int _curve_find_self_intersection(int **inter, int nb_corners, float *border, int border_count)
+{
+  int inter_count = 0;
+
+  //we search extrem points in x and y
+  int xmin, xmax, ymin, ymax;
+  xmin = ymin = INT_MAX;
+  xmax = ymax = INT_MIN;
+  int posextr[4] = {-1};  //xmin,xmax,ymin,ymax
+
+  for (int i=nb_corners*3; i < border_count; i++)
+  {
+    if (border[i*2]<-999999 || border[i*2+1]<-999999)
+    {
+      border[i*2] = border[i*2-2];
+      border[i*2+1] = border[i*2-1];
+    }
+    if (xmin > border[i*2])
+    {
+      xmin = border[i*2];
+      posextr[0] = i;
+    }
+    if (xmax < border[i*2])
+    {
+      xmax = border[i*2];
+      posextr[1] = i;
+    }
+    if (ymin > border[i*2+1])
+    {
+      ymin = border[i*2+1];
+      posextr[2] = i;
+    }
+    if (ymax < border[i*2+1])
+    {
+      ymax = border[i*2+1];
+      posextr[3] = i;
+    }
+  }
+  xmin-=1, ymin-=1;
+  xmax+=1, ymax+=1;
+  const int hb = ymax-ymin;
+  const int wb = xmax-xmin;
+  
+  //we allocate the buffer
+  const int ss = hb*wb;
+  if (ss < 10) return 0;
+  *inter = malloc(sizeof(int)*nb_corners*8);
+
+  int *binter = malloc(sizeof(int)*ss);
+  memset(binter,0,sizeof(int)*ss);
+  int lastx = border[(posextr[1]-1)*2];
+  int lasty = border[(posextr[1]-1)*2+1];
+  int extra[1000];
+  int extra_count = 0;
+  
+  for (int ii=nb_corners*3; ii < border_count; ii++)
+  {
+    //we want to loop from one border extremity
+    int i = ii - nb_corners*3 + posextr[1];
+    if (i >= border_count) i = i - border_count + nb_corners*3;
+    
+    if (inter_count >= nb_corners*4) break;
+    //we want to be sure everything is continuous
+    _curve_fill_gaps(lastx,lasty,border[i*2],border[i*2+1],extra,&extra_count);
+    
+    //we now search intersections for all the point in extra
+    for (int j=extra_count-1; j>=0; j--)
+    {
+      int xx = extra[j*2];
+      int yy = extra[j*2+1];
+      int v[3] = {0};
+      v[0] = binter[(yy-ymin)*wb+(xx-xmin)];
+      if (xx>xmin) v[1] = binter[(yy-ymin)*wb+(xx-xmin-1)];
+      if (yy>ymin) v[2] = binter[(yy-ymin-1)*wb+(xx-xmin)];
+      for (int k=0; k<3;k++)
+      {
+        if (v[k] > 0)
+        {
+          if ((xx == lastx && yy == lasty) || v[k] == i-1)
+          {
+            binter[(yy-ymin)*wb+(xx-xmin)] = i;
+          }
+          else if ((i>v[k] && ((posextr[0]<i || posextr[0]>v[k]) && 
+                            (posextr[1]<i || posextr[1]>v[k]) && 
+                            (posextr[2]<i || posextr[2]>v[k]) && 
+                            (posextr[3]<i || posextr[3]>v[k]))) ||
+                    (i<v[k] && posextr[0]<v[k] && posextr[0]>i && 
+                            posextr[1]<v[k] && posextr[1]>i && 
+                            posextr[2]<v[k] && posextr[2]>i && 
+                            posextr[3]<v[k] && posextr[3]>i))
+          {
+            if (inter_count > 0)
+            {
+              if ((v[k]-i)*((*inter)[inter_count*2-2]-(*inter)[inter_count*2-1])>0 && (*inter)[inter_count*2-2] >= v[k] && (*inter)[inter_count*2-1] <= i)
+              {
+                (*inter)[inter_count*2-2] = v[k];
+                (*inter)[inter_count*2-1] = i;
+              }
+              else
+              {
+                (*inter)[inter_count*2] = v[k];
+                (*inter)[inter_count*2+1] = i;
+                inter_count++;
+              }
+            }
+            else
+            {
+              (*inter)[inter_count*2] = v[k];
+              (*inter)[inter_count*2+1] = i;
+              inter_count++;
+            }
+          }
+        }
+        else
+        {
+          binter[(yy-ymin)*wb+(xx-xmin)] = i;
+        }
+      }
+      lastx = xx;
+      lasty = yy;
+    }
+  }
+  
+  free(binter);
+  
+  //and we return the number of self-intersection found
+  return inter_count;
+}
+
 static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, int prio_max, dt_dev_pixelpipe_t *pipe, 
                                       float **points, int *points_count, float **border, int *border_count, int source)
 {
@@ -472,187 +601,12 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
   int *intersections = NULL;
   int inter_count = 0;
   if (border) 
-  {  
-    int xmin, xmax, ymin, ymax;
-    xmin = ymin = INT_MAX;
-    xmax = ymax = INT_MIN;
-    int posextr[4] = {-1};  //xmin,xmax,ymin,ymax
-
-    for (int i=nb*3; i < *border_count; i++)
-    {
-      if ((*border)[i*2]<-999999 || (*border)[i*2+1]<-999999)
-      {
-        (*border)[i*2] = (*border)[i*2-2];
-        (*border)[i*2+1] = (*border)[i*2-1];
-      }
-      if (xmin > (*border)[i*2])
-      {
-        xmin = (*border)[i*2];
-        posextr[0] = i;
-      }
-      if (xmax < (*border)[i*2])
-      {
-        xmax = (*border)[i*2];
-        posextr[1] = i;
-      }
-      if (ymin > (*border)[i*2+1])
-      {
-        ymin = (*border)[i*2+1];
-        posextr[2] = i;
-      }
-      if (ymax < (*border)[i*2+1])
-      {
-        ymax = (*border)[i*2+1];
-        posextr[3] = i;
-      }
-    }
-    xmin-=1, ymin-=1;
-    xmax+=1, ymax+=1;
-    const int hb = ymax-ymin;
-    const int wb = xmax-xmin;
-    
-    const int ss = hb*wb;
-    intersections = malloc(sizeof(int)*nb*8);
-    if (ss>10)
-    {
-      int *binter = malloc(sizeof(int)*ss);
-      memset(binter,0,sizeof(int)*ss);
-      int lastx = (*border)[(posextr[1]-1)*2];
-      int lasty = (*border)[(posextr[1]-1)*2+1];
-      int extra[1000];
-      int extra_count = 0;
-      for (int i=posextr[1]; i < *border_count; i++)
-      {
-        if (inter_count >= nb*4) break;
-        //we want to be sure everything is continuous
-        _curve_fill_gaps(lastx,lasty,(*border)[i*2],(*border)[i*2+1],extra,&extra_count);
-        
-        //we now search intersections for all the point in extra
-        for (int j=extra_count-1; j>=0; j--)
-        {
-          int xx = extra[j*2];
-          int yy = extra[j*2+1];
-          int v[3] = {0};
-          v[0] = binter[(yy-ymin)*wb+(xx-xmin)];
-          if (xx>xmin) v[1] = binter[(yy-ymin)*wb+(xx-xmin-1)];
-          if (yy>ymin) v[2] = binter[(yy-ymin-1)*wb+(xx-xmin)];
-          for (int k=0; k<3;k++)
-          {
-            if (v[k] > 0)
-            {
-              if ((xx == lastx && yy == lasty) || v[k] == i-1)
-              {
-                binter[(yy-ymin)*wb+(xx-xmin)] = i;
-              }
-              else if ((i>v[k] && ((posextr[0]<i || posextr[0]>v[k]) && 
-                                (posextr[1]<i || posextr[1]>v[k]) && 
-                                (posextr[2]<i || posextr[2]>v[k]) && 
-                                (posextr[3]<i || posextr[3]>v[k]))) ||
-                        (i<v[k] && posextr[0]<v[k] && posextr[0]>i && 
-                                posextr[1]<v[k] && posextr[1]>i && 
-                                posextr[2]<v[k] && posextr[2]>i && 
-                                posextr[3]<v[k] && posextr[3]>i))
-              {
-                if (inter_count > 0)
-                {
-                  if ((v[k]-i)*(intersections[inter_count*2-2]-intersections[inter_count*2-1])>0 && intersections[inter_count*2-2] >= v[k] && intersections[inter_count*2-1] <= i)
-                  {
-                    intersections[inter_count*2-2] = v[k];
-                    intersections[inter_count*2-1] = i;
-                  }
-                  else
-                  {
-                    intersections[inter_count*2] = v[k];
-                    intersections[inter_count*2+1] = i;
-                    inter_count++;
-                  }
-                }
-                else
-                {
-                  intersections[inter_count*2] = v[k];
-                  intersections[inter_count*2+1] = i;
-                  inter_count++;
-                }
-              }
-            }
-            else
-            {
-              binter[(yy-ymin)*wb+(xx-xmin)] = i;
-            }
-          }
-          lastx = xx;
-          lasty = yy;
-        }
-      }
-      for (int i=nb*3; i < posextr[1]; i++)
-      {
-        if (inter_count >= nb*4) break;
-        //we want to be sure everything is continuous
-        _curve_fill_gaps(lastx,lasty,(*border)[i*2],(*border)[i*2+1],extra,&extra_count);
-        
-        //we now search intersections for all the point in extra
-        for (int j=extra_count-1; j>=0; j--)
-        {
-          int xx = extra[j*2];
-          int yy = extra[j*2+1];
-          int v[3] = {0};
-          v[0] = binter[(yy-ymin)*wb+(xx-xmin)];
-          if (xx>xmin) v[1] = binter[(yy-ymin)*wb+(xx-xmin-1)];
-          if (yy>ymin) v[2] = binter[(yy-ymin-1)*wb+(xx-xmin)];
-          for (int k=0; k<3;k++)
-          {
-            if (v[k] > 0)
-            {
-              if ((xx == lastx && yy == lasty) || v[k] == i-1)
-              {
-                binter[(yy-ymin)*wb+(xx-xmin)] = i;
-              }
-              else if ((i>v[k] && ((posextr[0]<i || posextr[0]>v[k]) && 
-                                (posextr[1]<i || posextr[1]>v[k]) && 
-                                (posextr[2]<i || posextr[2]>v[k]) && 
-                                (posextr[3]<i || posextr[3]>v[k]))) ||
-                        (i<v[k] && posextr[0]<v[k] && posextr[0]>i && 
-                                posextr[1]<v[k] && posextr[1]>i && 
-                                posextr[2]<v[k] && posextr[2]>i && 
-                                posextr[3]<v[k] && posextr[3]>i))
-              {
-                if (inter_count > 0)
-                {
-                  if ((v[k]-i)*(intersections[inter_count*2-2]-intersections[inter_count*2-1])>0 && intersections[inter_count*2-2] >= v[k] && intersections[inter_count*2-1] <= i)
-                  {
-                    intersections[inter_count*2-2] = v[k];
-                    intersections[inter_count*2-1] = i;
-                  }
-                  else
-                  {
-                    intersections[inter_count*2] = v[k];
-                    intersections[inter_count*2+1] = i;
-                    inter_count++;
-                  }
-                }
-                else
-                {
-                  intersections[inter_count*2] = v[k];
-                  intersections[inter_count*2+1] = i;
-                  inter_count++;
-                }
-              }
-            }
-            else
-            {
-              binter[(yy-ymin)*wb+(xx-xmin)] = i;
-            }
-          }
-          lastx = xx;
-          lasty = yy;
-        }
-      }
-      free(binter);
-      
-      if (darktable.unmuted & DT_DEBUG_PERF) dt_print(DT_DEBUG_MASKS, "[masks %s] curve_points self-intersect took %0.04f sec\n", form->name, dt_get_wtime()-start2);
-      start2 = dt_get_wtime();
-    }
+  {
+    inter_count = _curve_find_self_intersection(&intersections,nb,*border,*border_count);
+    if (darktable.unmuted & DT_DEBUG_PERF) dt_print(DT_DEBUG_MASKS, "[masks %s] curve_points self-intersect took %0.04f sec\n", form->name, dt_get_wtime()-start2);
+    start2 = dt_get_wtime();
   }
+  
   //and we transform them with all distorted modules
   if (dt_dev_distort_transform_plus(dev,pipe,0,prio_max,*points,*points_count))
   {
