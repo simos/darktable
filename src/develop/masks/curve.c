@@ -23,6 +23,7 @@
 #include "develop/masks.h"
 #include "common/debug.h"
 
+/** get the point of the curve at pos t [0,1]  */
 static void _curve_get_XY(float p0x, float p0y, float p1x, float p1y, float p2x, float p2y, float p3x, float p3y,
                             float t, float *x, float *y)
 {
@@ -34,6 +35,7 @@ static void _curve_get_XY(float p0x, float p0y, float p1x, float p1y, float p2x,
   *y =  p0y*a + p1y*b + p2y*c + p3y*d;
 }
 
+/** get the point of the curve at pos t [0,1]  AND the corresponding border point */
 static void _curve_border_get_XY(float p0x, float p0y, float p1x, float p1y, float p2x, float p2y, float p3x, float p3y,
                                   float t, float rad, float *xc, float *yc, float *xb, float *yb)
 {
@@ -61,7 +63,8 @@ static void _curve_border_get_XY(float p0x, float p0y, float p1x, float p1y, flo
   *yb = (*yc) - rad*dx*l;
 }
 
-//feather calculating (must be in "real" coordinate, to be sure everything is orthonormal)
+/** get feather extremity from the control point n°2 */
+/** the values should be in orthonormal space */
 static void _curve_ctrl2_to_feather(int ptx,int pty, int ctrlx, int ctrly, int *fx, int *fy, gboolean clockwise)
 {
   if (clockwise)
@@ -76,6 +79,8 @@ static void _curve_ctrl2_to_feather(int ptx,int pty, int ctrlx, int ctrly, int *
   }
 }
 
+/** get bezier control points from feather extremity */
+/** the values should be in orthonormal space */
 static void _curve_feather_to_ctrl(int ptx,int pty, int fx, int fy, int *ctrl1x, int *ctrl1y, int *ctrl2x, int *ctrl2y, gboolean clockwise)
 {
   if (clockwise)
@@ -94,7 +99,7 @@ static void _curve_feather_to_ctrl(int ptx,int pty, int fx, int fy, int *ctrl1x,
   }
 }
 
-//Get the control points of a segment to match exactly a catmull-rom spline
+/** Get the control points of a segment to match exactly a catmull-rom spline */
 static void _curve_catmull_to_bezier(float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4,
                                 float* bx1, float* by1, float* bx2, float* by2)
 {
@@ -104,13 +109,11 @@ static void _curve_catmull_to_bezier(float x1, float y1, float x2, float y2, flo
   *by2 = ( y2 + 6*y3 - y4) / 6;
 }
 
+/** initialise all control points to eventually match a catmull-rom like spline */
 static void _curve_init_ctrl_points (dt_masks_form_t *form)
 {
   //if we have less that 3 points, what to do ??
-  if (g_list_length(form->points) < 2)
-  {
-    return;
-  }
+  if (g_list_length(form->points) < 2) return;
   
   int nb = g_list_length(form->points);
   for(int k = 0; k < nb; k++)
@@ -132,19 +135,19 @@ static void _curve_init_ctrl_points (dt_masks_form_t *form)
       
       float bx1,by1,bx2,by2;
       _curve_catmull_to_bezier(point1->corner[0],point1->corner[1],
-                        point2->corner[0],point2->corner[1],
-                        point3->corner[0],point3->corner[1],
-                        point4->corner[0],point4->corner[1],
-                        &bx1,&by1,&bx2,&by2);
+                              point2->corner[0],point2->corner[1],
+                              point3->corner[0],point3->corner[1],
+                              point4->corner[0],point4->corner[1],
+                              &bx1,&by1,&bx2,&by2);
       if (point2->ctrl2[0] == -1.0) point2->ctrl2[0] = bx1;
       if (point2->ctrl2[1] == -1.0) point2->ctrl2[1] = by1;
       point3->ctrl1[0] = bx2;
       point3->ctrl1[1] = by2;
       _curve_catmull_to_bezier(point2->corner[0],point2->corner[1],
-                        point3->corner[0],point3->corner[1],
-                        point4->corner[0],point4->corner[1],
-                        point5->corner[0],point5->corner[1],
-                        &bx1,&by1,&bx2,&by2);
+                              point3->corner[0],point3->corner[1],
+                              point4->corner[0],point4->corner[1],
+                              point5->corner[0],point5->corner[1],
+                              &bx1,&by1,&bx2,&by2);
       if (point4->ctrl1[0] == -1.0) point4->ctrl1[0] = bx2;
       if (point4->ctrl1[1] == -1.0) point4->ctrl1[1] = by2;
       point3->ctrl2[0] = bx1;
@@ -173,6 +176,7 @@ static gboolean _curve_is_clockwise(dt_masks_form_t *form)
   return TRUE;
 }
 
+/** fill eventual gaps between 2 points with a line */
 static int _curve_fill_gaps(int lastx, int lasty, int x, int y, int *points, int *pts_count)
 {
   points[0] = x;
@@ -242,8 +246,8 @@ static int _curve_fill_gaps(int lastx, int lasty, int x, int y, int *points, int
   return 1;
 }
 
-//this function is here because we can have gap in border, esp. if the corner is very sharp.
-//it fill the gap with an arc of circle
+/** fill the gap between 2 points with an arc of circle */
+/** this function is here because we can have gap in border, esp. if the corner is very sharp */
 static void _curve_points_recurs_border_gaps(float *cmax, float *bmin, float *bmin2, float *bmax, float *curve, int *pos_curve, float *border, int *pos_border)
 {
   //we want to find the start and end angles
@@ -263,7 +267,6 @@ static void _curve_points_recurs_border_gaps(float *cmax, float *bmin, float *bm
       else a2 += 2*M_PI;
     }
   }
-  
   
   //we dertermine start and end radius too
   float r1 = sqrtf((bmin[1]-cmax[1])*(bmin[1]-cmax[1])+(bmin[0]-cmax[0])*(bmin[0]-cmax[0]));
@@ -293,6 +296,8 @@ static void _curve_points_recurs_border_gaps(float *cmax, float *bmin, float *bm
   }
 }
 
+/** recursive function to get all points of the curve AND all point of the border */
+/** the function take care to avoid big gaps between points */
 static void _curve_points_recurs(float *p1, float *p2, 
                                   double tmin, double tmax, float *curve_min, float *curve_max, float *border_min, float *border_max, 
                                   float *rcurve, float *rborder, float *curve, float *border, int *pos_curve, int *pos_border, int withborder)
@@ -337,6 +342,7 @@ static void _curve_points_recurs(float *p1, float *p2,
   _curve_points_recurs(p1,p2,tx,tmax,rc,curve_max,rb,border_max,rcurve,rborder,curve,border,pos_curve,pos_border,withborder);
 }
 
+/** find all self intersections in a curve */
 static int _curve_find_self_intersection(int **inter, int nb_corners, float *border, int border_count)
 {
   int inter_count = 0;
@@ -466,6 +472,8 @@ static int _curve_find_self_intersection(int **inter, int nb_corners, float *bor
   return inter_count;
 }
 
+/** get all points of the curve and the border */
+/** this take care of gaps and self-intersection and iop distortions */
 static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, int prio_max, dt_dev_pixelpipe_t *pipe, 
                                       float **points, int *points_count, float **border, int *border_count, int source)
 {
@@ -660,6 +668,7 @@ static int _curve_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, in
   return 0;  
 }
 
+/** get the distance between point (x,y) and the curve */
 static void dt_curve_get_distance(float x, int y, float as, dt_masks_form_gui_t *gui, int index, int corner_count, int *inside, int *inside_border, int *near, int *inside_source)
 {
   if (!gui) return;
@@ -1767,9 +1776,6 @@ static int dt_curve_get_source_area(dt_iop_module_t *module, dt_dev_pixelpipe_io
     ymin = fminf(yy,ymin);
     ymax = fmaxf(yy,ymax);
   }
-  //------------
-  //this part is temporaray need to avoid crash in case of strange curve (self-intersect, loop, etc...)
-  //probably need to be handled differently for performances
   for (int i=nb_corner*3; i < points_count; i++)
   {
     //we look at the curve too
@@ -1780,7 +1786,7 @@ static int dt_curve_get_source_area(dt_iop_module_t *module, dt_dev_pixelpipe_io
     ymin = fminf(yy,ymin);
     ymax = fmaxf(yy,ymax);
   }
-  //-------------
+
   *height = ymax-ymin+2;
   *width = xmax-xmin+2;
   *posx = xmin-1;
@@ -1817,9 +1823,6 @@ static int dt_curve_get_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *pi
     ymin = fminf(yy,ymin);
     ymax = fmaxf(yy,ymax);
   }
-  //------------
-  //this part is temporaray need to avoid crash in case of strange curve (self-intersect, loop, etc...)
-  //probably need to be handled differently for performances
   for (int i=nb_corner*3; i < points_count; i++)
   {
     //we look at the curve too
@@ -1830,7 +1833,7 @@ static int dt_curve_get_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *pi
     ymin = fminf(yy,ymin);
     ymax = fmaxf(yy,ymax);
   }
-  //-------------
+
   *height = ymax-ymin+2;
   *width = xmax-xmin+2;
   *posx = xmin-1;
@@ -1838,7 +1841,7 @@ static int dt_curve_get_area(dt_iop_module_t *module, dt_dev_pixelpipe_iop_t *pi
   return 1;
 }
 
-//we write a falloff segment
+/** we write a falloff segment */
 static void _curve_falloff(float **buffer, int *p0, int *p1, int posx, int posy, int bw)
 {
   //segment length
@@ -1855,7 +1858,7 @@ static void _curve_falloff(float **buffer, int *p0, int *p1, int posx, int posy,
     float op = 1.0-(float)i/(float)l;
     (*buffer)[y*bw+x] = fmaxf((*buffer)[y*bw+x],op);
     if (x > 0) (*buffer)[y*bw+x-1] = fmaxf((*buffer)[y*bw+x-1],op); //this one is to avoid gap due to int rounding
-    if (y > 0) (*buffer)[(y-1)*bw+x] = fmaxf((*buffer)[(y-1)*bw+x],op);
+    if (y > 0) (*buffer)[(y-1)*bw+x] = fmaxf((*buffer)[(y-1)*bw+x],op); //this one is to avoid gap due to int rounding
   }
 }
 
